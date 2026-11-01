@@ -12,7 +12,24 @@
           "package_name": "com.sednium.kryptonide"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "228869160750-fdpk4fr81gge00ioocrdgnq28apprrj2.apps.googleusercontent.com",
+          "client_type": 3
+        },
+        {
+          "client_id": "228869160750-nqir9tev4919koqbcsrnhfo5puorqtqa.apps.googleusercontent.com",
+          "client_type": 3
+        },
+        {
+          "client_id": "228869160750-android.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sednium.kryptonide",
+            "certificate_hash": "f9dec6ba158532d24c5f2c9ee21ebc552da05700"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDiMTbZPv-CtDqJYwNijMJZya9Y3m7ubwU"

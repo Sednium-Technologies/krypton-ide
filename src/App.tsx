@@ -1,12 +1,17 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { ProjectsDashboard } from './components/projects/ProjectsDashboard';
 import { FolderPicker } from './components/projects/FolderPicker';
 import { IdeLayout } from './components/layout/IdeLayout';
+import { KryptonLoader } from './components/ui/KryptonLoader';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { ToastContainer } from './components/ui/ToastContainer';
 import { useProjectsStore } from './store/useProjectsStore';
 import { useIdeStore } from './store/useIdeStore';
 import { useAiStore } from './store/useAiStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useExtensionsStore } from './store/useExtensionsStore';
+import { useHarnessStore } from './store/useHarnessStore';
+import { useNavbarStore } from './store/useNavbarStore';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
@@ -14,8 +19,12 @@ import { App as CapApp } from '@capacitor/app';
 import { Keyboard } from '@capacitor/keyboard';
 import { useBuildStore } from './store/useBuildStore';
 import { enableBackgroundMode, disableBackgroundMode } from './lib/backgroundMode';
+import { useFileWatcher } from './hooks/useFileWatcher';
+import { checkStoragePermission } from './lib/storagePermission';
 import {
   isStorageInitialized,
+  initializeStorage,
+  migrateFromLocalStorage,
   readConfig,
   saveConfigNow,
   writeProjectFiles,
@@ -24,54 +33,108 @@ import {
 } from './lib/fileSystemStorage';
 
 export default function App() {
+  useFileWatcher();
   const { currentProjectId, projects, closeProject } = useProjectsStore();
   const { loadProject, theme, isHapticsEnabled } = useIdeStore();
   const [storageReady, setStorageReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const loadedProjectIdRef = useRef<string | null>(null);
 
-  // ── Check if storage is initialized ──
-  useEffect(() => {
-    async function boot() {
-      if (!isStorageInitialized()) {
-        // No base path set — show FolderPicker
+  // ── Check & init storage ──
+  const boot = useCallback(async () => {
+    if (Capacitor.isNativePlatform()) {
+      const hasPerm = await checkStoragePermission();
+      if (!hasPerm) {
+        console.log('[App] Storage permission missing on boot — prompting user');
+        setStorageReady(false);
         setIsLoading(false);
         return;
       }
-
-      // Storage is already initialized — load all data from disk
-      setStorageReady(true);
-      try {
-        // Load config first — self-heal if corrupt
-        let config = await readConfig();
-        if (!config) {
-          console.warn('[App] Config missing or corrupt — writing fresh defaults');
-          const freshConfig: KryptonConfig = {
-            welcomed: false, haptics: true, theme: 'vs-dark',
-            activeFont: '', installedFonts: [],
-            ai: { provider: 'openai', model: 'gpt-4o', activeSessionId: null, savedModels: [], activeModelId: undefined },
-          };
-          await saveConfigNow(freshConfig);
-          config = freshConfig;
-        }
-        useIdeStore.getState().setTheme(config.theme || 'vs-dark');
-        useIdeStore.getState().setHaptics(config.haptics !== false);
-        useIdeStore.getState().setActiveFont(config.activeFont || '');
-
-        // Load all stores from disk in parallel
-        await Promise.all([
-          useProjectsStore.getState().loadFromDisk(),
-          useAiStore.getState().loadFromDisk(),
-          useAuthStore.getState().loadFromDisk(),
-          useExtensionsStore.getState().loadFromDisk(),
-        ]);
-      } catch (e) {
-        console.error('[App] Boot error:', e);
-      }
-      setIsLoading(false);
     }
-    boot();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    if (!isStorageInitialized()) {
+      console.log('[App] Storage not initialized yet — showing FolderPicker onboarding');
+      setStorageReady(false);
+      setIsLoading(false);
+      return;
+    }
+
+    // Storage is ready — load all data from disk
+    setStorageReady(true);
+    try {
+      // Load config first — self-heal if corrupt
+      let config = await readConfig();
+      if (!config) {
+        console.warn('[App] Config missing or corrupt — writing fresh defaults');
+        const freshConfig: KryptonConfig = {
+          welcomed: false, haptics: true, theme: 'krypton-warm',
+          activeFont: '', installedFonts: [],
+          ai: { provider: '', model: '', activeSessionId: null, savedModels: [], activeModelId: undefined },
+        };
+        await saveConfigNow(freshConfig);
+        config = freshConfig;
+      }
+      useIdeStore.getState().setTheme(config.theme || 'krypton-warm');
+      useIdeStore.getState().setHaptics(config.haptics !== false);
+      useIdeStore.getState().setActiveFont(config.activeFont || '');
+
+      // Load all stores from disk in parallel
+      await Promise.all([
+        useProjectsStore.getState().loadFromDisk(),
+        useAiStore.getState().loadFromDisk(),
+        useAuthStore.getState().loadFromDisk(),
+        useExtensionsStore.getState().loadFromDisk(),
+        useHarnessStore.getState().loadHarnessConfig(),
+      ]);
+    } catch (e) {
+      console.error('[App] Boot error:', e);
+    }
+    setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    boot();
+    if (typeof window !== 'undefined') {
+      (window as any).__KRYPTON_OPEN_PROJECT__ = (id: string) => {
+        useProjectsStore.getState().openProject(id);
+      };
+      (window as any).__KRYPTON_STORES__ = {
+        projects: useProjectsStore,
+        ide: useIdeStore,
+        auth: useAuthStore,
+        navbar: useNavbarStore,
+        extensions: useExtensionsStore,
+      };
+    }
+  }, [boot]);
+
+  // Re-check boot on app resume if storage is not ready yet
+  useEffect(() => {
+    if (storageReady) return;
+
+    const handleResume = () => {
+      boot();
+    };
+
+    const sub = CapApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) handleResume();
+    });
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleResume();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    document.addEventListener('resume', handleResume);
+    window.addEventListener('focus', handleResume);
+
+    return () => {
+      sub.then(h => h.remove()).catch(() => {});
+      document.removeEventListener('visibilitychange', handleVisibility);
+      document.removeEventListener('resume', handleResume);
+      window.removeEventListener('focus', handleResume);
+    };
+  }, [storageReady, boot]);
 
   // ── Handle FolderPicker completion ──
   const handleStorageReady = useCallback(async () => {
@@ -83,14 +146,14 @@ export default function App() {
     if (!config) {
       console.warn('[App] Config missing after init — writing fresh defaults');
       const freshConfig: KryptonConfig = {
-        welcomed: false, haptics: true, theme: 'vs-dark',
+        welcomed: false, haptics: true, theme: 'krypton-warm',
         activeFont: '', installedFonts: [],
-        ai: { provider: 'openai', model: 'gpt-4o', activeSessionId: null, savedModels: [], activeModelId: undefined },
+        ai: { provider: '', model: '', activeSessionId: null, savedModels: [], activeModelId: undefined },
       };
       await saveConfigNow(freshConfig);
       config = freshConfig;
     }
-    useIdeStore.getState().setTheme(config.theme || 'vs-dark');
+    useIdeStore.getState().setTheme(config.theme || 'krypton-warm');
     useIdeStore.getState().setHaptics(config.haptics !== false);
     useIdeStore.getState().setActiveFont(config.activeFont || '');
 
@@ -100,6 +163,7 @@ export default function App() {
       useAiStore.getState().loadFromDisk(),
       useAuthStore.getState().loadFromDisk(),
       useExtensionsStore.getState().loadFromDisk(),
+      useHarnessStore.getState().loadHarnessConfig(),
     ]);
 
     setIsLoading(false);
@@ -107,24 +171,35 @@ export default function App() {
 
   // ── Global Theme Injector ──
   useEffect(() => {
-    const isDark = theme === 'vs-dark' || theme === 'hc-black';
-    const bgColor = isDark ? '#0d1117' : '#ffffff';
-    const style = isDark ? Style.Dark : Style.Light;
+    const isLight = theme === 'light';
+    const bgColor = isLight ? '#f3f0e7' : '#2a2529';
+    const style = isLight ? Style.Light : Style.Dark;
 
-    // 1. Update DOM class for Tailwind & UI
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    } else {
+    // 1. Set data-theme attribute & toggle class
+    document.documentElement.setAttribute('data-theme', theme);
+    if (isLight) {
       document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+      document.documentElement.classList.add('dark');
     }
 
-    // 2. Update Meta Theme Color (drives Android Navigation Bar in WebView)
+    // 2. Persist theme to filesystem config
+    readConfig().then(config => {
+      if (config && config.theme !== theme) {
+        config.theme = theme;
+        saveConfigNow(config);
+      }
+    });
+
+    // 3. Update Meta Theme Color (drives Android Navigation Bar in WebView)
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content', bgColor);
     }
 
-    // 3. Update Capacitor Status Bar
+    // 4. Update Capacitor Status Bar
     if (Capacitor.isNativePlatform()) {
       StatusBar.setStyle({ style }).catch(e => console.warn('[App] StatusBar style error:', e));
       if (Capacitor.getPlatform() === 'android') {
@@ -155,14 +230,17 @@ export default function App() {
   }, [activeFont]);
 
   useEffect(() => {
-    if (currentProjectId && projects[currentProjectId]) {
+    if (currentProjectId && currentProjectId !== loadedProjectIdRef.current && projects[currentProjectId]) {
       const projectFiles = projects[currentProjectId].files;
       // Guard: only load if the project has actual file data
       if (projectFiles && Object.keys(projectFiles).length > 0) {
         loadProject(projectFiles);
+        loadedProjectIdRef.current = currentProjectId;
       }
+    } else if (!currentProjectId) {
+      loadedProjectIdRef.current = null;
     }
-  }, [currentProjectId, projects]);
+  }, [currentProjectId, projects, loadProject]);
 
   // ── Global Build Status Poller ──
   const { buildStatus, pollStatus } = useBuildStore();
@@ -191,7 +269,7 @@ export default function App() {
 
     // Status bar: dark theme by default
     StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
-    StatusBar.setBackgroundColor({ color: '#0d1117' }).catch(() => {});
+    StatusBar.setBackgroundColor({ color: '#2a2529' }).catch(() => {});
 
     // Splash screen: hide after app renders
     SplashScreen.hide().catch(() => {});
@@ -204,18 +282,38 @@ export default function App() {
       const ide = useIdeStore.getState();
       const proj = useProjectsStore.getState();
 
+      if (ide.isAiFullscreen) {
+        ide.setAiFullscreen(false);
+        return;
+      }
       if (ide.isPreviewOpen) {
         ide.setPreviewOpen(false);
-      } else if (ide.isCommandPaletteOpen) {
-        ide.setCommandPaletteOpen(false);
-      } else if (ide.isSidebarOpen) {
-        ide.toggleSidebar();
-      } else if (proj.currentProjectId) {
-        saveCurrentProject();
-        proj.closeProject();
-      } else {
-        CapApp.exitApp();
+        return;
       }
+      if (ide.isCommandPaletteOpen) {
+        ide.setCommandPaletteOpen(false);
+        return;
+      }
+      if (ide.isSidebarOpen) {
+        ide.toggleSidebar();
+        return;
+      }
+      const modalCloseBtn = document.querySelector<HTMLElement>(
+        '[role="dialog"] button[aria-label="Close"], .fixed.inset-0 button[aria-label="Close"]'
+      );
+      if (modalCloseBtn) {
+        modalCloseBtn.click();
+        return;
+      }
+      if (proj.currentProjectId) {
+        const confirmClose = window.confirm('Do you want to save and close the current project?');
+        if (confirmClose) {
+          saveCurrentProject();
+          proj.closeProject();
+        }
+        return;
+      }
+      CapApp.exitApp();
     });
 
     // App state change: save when backgrounded, re-acquire wake lock when foregrounded
@@ -327,11 +425,8 @@ export default function App() {
   // ── Loading state ──
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-[#050505] flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-500 text-sm">Loading workspace...</p>
-        </div>
+      <div className="fixed inset-0 bg-[#2a2529] flex items-center justify-center">
+        <KryptonLoader text="Loading Workspace..." size="lg" />
       </div>
     );
   }
@@ -341,9 +436,14 @@ export default function App() {
     return <FolderPicker onComplete={handleStorageReady} />;
   }
 
-  if (!currentProjectId) {
-    return <ProjectsDashboard />;
-  }
-
-  return <IdeLayout onBackToProjects={handleBackToProjects} />;
+  return (
+    <ErrorBoundary>
+      <ToastContainer />
+      {!currentProjectId ? (
+        <ProjectsDashboard />
+      ) : (
+        <IdeLayout onBackToProjects={handleBackToProjects} />
+      )}
+    </ErrorBoundary>
+  );
 }

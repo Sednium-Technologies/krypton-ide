@@ -1,9 +1,10 @@
-import { TOOLS, ToolDefinition } from './toolDefinitions';
+import { defaultToolRegistry } from './AgentToolRegistry';
 
 export interface NormalizedToolCall {
   id: string;
   name: string;
   arguments: any;
+  index?: number;
 }
 
 export interface NormalizedMessage {
@@ -22,33 +23,7 @@ export const ModelAdapters = {
    * Translates the standard internal tools into a provider-specific format
    */
   getToolsForProvider(provider: string): any[] {
-    switch (provider) {
-      case 'gemini':
-        // Gemini expects an array of tool objects, each with function_declarations
-        return [{
-          function_declarations: TOOLS.map(t => ({
-            name: t.function.name,
-            description: t.function.description,
-            parameters: t.function.parameters
-          }))
-        }];
-        
-      case 'anthropic':
-        // Anthropic expects an array of tools with input_schema
-        return TOOLS.map(t => ({
-          name: t.function.name,
-          description: t.function.description,
-          input_schema: t.function.parameters
-        }));
-
-      case 'openai':
-      case 'groq':
-      case 'mistral':
-      case 'openrouter':
-      default:
-        // OpenAI-compatible providers
-        return TOOLS;
-    }
+    return defaultToolRegistry.formatForProvider(provider);
   },
 
   /**
@@ -56,6 +31,7 @@ export const ModelAdapters = {
    */
   normalizeResponse(provider: string, data: any): NormalizedMessage {
     switch (provider) {
+      case 'google':
       case 'gemini': {
         const candidate = data.candidates?.[0];
         const part = candidate?.content?.parts?.[0];
@@ -140,10 +116,12 @@ export const ModelAdapters = {
             }
             // Tool input delta: { delta: { type: "input_json_delta", partial_json: "..." } }
             if (data.delta?.type === 'input_json_delta') {
+              const idx = data.index ?? 0;
               return {
                 role: 'assistant',
                 tool_calls: [{
-                  id: data.index != null ? `tc-${data.index}` : `tc-0`,
+                  id: `call_idx_${idx}`,
+                  index: idx,
                   name: '',
                   arguments: data.delta.partial_json || ''
                 }]
@@ -153,10 +131,12 @@ export const ModelAdapters = {
           }
           // Tool use start: { type: "content_block_start", content_block: { type: "tool_use", id: "...", name: "..." } }
           if (data.type === 'content_block_start' && data.content_block?.type === 'tool_use') {
+            const idx = data.index ?? 0;
             return {
               role: 'assistant',
               tool_calls: [{
-                id: data.content_block.id || `tc-${data.index || 0}`,
+                id: data.content_block.id || `call_idx_${idx}`,
+                index: idx,
                 name: data.content_block.name || '',
                 arguments: ''
               }]
@@ -190,7 +170,8 @@ export const ModelAdapters = {
           return {
             role: 'assistant',
             tool_calls: delta.tool_calls.map((tc: any) => ({
-              id: tc.id || tc.index,
+              id: tc.id || (tc.index !== undefined ? `call_idx_${tc.index}` : undefined),
+              index: tc.index ?? 0,
               name: tc.function?.name,
               arguments: tc.function?.arguments || ''
             }))
@@ -226,6 +207,7 @@ export const ModelAdapters = {
     const filtered = messages.filter(m => m.role !== 'system');
 
     switch (provider) {
+      case 'google':
       case 'gemini':
         // Gemini expects role: 'model' instead of 'assistant'
         // and uses contents array with parts

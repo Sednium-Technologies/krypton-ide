@@ -211,6 +211,20 @@ const ALL_SNIPPETS: CodeSnippet[] = [
   ...tsSnippets,
 ];
 
+// ─── Dynamic Snippets Registry (installed from extensions) ────
+let dynamicSnippets: CodeSnippet[] = [];
+
+export function setDynamicSnippets(snippets: CodeSnippet[]): void {
+  dynamicSnippets = snippets;
+}
+
+export function addDynamicSnippets(snippets: CodeSnippet[]): void {
+  const existing = new Set(dynamicSnippets.map(s => `${s.language}:${s.prefix}`));
+  const toAdd = snippets.filter(s => !existing.has(`${s.language}:${s.prefix}`));
+  dynamicSnippets = [...dynamicSnippets, ...toAdd];
+}
+
+
 export function getSnippetsForLanguage(language: string): CodeSnippet[] {
   // Normalize language name
   const normalized = language.toLowerCase();
@@ -222,13 +236,15 @@ export function getSnippetsForLanguage(language: string): CodeSnippet[] {
     'c': 'cpp',
   };
   const targetLang = langMap[normalized] || normalized;
-  return ALL_SNIPPETS.filter(s => s.language === targetLang);
+  const combined = [...ALL_SNIPPETS, ...dynamicSnippets];
+  return combined.filter(s => s.language === targetLang);
 }
 
 export function getAllSnippets(): CodeSnippet[] {
-  return ALL_SNIPPETS;
+  return [...ALL_SNIPPETS, ...dynamicSnippets];
 }
 
 export function getSnippetLanguages(): string[] {
-  return [...new Set(ALL_SNIPPETS.map(s => s.language))];
+  return [...new Set([...ALL_SNIPPETS, ...dynamicSnippets].map(s => s.language))];
 }
+

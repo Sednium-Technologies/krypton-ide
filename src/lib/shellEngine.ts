@@ -336,7 +336,7 @@ export class ShellEngine {
   private registerCommands() {
     this.commands['help'] = () => {
       const helpText = [
-        '\x1b[1;38;5;39m⚡ Krypton Shell — Command Reference\x1b[0m',
+        '\x1b[1;38;5;39mKrypton Shell — Command Reference\x1b[0m',
         '',
         '\x1b[1;38;5;81m  File Operations\x1b[0m',
         '  ls [path]           List directory contents',
@@ -874,7 +874,7 @@ export class ShellEngine {
       const lines = [
         '',
         '  \x1b[38;5;39m  ╔═══════════════╗\x1b[0m',
-        '  \x1b[38;5;39m  ║   ⚡ KRYPTON   ║\x1b[0m   \x1b[1;38;5;81mKrypton IDE\x1b[0m',
+        '  \x1b[38;5;39m  ║    KRYPTON    ║\x1b[0m   \x1b[1;38;5;81mKryptonide\x1b[0m',
         '  \x1b[38;5;39m  ╚═══════════════╝\x1b[0m   \x1b[38;5;243m──────────────────\x1b[0m',
         `                        \x1b[38;5;81mOS:\x1b[0m      KryptonOS (Web)`,
         `                        \x1b[38;5;81mHost:\x1b[0m    ${navigator.platform}`,

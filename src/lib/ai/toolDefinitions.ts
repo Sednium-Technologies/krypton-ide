@@ -153,5 +153,60 @@ export const TOOLS: ToolDefinition[] = [
         required: ["path", "content"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "run_terminal_command",
+      description: "Execute a shell command inside the project root directory using the native Linux userland terminal. Returns stdout, stderr, and the process exit code. Use this to run builds, tests, installs, git commands, and dev tasks.",
+      parameters: {
+        type: "object",
+        properties: {
+          command: { 
+            type: "string", 
+            description: "The exact shell command line string to execute in the project directory (e.g., 'npm test', 'git status', 'python3 main.py')." 
+          },
+          timeoutMs: { 
+            type: "integer", 
+            description: "Optional execution timeout in milliseconds. Defaults to 60000 (60 seconds)." 
+          }
+        },
+        required: ["command"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "laya_status",
+      description: "Check the local installation, readiness, and NNAPI/hardware acceleration status of the on-device Laya System 1 decision engine.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "laya_contrastive_decision",
+      description: "Execute an ultra-fast (<35ms) non-autoregressive forward pass on the local Laya System 1 engine to score candidate options or hypotheses with calibrated probabilities and zero text hallucination.",
+      parameters: {
+        type: "object",
+        properties: {
+          state: {
+            type: "string",
+            description: "The current context, code snippet, or prompt to evaluate."
+          },
+          choices: {
+            type: "array",
+            items: { type: "string" },
+            description: "The candidate choices or classification options to score."
+          }
+        },
+        required: ["state", "choices"]
+      }
+    }
   }
 ];

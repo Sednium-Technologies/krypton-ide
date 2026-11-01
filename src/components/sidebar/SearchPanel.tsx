@@ -84,8 +84,8 @@ export function SearchPanel() {
   };
 
   return (
-    <div className="flex h-full flex-col p-2">
-      <div className="mb-3 px-2 space-y-2">
+    <div className="flex h-full flex-col p-3 bg-[#2a2529] text-[#f3f0e7]">
+      <div className="mb-3 space-y-2">
         {/* Search Input */}
         <div className="relative flex items-center">
           <input
@@ -93,26 +93,33 @@ export function SearchPanel() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search"
-            className="w-full rounded border border-[#3c3c3c] bg-[#1e1e1e] py-2 pl-3 pr-20 text-sm text-white focus:border-blue-500 focus:outline-none"
+            aria-label="Search in files"
+            className="w-full rounded-2xl border border-[#f3f0e7]/15 bg-[#342f33] py-2.5 pl-3 pr-20 text-xs text-[#f3f0e7] placeholder-[#f3f0e7]/40 focus:border-[#f3f0e7]/40 focus:outline-none transition-all"
           />
-          <div className="absolute right-1 flex items-center space-x-0.5">
+          <div className="absolute right-2 flex items-center space-x-1">
             <button 
               onClick={() => setCaseSensitive(!caseSensitive)}
-              className={`p-1 rounded text-xs ${caseSensitive ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-white hover:bg-white/10'}`} 
+              aria-label="Match case"
+              aria-pressed={caseSensitive}
+              className={`p-1.5 rounded-xl text-xs transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${caseSensitive ? 'bg-[#f3f0e7]/20 text-[#f3f0e7] font-bold border border-[#f3f0e7]/30' : 'text-[#f3f0e7]/70 hover:text-[#f3f0e7]'}`} 
               title="Case Sensitive"
             >
               <CaseSensitive size={14} />
             </button>
             <button 
               onClick={() => setUseRegex(!useRegex)}
-              className={`p-1 rounded text-xs ${useRegex ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-white hover:bg-white/10'}`} 
+              aria-label="Use regular expression"
+              aria-pressed={useRegex}
+              className={`p-1.5 rounded-xl text-xs transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${useRegex ? 'bg-[#f3f0e7]/20 text-[#f3f0e7] font-bold border border-[#f3f0e7]/30' : 'text-[#f3f0e7]/70 hover:text-[#f3f0e7]'}`} 
               title="Use Regex"
             >
               <Regex size={14} />
             </button>
             <button 
               onClick={() => setShowReplace(!showReplace)}
-              className={`p-1 rounded ${showReplace ? 'text-white' : 'text-gray-500 hover:text-white hover:bg-white/10'}`}
+              aria-label="Toggle replace mode"
+              aria-expanded={showReplace}
+              className={`p-1.5 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${showReplace ? 'text-[#f3f0e7] bg-[#f3f0e7]/10' : 'text-[#f3f0e7]/70 hover:text-[#f3f0e7]'}`}
               title="Toggle Replace"
             >
               <Replace size={14} />
@@ -122,18 +129,21 @@ export function SearchPanel() {
 
         {/* Replace Input */}
         {showReplace && (
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center space-x-2">
             <input
               type="text"
               value={replaceQuery}
               onChange={(e) => setReplaceQuery(e.target.value)}
               placeholder="Replace"
-              className="flex-1 rounded border border-[#3c3c3c] bg-[#1e1e1e] py-2 pl-3 pr-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+              aria-label="Replace with"
+              className="flex-1 rounded-2xl border border-[#f3f0e7]/15 bg-[#342f33] py-2.5 pl-3 pr-2 text-xs text-[#f3f0e7] placeholder-[#f3f0e7]/40 focus:border-[#f3f0e7]/40 focus:outline-none transition-all"
             />
             <button 
               onClick={handleReplaceAll}
               disabled={!searchQuery.trim() || results.length === 0}
-              className="px-2.5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs rounded font-medium whitespace-nowrap"
+              className="px-3 py-2 bg-[#f3f0e7] text-[#2a2529] hover:bg-white disabled:opacity-40 text-xs rounded-xl font-bold whitespace-nowrap shadow-md focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+              aria-label="Replace all occurrences"
+              title="Replace all occurrences"
             >
               All
             </button>
@@ -142,7 +152,7 @@ export function SearchPanel() {
 
         {/* Match count */}
         {searchQuery && (
-          <div className="text-xs text-gray-500 px-1">
+          <div className="text-xs text-[#f3f0e7]/75 px-1 font-medium">
             {totalMatches} result{totalMatches !== 1 ? 's' : ''} in {results.length} file{results.length !== 1 ? 's' : ''}
           </div>
         )}
@@ -150,7 +160,7 @@ export function SearchPanel() {
 
       <div className="flex-1 overflow-y-auto">
         {searchQuery && results.length === 0 && (
-          <div className="px-4 py-6 text-sm text-gray-500 text-center">No results found</div>
+          <div className="px-4 py-6 text-sm text-[#f3f0e7]/70 text-center">No results found</div>
         )}
         
         {results.map(result => {
@@ -161,18 +171,27 @@ export function SearchPanel() {
           return (
             <div key={result.fileId} className="mb-0.5">
               <div 
-                className="flex cursor-pointer items-center px-2 py-1.5 text-[13px] text-gray-300 hover:bg-[#2a2d2e] active:bg-[#37373d] rounded-md mx-1"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleExpand(result.fileId);
+                  }
+                }}
+                className="flex cursor-pointer items-center px-2 py-1.5 text-[13px] text-[#f3f0e7]/90 hover:bg-[#342f33] active:bg-[#3d373c] rounded-xl mx-1 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
                 onClick={() => toggleExpand(result.fileId)}
               >
-                {isExpanded ? <ChevronDown size={14} className="mr-1 flex-shrink-0" /> : <ChevronRight size={14} className="mr-1 flex-shrink-0" />}
-                <FileText size={14} className="mr-1.5 text-gray-400 flex-shrink-0" />
-                <span className="truncate flex-1">{file.name}</span>
-                <span className="ml-2 rounded-full bg-[#333333] px-1.5 py-0.5 text-[10px] flex-shrink-0">{result.matches.length}</span>
+                {isExpanded ? <ChevronDown size={14} className="mr-1 flex-shrink-0 text-[#f3f0e7]/70" /> : <ChevronRight size={14} className="mr-1 flex-shrink-0 text-[#f3f0e7]/70" />}
+                <FileText size={14} className="mr-1.5 text-[#f3f0e7]/70 flex-shrink-0" />
+                <span className="truncate flex-1 font-medium">{file.name}</span>
+                <span className="ml-2 rounded-full bg-[#342f33] border border-[#f3f0e7]/10 px-1.5 py-0.5 text-[10px] text-[#f3f0e7]/80 flex-shrink-0 font-mono">{result.matches.length}</span>
                 {showReplace && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleReplaceInFile(result.fileId); }}
-                    className="ml-1 p-0.5 text-gray-500 hover:text-white hover:bg-white/10 rounded"
-                    title="Replace in file"
+                    className="ml-1 p-1 text-[#f3f0e7]/70 hover:text-white hover:bg-white/10 rounded-lg focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+                    aria-label={`Replace all in ${file.name}`}
+                    title={`Replace all in ${file.name}`}
                   >
                     <Replace size={12} />
                   </button>
@@ -184,10 +203,18 @@ export function SearchPanel() {
                   {result.matches.map((match, i) => (
                     <div 
                       key={i}
-                      className="flex cursor-pointer items-center py-1 pr-2 text-xs text-gray-400 hover:bg-[#2a2d2e] hover:text-white rounded-md mx-1"
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openFile(result.fileId);
+                        }
+                      }}
+                      className="flex cursor-pointer items-center py-1 pr-2 text-xs text-[#f3f0e7]/80 hover:bg-[#342f33] hover:text-[#f3f0e7] rounded-lg mx-1 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
                       onClick={() => openFile(result.fileId)}
                     >
-                      <span className="w-8 flex-shrink-0 text-right text-gray-600 mr-2 font-mono">{match.line}</span>
+                      <span className="w-8 flex-shrink-0 text-right text-[#f3f0e7]/60 mr-2 font-mono">{match.line}</span>
                       <span className="truncate font-mono text-[12px]">{match.content}</span>
                     </div>
                   ))}

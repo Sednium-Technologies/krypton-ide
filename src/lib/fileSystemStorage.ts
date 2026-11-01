@@ -2,6 +2,7 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
 import type { FileNode } from '../store/useIdeStore';
 import { getLanguageFromFilename } from '../store/useIdeStore';
+import { checkStoragePermission, requestStoragePermission } from './storagePermission';
 
 // ─── Constants ───────────────────────────────────────────────
 const BASE_PATH_KEY = 'krypton-base-path'; // bootstrap key stored in localStorage
@@ -20,15 +21,21 @@ export interface SavedModel {
 export interface KryptonConfig {
   welcomed: boolean;
   haptics: boolean;
-  theme: 'vs-dark' | 'light' | 'hc-black';
+  theme: 'krypton-warm' | 'vs-dark' | 'light' | 'hc-black';
   activeFont: string; // name of active font, empty = default
   installedFonts: string[]; // list of font names saved in fonts/ folder
+  fileFontSizes?: Record<string, number>;
   ai: {
     provider: string;
     model: string;
+    baseUrl?: string;
     activeSessionId: string | null;
     savedModels?: SavedModel[];
     activeModelId?: string;
+  };
+  harness?: {
+    defaultHarnessId?: string;
+    executionMode?: 'supervised' | 'autonomous' | 'unbound';
   };
 }
 
@@ -39,6 +46,7 @@ export interface ProjectMeta {
   updatedAt: number;
   template: string;
   githubRepo?: string; // Format: "owner/repo"
+  folderPath?: string;
 }
 
 // API key is stored separately in Directory.Data for privacy
@@ -47,12 +55,12 @@ const API_KEY_FILE = 'krypton-api-key.json';
 const DEFAULT_CONFIG: KryptonConfig = {
   welcomed: false,
   haptics: true,
-  theme: 'vs-dark',
+  theme: 'krypton-warm',
   activeFont: '',
   installedFonts: [],
   ai: {
-    provider: 'openai',
-    model: 'gpt-4o',
+    provider: '',
+    model: '',
     activeSessionId: null,
     savedModels: [],
     activeModelId: undefined,
@@ -87,24 +95,37 @@ export async function flushAllWrites(): Promise<void> {
 // ─── Path Helpers ────────────────────────────────────────────
 
 export function getBasePath(): string {
-  return localStorage.getItem(BASE_PATH_KEY) || '';
+  try {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem(BASE_PATH_KEY) || '';
+    }
+  } catch {}
+  return '';
 }
 
 export function setBasePath(path: string): void {
-  localStorage.setItem(BASE_PATH_KEY, path);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(BASE_PATH_KEY, path);
+    }
+  } catch {}
 }
 
 export function isStorageInitialized(): boolean {
   return !!getBasePath();
 }
 
-function isNative(): boolean {
+export function isNative(): boolean {
   return Capacitor.isNativePlatform();
+}
+
+export function defaultDir(): Directory {
+  return isNative() ? Directory.ExternalStorage : Directory.Documents;
 }
 
 // ─── Low-Level FS Ops ────────────────────────────────────────
 
-async function readTextFile(path: string, directory: Directory = Directory.ExternalStorage): Promise<string | null> {
+export async function readTextFile(path: string, directory: Directory = defaultDir()): Promise<string | null> {
   try {
     const result = await Filesystem.readFile({ path, directory, encoding: Encoding.UTF8 });
     return typeof result.data === 'string' ? result.data : null;
@@ -113,19 +134,45 @@ async function readTextFile(path: string, directory: Directory = Directory.Exter
   }
 }
 
-async function writeTextFile(path: string, data: string, directory: Directory = Directory.ExternalStorage): Promise<void> {
-  await Filesystem.writeFile({ path, data, directory, encoding: Encoding.UTF8 });
-}
-
-async function mkdirSafe(path: string, directory: Directory = Directory.ExternalStorage): Promise<void> {
+export async function writeTextFile(path: string, data: string, directory: Directory = defaultDir()): Promise<void> {
   try {
-    await Filesystem.mkdir({ path, directory, recursive: true });
+    await Filesystem.writeFile({ path, data, directory, encoding: Encoding.UTF8 });
   } catch (e: any) {
-    if (!e?.message?.includes('exists')) throw e;
+    if (isNative() && (e?.message?.includes('EACCES') || e?.message?.includes('Permission denied') || e?.message?.includes('openfailed'))) {
+      console.warn('[FS] Storage permission missing during writeTextFile, requesting permission...');
+      const granted = await requestStoragePermission();
+      if (granted) {
+        await Filesystem.writeFile({ path, data, directory, encoding: Encoding.UTF8 });
+        return;
+      }
+    }
+    throw e;
   }
 }
 
-async function deletePathSafe(path: string, directory: Directory = Directory.ExternalStorage): Promise<void> {
+export async function mkdirSafe(path: string, directory: Directory = defaultDir()): Promise<void> {
+  try {
+    await Filesystem.mkdir({ path, directory, recursive: true });
+  } catch (e: any) {
+    if (e?.message?.includes('exists')) return;
+    if (isNative() && (e?.message?.includes('EACCES') || e?.message?.includes('Permission denied') || e?.message?.includes('openfailed'))) {
+      console.warn('[FS] Storage permission missing during mkdirSafe, requesting permission...');
+      const granted = await requestStoragePermission();
+      if (granted) {
+        try {
+          await Filesystem.mkdir({ path, directory, recursive: true });
+          return;
+        } catch (err: any) {
+          if (err?.message?.includes('exists')) return;
+          throw err;
+        }
+      }
+    }
+    throw e;
+  }
+}
+
+export async function deletePathSafe(path: string, directory: Directory = defaultDir()): Promise<void> {
   try {
     await Filesystem.rmdir({ path, directory, recursive: true });
   } catch {
@@ -137,7 +184,18 @@ async function deletePathSafe(path: string, directory: Directory = Directory.Ext
   }
 }
 
-async function listDir(path: string, directory: Directory = Directory.ExternalStorage) {
+export async function deleteProjectFileNode(
+  projectId: string,
+  relativePath: string,
+  _isFolder?: boolean
+): Promise<void> {
+  const base = getBasePath();
+  if (!base) return;
+  const projectDir = `${base}/projects/${projectId}`;
+  await deletePathSafe(`${projectDir}/${relativePath}`);
+}
+
+export async function listDir(path: string, directory: Directory = defaultDir()) {
   try {
     const result = await Filesystem.readdir({ path, directory });
     return result.files;
@@ -150,21 +208,38 @@ async function listDir(path: string, directory: Directory = Directory.ExternalSt
 // When running in the browser (non-native), we fall back to localStorage
 // so the app still works for dev/testing.
 
-function webRead(key: string): string | null {
-  return localStorage.getItem(`kfs:${key}`);
+export function webRead(key: string): string | null {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem(`kfs:${key}`);
+    }
+  } catch {}
+  return null;
 }
-function webWrite(key: string, data: string): void {
-  localStorage.setItem(`kfs:${key}`, data);
+export function webWrite(key: string, data: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(`kfs:${key}`, data);
+    }
+  } catch {}
 }
-function webDelete(key: string): void {
-  localStorage.removeItem(`kfs:${key}`);
+export function webDelete(key: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(`kfs:${key}`);
+    }
+  } catch {}
 }
-function webList(prefix: string): string[] {
+export function webList(prefix: string): string[] {
   const keys: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k?.startsWith(`kfs:${prefix}`)) keys.push(k.replace('kfs:', ''));
-  }
+  try {
+    if (typeof localStorage !== 'undefined') {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k?.startsWith(`kfs:${prefix}`)) keys.push(k.replace('kfs:', ''));
+      }
+    }
+  } catch {}
   return keys;
 }
 
@@ -174,10 +249,21 @@ export async function initializeStorage(folderName: string): Promise<void> {
   const basePath = folderName || DEFAULT_FOLDER;
 
   if (isNative()) {
-    await mkdirSafe(basePath, Directory.ExternalStorage);
-    await mkdirSafe(`${basePath}/projects`, Directory.ExternalStorage);
-    await mkdirSafe(`${basePath}/ai-sessions`, Directory.ExternalStorage);
-    await mkdirSafe(`${basePath}/fonts`, Directory.ExternalStorage);
+    const hasPerm = await checkStoragePermission();
+    if (!hasPerm) {
+      throw new Error('Storage permission denied. Please enable "All files access" for KryptonIDE in Android Settings.');
+    }
+
+    const dir = defaultDir();
+    await mkdirSafe(basePath, dir);
+    await mkdirSafe(`${basePath}/projects`, dir);
+    await mkdirSafe(`${basePath}/ai-sessions`, dir);
+    await mkdirSafe(`${basePath}/fonts`, dir);
+    await mkdirSafe(`${basePath}/.contexts`, dir);
+    await mkdirSafe(`${basePath}/.memory`, dir);
+    await mkdirSafe(`${basePath}/.krypton`, dir);
+    await mkdirSafe(`${basePath}/skills`, dir);
+    await mkdirSafe(`${basePath}/snippets`, dir);
   }
 
   setBasePath(basePath);
@@ -187,16 +273,21 @@ export async function initializeStorage(folderName: string): Promise<void> {
   if (!existing) {
     await saveConfigNow(DEFAULT_CONFIG);
   }
+
+  // Ensure default mcp.json exists
+  const mcpConfig = await readMcpConfig();
+  if (!mcpConfig) {
+    await saveMcpConfig([]);
+  }
 }
 
 // ─── Config (krypton.config.json) ────────────────────────────
 
 export async function readConfig(): Promise<KryptonConfig | null> {
   const base = getBasePath();
-  if (!base) return null;
 
   if (!isNative()) {
-    const raw = webRead(`${base}/krypton.config.json`);
+    const raw = (base ? webRead(`${base}/krypton.config.json`) : null) || webRead('krypton.config.json');
     if (!raw) return null;
     try { return JSON.parse(raw); } catch (e) {
       console.error('[FS] Corrupt config (web), resetting:', e);
@@ -204,7 +295,18 @@ export async function readConfig(): Promise<KryptonConfig | null> {
     }
   }
 
-  const raw = await readTextFile(`${base}/krypton.config.json`);
+  // 1. Check Directory.Data (app-private internal storage)
+  let raw = await readTextFile('krypton.config.json', Directory.Data);
+
+  // 2. Migration: if not found in Directory.Data, check external storage
+  if (!raw && base) {
+    raw = await readTextFile(`${base}/krypton.config.json`, Directory.ExternalStorage);
+    if (raw) {
+      await writeTextFile('krypton.config.json', raw, Directory.Data);
+      await deletePathSafe(`${base}/krypton.config.json`, Directory.ExternalStorage);
+    }
+  }
+
   if (!raw) return null;
   try { return JSON.parse(raw); } catch (e) {
     console.error('[FS] Corrupt config file, resetting:', e);
@@ -213,15 +315,14 @@ export async function readConfig(): Promise<KryptonConfig | null> {
 }
 
 export async function saveConfigNow(config: KryptonConfig): Promise<void> {
-  const base = getBasePath();
-  if (!base) return;
-
   const data = JSON.stringify(config, null, 2);
   if (!isNative()) {
-    webWrite(`${base}/krypton.config.json`, data);
+    const base = getBasePath();
+    if (base) webWrite(`${base}/krypton.config.json`, data);
+    webWrite('krypton.config.json', data);
     return;
   }
-  await writeTextFile(`${base}/krypton.config.json`, data);
+  await writeTextFile('krypton.config.json', data, Directory.Data);
 }
 
 export function saveConfigDebounced(config: KryptonConfig): void {
@@ -256,10 +357,9 @@ export async function saveApiKey(apiKey: string): Promise<void> {
 
 export async function readAuth(): Promise<any | null> {
   const base = getBasePath();
-  if (!base) return null;
 
   if (!isNative()) {
-    const raw = webRead(`${base}/auth.json`);
+    const raw = (base ? webRead(`${base}/auth.json`) : null) || webRead('auth.json');
     if (!raw) return null;
     try { return JSON.parse(raw); } catch (e) {
       console.error('[FS] Corrupt auth (web), resetting:', e);
@@ -267,7 +367,18 @@ export async function readAuth(): Promise<any | null> {
     }
   }
 
-  const raw = await readTextFile(`${base}/auth.json`);
+  // 1. Check Directory.Data (app-private internal storage)
+  let raw = await readTextFile('auth.json', Directory.Data);
+
+  // 2. Migration: if not found in Directory.Data, check external storage
+  if (!raw && base) {
+    raw = await readTextFile(`${base}/auth.json`, Directory.ExternalStorage);
+    if (raw) {
+      await writeTextFile('auth.json', raw, Directory.Data);
+      await deletePathSafe(`${base}/auth.json`, Directory.ExternalStorage);
+    }
+  }
+
   if (!raw) return null;
   try { return JSON.parse(raw); } catch (e) {
     console.error('[FS] Corrupt auth file, resetting:', e);
@@ -276,15 +387,14 @@ export async function readAuth(): Promise<any | null> {
 }
 
 export async function saveAuth(data: any): Promise<void> {
-  const base = getBasePath();
-  if (!base) return;
-
   const json = JSON.stringify(data, null, 2);
   if (!isNative()) {
-    webWrite(`${base}/auth.json`, json);
+    const base = getBasePath();
+    if (base) webWrite(`${base}/auth.json`, json);
+    webWrite('auth.json', json);
     return;
   }
-  await writeTextFile(`${base}/auth.json`, json);
+  await writeTextFile('auth.json', json, Directory.Data);
 }
 
 export function saveAuthDebounced(data: any): void {
@@ -401,7 +511,7 @@ export async function deleteSessionFile(sessionId: string, projectId?: string): 
     return;
   }
   try {
-    await Filesystem.deleteFile({ path: `${dir}/${fname}`, directory: Directory.ExternalStorage });
+    await Filesystem.deleteFile({ path: `${dir}/${fname}`, directory: defaultDir() });
   } catch { /* already gone */ }
 }
 
@@ -468,6 +578,47 @@ export async function writeProjectFiles(
   }
 
   await mkdirSafe(projectDir);
+
+  // Physical wipe: clean up removed/renamed files by diffing against previous tree
+  try {
+    const prevTreeRaw = await readTextFile(`${projectDir}/._krypton_tree.json`);
+    if (prevTreeRaw) {
+      const prevTree = JSON.parse(prevTreeRaw) as Record<string, FileNode>;
+      const prevPathMap = new Map<string, string>();
+      function buildPrevPath(nId: string): string {
+        if (prevPathMap.has(nId)) return prevPathMap.get(nId)!;
+        const n = prevTree[nId];
+        if (!n) return '';
+        if (nId === 'root' || !n.parentId) {
+          prevPathMap.set(nId, '');
+          return '';
+        }
+        const pp = buildPrevPath(n.parentId);
+        const fp = pp ? `${pp}/${n.name}` : n.name;
+        prevPathMap.set(nId, fp);
+        return fp;
+      }
+      for (const nId of Object.keys(prevTree)) {
+        buildPrevPath(nId);
+      }
+
+      const toDelete: string[] = [];
+      for (const [prevId] of Object.entries(prevTree)) {
+        if (prevId === 'root') continue;
+        if (!files[prevId]) {
+          const rel = prevPathMap.get(prevId);
+          if (rel) toDelete.push(rel);
+        }
+      }
+      // Delete child files before folders
+      toDelete.sort((a, b) => b.length - a.length);
+      for (const rel of toDelete) {
+        await deletePathSafe(`${projectDir}/${rel}`);
+      }
+    }
+  } catch (e) {
+    console.warn('[FS] Error cleaning old project nodes:', e);
+  }
 
   // Build path map: nodeId → full relative path
   const pathMap = new Map<string, string>();
@@ -700,7 +851,7 @@ export async function deleteFontFile(fileName: string): Promise<void> {
   }
 
   try {
-    await Filesystem.deleteFile({ path: `${base}/fonts/${fileName}.b64`, directory: Directory.ExternalStorage });
+    await Filesystem.deleteFile({ path: `${base}/fonts/${fileName}.b64`, directory: defaultDir() });
   } catch { /* already gone */ }
 }
 
@@ -741,8 +892,8 @@ export async function migrateFromLocalStorage(): Promise<void> {
     config.haptics = localStorage.getItem('krypton-haptics') !== 'false';
 
     // AI config
-    config.ai.provider = localStorage.getItem('krypton-ai-provider') || 'openai';
-    config.ai.model = localStorage.getItem('krypton-ai-model') || 'gpt-4o';
+    config.ai.provider = localStorage.getItem('krypton-ai-provider') || '';
+    config.ai.model = localStorage.getItem('krypton-ai-model') || '';
     config.ai.activeSessionId = localStorage.getItem('krypton-active-session') || null;
 
     // Font
@@ -846,6 +997,168 @@ export function getProjectPath(projectId: string): string {
   return `${getBasePath()}/projects/project_${projectId}`;
 }
 
+// ─── MCP Storage ──────────────────────────────────────────────
+export interface McpServerConfig {
+  id: string;
+  name: string;
+  type: 'http' | 'sse';
+  url: string;
+  headers?: Record<string, string>;
+  enabled: boolean;
+}
+
+export async function readMcpConfig(): Promise<McpServerConfig[] | null> {
+  const base = getBasePath();
+
+  if (!isNative()) {
+    const raw = (base ? webRead(`${base}/mcp.json`) : null) || webRead('mcp.json');
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return null; }
+  }
+
+  // 1. Check Directory.Data
+  let raw = await readTextFile('mcp.json', Directory.Data);
+  // 2. Migration: check external storage
+  if (!raw && base) {
+    raw = await readTextFile(`${base}/mcp.json`, Directory.ExternalStorage);
+    if (raw) {
+      await writeTextFile('mcp.json', raw, Directory.Data);
+      await deletePathSafe(`${base}/mcp.json`, Directory.ExternalStorage);
+    }
+  }
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+export async function saveMcpConfig(configs: McpServerConfig[]): Promise<void> {
+  const data = JSON.stringify(configs, null, 2);
+  if (!isNative()) {
+    const base = getBasePath();
+    if (base) webWrite(`${base}/mcp.json`, data);
+    webWrite('mcp.json', data);
+    return;
+  }
+  await writeTextFile('mcp.json', data, Directory.Data);
+}
+
+// ─── System Prompts Storage ────────────────────────────────────
+export async function readSystemPrompt(projectId?: string): Promise<string> {
+  const base = getBasePath();
+  if (!base) return '';
+  const path = projectId ? `${base}/.krypton/${projectId}/system_prompt.md` : `${base}/.krypton/global_system_prompt.md`;
+
+  if (!isNative()) {
+    return webRead(path) || '';
+  }
+  return (await readTextFile(path)) || '';
+}
+
+export async function saveSystemPrompt(prompt: string, projectId?: string): Promise<void> {
+  const base = getBasePath();
+  if (!base) return;
+  const folder = projectId ? `${base}/.krypton/${projectId}` : `${base}/.krypton`;
+  const path = projectId ? `${folder}/system_prompt.md` : `${base}/.krypton/global_system_prompt.md`;
+
+  if (isNative()) {
+    await mkdirSafe(folder);
+    await writeTextFile(path, prompt);
+  } else {
+    webWrite(path, prompt);
+  }
+}
+
+// ─── Skills Disk Helpers ──────────────────────────────────────
+export interface DiskSkill {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  enabled: boolean;
+}
+
+export async function readDiskSkills(): Promise<DiskSkill[]> {
+  const base = getBasePath();
+  if (!base) return [];
+
+  const skillsList: DiskSkill[] = [];
+
+  if (!isNative()) {
+    const keys = webList(`${base}/skills/`);
+    const skillFolders = new Set<string>();
+    keys.forEach(k => {
+      const parts = k.replace(`${base}/skills/`, '').split('/');
+      if (parts[0]) skillFolders.add(parts[0]);
+    });
+
+    for (const folder of skillFolders) {
+      let content = webRead(`${base}/skills/${folder}/SKILL.md`);
+      if (!content && folder.endsWith('.md')) {
+        content = webRead(`${base}/skills/${folder}`);
+      }
+      if (content) {
+        const nameMatch = content.match(/^name:\s*(.+)$/m);
+        const descMatch = content.match(/^description:\s*(.+)$/m);
+        const cleanId = folder.replace(/\.md$/i, '');
+        skillsList.push({
+          id: cleanId,
+          name: nameMatch ? nameMatch[1].trim().replace(/^["']|["']$/g, '') : cleanId,
+          description: descMatch ? descMatch[1].trim().replace(/^["']|["']$/g, '') : 'User skill',
+          content,
+          enabled: true,
+        });
+      }
+    }
+    return skillsList;
+  }
+
+  try {
+    const files = await listDir(`${base}/skills`);
+    for (const fileObj of files) {
+      const entryName = typeof fileObj === 'string' ? fileObj : fileObj.name;
+      if (!entryName) continue;
+      let content: string | null = null;
+      let skillId = entryName;
+      if (entryName.endsWith('.md')) {
+        content = await readTextFile(`${base}/skills/${entryName}`);
+        skillId = entryName.replace(/\.md$/i, '');
+      } else {
+        content = await readTextFile(`${base}/skills/${entryName}/SKILL.md`);
+      }
+      if (content) {
+        const nameMatch = content.match(/^name:\s*(.+)$/m);
+        const descMatch = content.match(/^description:\s*(.+)$/m);
+        skillsList.push({
+          id: skillId,
+          name: nameMatch ? nameMatch[1].trim().replace(/^["']|["']$/g, '') : skillId,
+          description: descMatch ? descMatch[1].trim().replace(/^["']|["']$/g, '') : 'User skill',
+          content,
+          enabled: true,
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[FS] Error reading skills directory:', e);
+  }
+
+  return skillsList;
+}
+
+export async function writeDiskSkill(id: string, name: string, description: string, body: string): Promise<void> {
+  const base = getBasePath();
+  if (!base) return;
+  const folder = `${base}/skills/${id}`;
+  const skillFile = `${folder}/SKILL.md`;
+  const fullContent = `---\nname: "${name}"\ndescription: "${description}"\n---\n\n${body}`;
+
+  if (isNative()) {
+    await mkdirSafe(folder);
+    await writeTextFile(skillFile, fullContent);
+  } else {
+    webWrite(skillFile, fullContent);
+  }
+}
+
+
 export function getProjectDirectory(): Directory {
-  return isNative() ? Directory.ExternalStorage : Directory.Documents;
+  return defaultDir();
 }

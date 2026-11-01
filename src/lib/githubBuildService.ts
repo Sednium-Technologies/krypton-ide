@@ -31,7 +31,7 @@ export interface Artifact {
 }
 
 export async function triggerBuild(owner: string, repo: string, buildType: 'debug' | 'release' = 'debug'): Promise<void> {
-  const res = await fetch(`${API}/repos/${owner}/${repo}/actions/workflows/build.yml/dispatches`, {
+  const res = await fetch(`${API}/repos/${owner}/${repo}/actions/workflows/build-android.yml/dispatches`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({

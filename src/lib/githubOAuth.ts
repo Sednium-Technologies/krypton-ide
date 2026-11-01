@@ -5,8 +5,9 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 const GITHUB_CLIENT_ID = 'Ov23liyV98dAUjn7z7XO';
-const DEVICE_CODE_URL = 'https://github.com/login/device/code';
-const ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token';
+const IS_NATIVE = Capacitor.isNativePlatform();
+const DEVICE_CODE_URL = IS_NATIVE ? 'https://github.com/login/device/code' : '/api/github-oauth/device/code';
+const ACCESS_TOKEN_URL = IS_NATIVE ? 'https://github.com/login/oauth/access_token' : '/api/github-oauth/oauth/access_token';
 const VERIFY_URL = 'https://github.com/login/device';
 
 // Scopes: repo (full repo access) + workflow (GitHub Actions)

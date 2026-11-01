@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { FolderOpen, ArrowRight, Sparkles, FolderSearch, Edit3 } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { FolderOpen, ArrowRight, Sparkles, Edit3 } from 'lucide-react';
 import { initializeStorage, migrateFromLocalStorage } from '../../lib/fileSystemStorage';
-import { Capacitor } from '@capacitor/core';
+import { PermissionConsentModal } from './PermissionConsentModal';
 
 interface FolderPickerProps {
   onComplete: () => void;
@@ -13,13 +13,12 @@ export function FolderPicker({ onComplete }: FolderPickerProps) {
   const [error, setError] = useState('');
   const [showContent, setShowContent] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(true);
 
   React.useEffect(() => {
     const t = setTimeout(() => setShowContent(true), 100);
     return () => clearTimeout(t);
   }, []);
-
-  const isNative = Capacitor.isNativePlatform();
 
   const handleSelectFolder = () => {
     setIsEditing(true);
@@ -38,7 +37,6 @@ export function FolderPicker({ onComplete }: FolderPickerProps) {
 
     try {
       await initializeStorage(folderPath);
-      // Migrate any existing localStorage data
       await migrateFromLocalStorage();
       onComplete();
     } catch (e: any) {
@@ -49,41 +47,75 @@ export function FolderPicker({ onComplete }: FolderPickerProps) {
     }
   };
 
+  const handleConsentGranted = useCallback(async () => {
+    setShowConsentModal(false);
+    const folderPath = selectedPath.trim() || 'KryptonIDE';
+    setIsCreating(true);
+    setError('');
+
+    // Retry up to 4 times with 600ms delay — Android 11+ has a brief OS-level
+    // lag before Environment.isExternalStorageManager() reflects the newly-granted
+    // "All Files Access" permission.
+    const MAX_ATTEMPTS = 4;
+    let lastError: any = null;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        await initializeStorage(folderPath);
+        await migrateFromLocalStorage();
+        onComplete();
+        return;
+      } catch (e: any) {
+        lastError = e;
+        console.warn(`[FolderPicker] initializeStorage attempt ${attempt + 1} failed:`, e);
+        if (attempt < MAX_ATTEMPTS - 1) {
+          await new Promise(r => setTimeout(r, 600));
+        }
+      }
+    }
+
+    // All retries exhausted — surface a clear message
+    setIsCreating(false);
+    setError(
+      lastError?.message ||
+      'Storage could not be initialized. Please ensure "All files access" is enabled for KryptonIDE in Settings, then tap Continue.'
+    );
+  }, [selectedPath, onComplete]);
+
   return (
-    <div className="fixed inset-0 z-[200] bg-white dark:bg-[#050505] flex flex-col items-center justify-center px-8 overflow-hidden">
+    <div className="fixed inset-0 z-[200] bg-[#2a2529] text-[#f3f0e7] flex flex-col items-center justify-center px-8 overflow-hidden">
+      <PermissionConsentModal
+        isOpen={showConsentModal}
+        onConsent={handleConsentGranted}
+      />
       {/* Background glow */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full bg-emerald-500/[0.08] blur-[120px] animate-ambient-drift" />
-        <div className="absolute bottom-1/4 right-1/3 w-[400px] h-[400px] rounded-full bg-blue-500/[0.06] blur-[120px] animate-ambient-drift" style={{ animationDelay: '-8s' }} />
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full bg-[#f3f0e7]/[0.03] blur-[120px]" />
       </div>
 
       <div className={`relative flex flex-col items-center max-w-md w-full transition-all duration-700 ease-out ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        {/* Icon */}
         <div className="mb-8">
           <div className="relative">
-            <div className="absolute inset-0 bg-emerald-500/20 blur-2xl rounded-3xl animate-pulse-glow" />
-            <div className="relative w-24 h-24 rounded-[1.75rem] bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-2xl shadow-emerald-500/30 border border-white/10">
-              <FolderOpen size={40} className="text-white" />
+            <div className="absolute inset-0 bg-[#f3f0e7]/10 blur-2xl rounded-3xl animate-pulse-glow" />
+            <div className="relative w-24 h-24 rounded-[1.75rem] bg-[#f3f0e7] flex items-center justify-center shadow-2xl shadow-black/40 border border-[#f3f0e7]/10">
+              <FolderOpen size={40} className="text-[#2a2529]" />
             </div>
           </div>
         </div>
 
-        {/* Title */}
-        <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 mb-2 tracking-tight text-center">
-          Choose Storage Folder
+        <h1 className="text-3xl font-extrabold text-[#f3f0e7] mb-2 tracking-tight text-center">
+          Storage Location
         </h1>
-        <p className="text-gray-500 dark:text-gray-400 text-base mb-8 text-center leading-relaxed max-w-[320px]">
-          Select where your projects and files will be saved. You can browse and edit them with any file manager.
+        <p className="text-[#f3f0e7]/60 text-base mb-8 text-center leading-relaxed max-w-[320px]">
+          Select where your projects will be stored on your device.
         </p>
 
-        {/* Selected Folder Preview */}
-        <div className="w-full bg-gray-100 dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-2xl p-4 mb-4">
-          <div className="text-[11px] text-gray-500 dark:text-gray-500 uppercase tracking-wider font-semibold mb-2">
-            Storage Location
+        <div className="w-full bg-[#32303a]/80 backdrop-blur-xl border border-[#f3f0e7]/10 rounded-2xl p-4 mb-4">
+          <div className="text-[11px] text-[#f3f0e7]/50 uppercase tracking-wider font-semibold mb-2">
+            Target Directory
           </div>
           {isEditing ? (
             <div className="flex items-center space-x-2">
-              <span className="text-gray-400 dark:text-gray-600 text-sm font-mono truncate">/storage/emulated/0/</span>
+              <span className="text-[#f3f0e7]/40 text-sm font-mono truncate">/storage/emulated/0/</span>
               <input
                 autoFocus
                 value={selectedPath}
@@ -91,47 +123,44 @@ export function FolderPicker({ onComplete }: FolderPickerProps) {
                 onBlur={() => { if (selectedPath.trim()) setIsEditing(false); }}
                 onKeyDown={(e) => { if (e.key === 'Enter' && selectedPath.trim()) setIsEditing(false); }}
                 placeholder="KryptonIDE"
-                className="flex-1 bg-[#0a0a0a] border border-emerald-500/40 rounded-lg px-3 py-2 text-emerald-400 text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                className="flex-1 bg-[#2a2529] border border-[#f3f0e7]/50 rounded-lg px-3 py-2 text-[#f3f0e7] text-sm font-mono font-bold focus:outline-none"
               />
             </div>
           ) : (
             <div className="flex items-center space-x-2 text-sm font-mono">
-              <span className="text-gray-400 dark:text-gray-600 truncate">/storage/emulated/0/</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-bold truncate">{selectedPath || 'KryptonIDE'}</span>
-              <span className="text-gray-400 dark:text-gray-600">/</span>
+              <span className="text-[#f3f0e7]/40 truncate">/storage/emulated/0/</span>
+              <span className="text-[#f3f0e7] font-bold truncate">{selectedPath || 'KryptonIDE'}</span>
+              <span className="text-[#f3f0e7]/40">/</span>
             </div>
           )}
         </div>
 
-        {/* Change Folder Button */}
         <button
           onClick={handleSelectFolder}
-          className="w-full flex items-center justify-center space-x-2 py-3.5 rounded-2xl font-bold text-base shadow-lg active:scale-[0.97] transition-all duration-300 bg-[#111] border border-white/10 text-white hover:bg-[#1a1a1a] hover:border-emerald-500/30 mb-3"
+          className="w-full flex items-center justify-center space-x-2 py-3.5 rounded-2xl font-bold text-base bg-[#32303a] border border-[#f3f0e7]/10 text-[#f3f0e7] hover:bg-[#3a3844] mb-3 transition-colors"
         >
-          <Edit3 size={18} className="text-emerald-400" />
-          <span>{isEditing ? 'Editing...' : 'Change Folder Name'}</span>
+          <Edit3 size={18} className="text-[#f3f0e7]" />
+          <span>{isEditing ? 'Editing...' : 'Change Directory Name'}</span>
         </button>
 
         {error && (
           <p className="text-red-400 text-sm mb-3 text-center">{error}</p>
         )}
 
-        {/* Info pill */}
-        <div className="flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2.5 mb-6 w-full">
-          <Sparkles size={14} className="text-emerald-400 flex-shrink-0" />
-          <span className="text-[12px] text-emerald-600 dark:text-emerald-300 leading-snug">
-            Files will be visible in ZArchiver, Files app, or any file manager on your device.
+        <div className="flex items-center space-x-2 bg-[#f3f0e7]/10 border border-[#f3f0e7]/20 rounded-xl px-4 py-2.5 mb-6 w-full">
+          <Sparkles size={14} className="text-[#f3f0e7] flex-shrink-0" />
+          <span className="text-[12px] text-[#f3f0e7]/80 leading-snug">
+            Files remain standard device files accessible via any file manager.
           </span>
         </div>
 
-        {/* Continue Button */}
         <button
           onClick={handleContinue}
           disabled={isCreating || !selectedPath.trim()}
-          className="w-full flex items-center justify-center space-x-2 py-4 rounded-2xl font-bold text-lg shadow-xl active:scale-[0.97] transition-all duration-300 bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 disabled:opacity-60"
+          className="w-full flex items-center justify-center space-x-2 py-4 rounded-2xl font-bold text-lg bg-[#f3f0e7] text-[#2a2529] shadow-xl shadow-[#f3f0e7]/10 hover:bg-white active:scale-[0.97] transition-all disabled:opacity-60"
         >
           {isCreating ? (
-            <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-[#2a2529] border-t-transparent rounded-full animate-spin" />
           ) : (
             <>
               <span>Continue</span>
@@ -140,8 +169,8 @@ export function FolderPicker({ onComplete }: FolderPickerProps) {
           )}
         </button>
 
-        <p className="text-gray-500 dark:text-gray-600 text-[11px] mt-6 text-center">
-          You can change this later in Settings
+        <p className="text-[#f3f0e7]/40 text-[11px] mt-6 text-center">
+          You can update this setting at any time.
         </p>
       </div>
     </div>

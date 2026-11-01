@@ -2,7 +2,7 @@
 
 <img src="icon4.png" alt="Krypton IDE Logo" width="140"/>
 
-# Krypton IDE v3.0
+# Krypton IDE v4.0
 
 > The next-generation mobile & web development environment built for coding anywhere.
 
@@ -18,7 +18,7 @@ With native-like performance, offline execution, real filesystem access, GitHub 
 
 ---
 
-# ✨ What's New in v3.0
+# ✨ What's New in v4.0
 
 Version 3.0 is the biggest Krypton update yet — rebuilt from the ground up with major improvements to:
 
@@ -91,9 +91,9 @@ and more.
 
 ---
 
-# 🤖 Larry AI Assistant
+# 🤖 Oorty Lite AI Assistant
 
-Larry is Krypton’s deeply integrated AI-powered coding assistant designed to accelerate development workflows.
+Oorty Lite is Krypton’s deeply integrated AI-powered coding assistant designed to accelerate development workflows.
 
 ---
 
@@ -107,7 +107,7 @@ No more waiting for long synchronous responses.
 
 ## 🛠️ Agentic Tool Calling
 
-Larry can directly interact with your project files using structured actions.
+Oorty Lite can directly interact with your project files using structured actions.
 
 Capabilities include:
 - Creating files
@@ -142,7 +142,7 @@ Reference project data directly in chat using:
 - image attachments
 - diagnostics context
 
-This allows Larry to understand your project structure and provide more accurate assistance.
+This allows Oorty Lite to understand your project structure and provide more accurate assistance.
 
 ---
 
@@ -264,10 +264,10 @@ while preserving content and structure.
 
 ---
 
-## 🤖 Send to Larry
+## 🤖 Send to Oorty Lite
 
 Inject any file directly into AI chat context using:
-> "Send to Larry"
+> "Send to Oorty Lite"
 
 Perfect for:
 - debugging
@@ -316,7 +316,7 @@ permissions.
 
 # 🛠️ Productivity Features
 
-Krypton v3.0 introduces major productivity enhancements inspired by modern desktop IDEs.
+Krypton v4.0 introduces major productivity enhancements inspired by modern desktop IDEs.
 
 ---
 

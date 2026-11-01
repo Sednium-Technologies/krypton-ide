@@ -12,7 +12,7 @@
 import JSZip from 'jszip';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
-import { getBasePath } from './fileSystemStorage';
+import { getBasePath, defaultDir } from './fileSystemStorage';
 
 const DRIVE_API = 'https://www.googleapis.com/';
 const DRIVE_FILES = `${DRIVE_API}drive/v3/files`;
@@ -78,6 +78,10 @@ async function findFileByName(name: string): Promise<DriveFile | null> {
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      clearDriveAccessToken();
+      throw new Error('Google Drive authorization expired. Please sign in to Google again.');
+    }
     const err = await res.text();
     throw new Error(`Drive list failed: ${res.status} — ${err}`);
   }
@@ -102,7 +106,10 @@ async function listBackupFiles(): Promise<DriveFile[]> {
     headers: authHeaders(),
   });
 
-  if (!res.ok) return [];
+  if (!res.ok) {
+    if (res.status === 401) clearDriveAccessToken();
+    return [];
+  }
   const data = await res.json();
   return data.files || [];
 }
@@ -131,6 +138,10 @@ async function uploadFile(
       }
     );
     if (!res.ok) {
+      if (res.status === 401) {
+        clearDriveAccessToken();
+        throw new Error('Google Drive authorization expired. Please sign in to Google again.');
+      }
       const err = await res.text();
       throw new Error(`Drive upload (update) failed: ${res.status} — ${err}`);
     }
@@ -151,6 +162,10 @@ async function uploadFile(
       }
     );
     if (!res.ok) {
+      if (res.status === 401) {
+        clearDriveAccessToken();
+        throw new Error('Google Drive authorization expired. Please sign in to Google again.');
+      }
       const err = await res.text();
       throw new Error(`Drive upload (create) failed: ${res.status} — ${err}`);
     }
@@ -170,6 +185,10 @@ async function downloadFile(fileId: string): Promise<Blob> {
     }
   );
   if (!res.ok) {
+    if (res.status === 401) {
+      clearDriveAccessToken();
+      throw new Error('Google Drive authorization expired. Please sign in to Google again.');
+    }
     throw new Error(`Drive download failed: ${res.status}`);
   }
   return await res.blob();
@@ -239,9 +258,10 @@ async function zipLocalProjects(): Promise<Blob> {
   }
 
   // Native: read the actual directory tree
+  const targetDir = defaultDir();
   async function addDirToZip(dirPath: string, zipFolder: JSZip) {
     try {
-      const entries = await Filesystem.readdir({ path: dirPath, directory: Directory.ExternalStorage });
+      const entries = await Filesystem.readdir({ path: dirPath, directory: targetDir });
       for (const entry of entries.files) {
         const fullPath = `${dirPath}/${entry.name}`;
         if (entry.type === 'directory') {
@@ -249,7 +269,7 @@ async function zipLocalProjects(): Promise<Blob> {
           await addDirToZip(fullPath, subFolder);
         } else {
           try {
-            const file = await Filesystem.readFile({ path: fullPath, directory: Directory.ExternalStorage, encoding: Encoding.UTF8 });
+            const file = await Filesystem.readFile({ path: fullPath, directory: targetDir, encoding: Encoding.UTF8 });
             if (typeof file.data === 'string') {
               zipFolder.file(entry.name, file.data);
             }
@@ -292,12 +312,13 @@ async function unzipToLocal(blob: Blob): Promise<number> {
   }
 
   // Native: write files to disk
+  const targetDir = defaultDir();
   for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
     if (zipEntry.dir) {
       try {
         await Filesystem.mkdir({
           path: `${base}/${relativePath}`,
-          directory: Directory.ExternalStorage,
+          directory: targetDir,
           recursive: true,
         });
       } catch { /* exists */ }
@@ -308,13 +329,13 @@ async function unzipToLocal(blob: Blob): Promise<number> {
       // Ensure parent directory exists
       const parentDir = fullPath.substring(0, fullPath.lastIndexOf('/'));
       try {
-        await Filesystem.mkdir({ path: parentDir, directory: Directory.ExternalStorage, recursive: true });
+        await Filesystem.mkdir({ path: parentDir, directory: targetDir, recursive: true });
       } catch { /* exists */ }
 
       await Filesystem.writeFile({
         path: fullPath,
         data: content,
-        directory: Directory.ExternalStorage,
+        directory: targetDir,
         encoding: Encoding.UTF8,
       });
       count++;

@@ -687,7 +687,7 @@ jobs:
           type: 'file',
           parentId: 'src_folder',
           language: 'rust',
-          content: 'fn main() {\n    println!("Hello, Rust from Krypton IDE!");\n}\n'
+          content: 'fn main() {\n    println!("Hello, Rust from Kryptonide!");\n}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn test_sanity() {\n        assert_eq!(2 + 2, 4);\n    }\n}\n'
         },
         cargo_toml: {
           id: 'cargo_toml',

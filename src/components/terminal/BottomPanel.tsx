@@ -1,20 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ChevronUp, ChevronDown, Trash2, Send, AlertCircle, AlertTriangle, Info, Filter, Package } from 'lucide-react';
+import { X, ChevronUp, ChevronDown, Trash2, Send, AlertCircle, AlertTriangle, Info, Package, GripHorizontal, Maximize2, Minimize2, Move } from 'lucide-react';
 import { TerminalPanel } from './TerminalPanel';
 import { useOutputStore } from '../../store/useOutputStore';
 import { useProblemsStore } from '../../store/useProblemsStore';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useProjectsStore } from '../../store/useProjectsStore';
+import { OortyLiteIcon } from '../ui/OortyLiteIcon';
+import { hapticSelection } from '../../lib/haptics';
 
 interface BottomPanelProps {
   onClose: () => void;
   height: number;
   setHeight: (height: number) => void;
+  isDockedSide?: boolean;
 }
 
-export function BottomPanel({ onClose, height, setHeight }: BottomPanelProps) {
-  const { currentProjectId, projects } = useProjectsStore();
-  const { runTarget, setRunTarget } = useIdeStore();
+export function BottomPanel({ onClose, height, setHeight, isDockedSide = false }: BottomPanelProps) {
+  const currentProjectId = useProjectsStore((s) => s.currentProjectId);
+  const projects = useProjectsStore((s) => s.projects);
+  const runTarget = useIdeStore((s) => s.runTarget);
+  const setRunTarget = useIdeStore((s) => s.setRunTarget);
   const project = currentProjectId ? projects[currentProjectId] : null;
   const isAndroidProject = project?.template?.startsWith('android-');
   const isKotlinOrJava = project?.template === 'kotlin-cli' || project?.template === 'java-cli';
@@ -24,14 +29,18 @@ export function BottomPanel({ onClose, height, setHeight }: BottomPanelProps) {
   const addConsoleLog = useOutputStore(s => s.addConsoleLog);
   const clearConsoleLogs = useOutputStore(s => s.clearConsoleLogs);
 
-  // Automatically switch away from build tab if not an android project
   useEffect(() => {
     if (activeTab === 'build' && !isAndroidProject) {
       setActiveTab('terminal');
     }
+    if (activeTab === 'terminal') {
+      const timer = setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 60);
+      return () => clearTimeout(timer);
+    }
   }, [isAndroidProject, activeTab]);
 
-  // Listen for console logs from preview
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -43,54 +52,259 @@ export function BottomPanel({ onClose, height, setHeight }: BottomPanelProps) {
     return () => window.removeEventListener('krypton-console-log', handler);
   }, []);
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [dragTranslateY, setDragTranslateY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const touchStartYRef = useRef(0);
+  const touchStartXRef = useRef(0);
+  const touchStartTimeRef = useRef(0);
+  const touchMovedRef = useRef(false);
+  const isDraggingRef = useRef(false);
+  const dragTranslateYRef = useRef(0);
+  const lastTapRef = useRef(0);
+
+  const [isFloating, setIsFloating] = useState(false);
+  const [floatPos, setFloatPos] = useState({ x: 30, y: 70 });
+  const [floatSize, setFloatSize] = useState({
+    width: Math.min(680, typeof window !== 'undefined' ? window.innerWidth - 60 : 580),
+    height: 380,
+  });
+  const floatDragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
+
+  const handleFloatDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    floatDragRef.current = { startX: clientX, startY: clientY, posX: floatPos.x, posY: floatPos.y };
+
+    const onMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!floatDragRef.current) return;
+      const curX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const curY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      const nextX = Math.max(10, Math.min(window.innerWidth - floatSize.width - 10, floatDragRef.current.posX + (curX - floatDragRef.current.startX)));
+      const nextY = Math.max(10, Math.min(window.innerHeight - floatSize.height - 10, floatDragRef.current.posY + (curY - floatDragRef.current.startY)));
+      setFloatPos({ x: nextX, y: nextY });
+    };
+
+    const onEnd = () => {
+      floatDragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onMove);
+    window.addEventListener('touchend', onEnd);
+  };
+
+  const togglePanelHeight = () => {
+    const normalH = Math.round(window.innerHeight * 0.40);
+    const expandedH = Math.round(window.innerHeight * 0.75);
+    const targetH = height >= (normalH + expandedH) / 2 ? normalH : expandedH;
+    setHeight(targetH);
+    hapticSelection();
+  };
+
+  const handleDragStart = (e: React.MouseEvent) => {
+    const startY = e.clientY;
+    const startHeight = height;
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const deltaY = startY - moveEvent.clientY;
+      const newHeight = Math.max(120, Math.min(window.innerHeight - 100, startHeight + deltaY));
+      setHeight(newHeight);
+    };
+
+    const onEnd = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onEnd);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartYRef.current = e.touches[0].clientY;
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartTimeRef.current = Date.now();
+    touchMovedRef.current = false;
+    isDraggingRef.current = false;
+    dragTranslateYRef.current = 0;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const currentY = e.touches[0].clientY;
+    const currentX = e.touches[0].clientX;
+    const deltaY = currentY - touchStartYRef.current;
+    const deltaX = Math.abs(currentX - touchStartXRef.current);
+
+    // If initial movement is horizontal (e.g. scrolling tabs), don't hijack swipe
+    if (!isDraggingRef.current && deltaX > Math.abs(deltaY) && deltaX > 8) {
+      return;
+    }
+
+    if (deltaY > 0) {
+      touchMovedRef.current = true;
+      isDraggingRef.current = true;
+      setIsDragging(true);
+      dragTranslateYRef.current = deltaY;
+      setDragTranslateY(deltaY);
+    } else {
+      dragTranslateYRef.current = 0;
+      setDragTranslateY(0);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    const deltaY = dragTranslateYRef.current;
+    const touchDuration = Date.now() - touchStartTimeRef.current;
+    setIsDragging(false);
+    isDraggingRef.current = false;
+
+    if (deltaY > 70) {
+      // Swiped down past threshold: close panel, trigger haptic tick, reset drag state
+      hapticSelection();
+      useIdeStore.getState().setIsTerminalOpen(false);
+      onClose();
+      dragTranslateYRef.current = 0;
+      setDragTranslateY(0);
+    } else {
+      // Snap smoothly back to translateY(0) with spring transition
+      dragTranslateYRef.current = 0;
+      setDragTranslateY(0);
+
+      // Check double-tap gesture
+      if (!touchMovedRef.current && touchDuration < 350) {
+        const now = Date.now();
+        if (now - lastTapRef.current < 350) {
+          togglePanelHeight();
+          lastTapRef.current = 0;
+        } else {
+          lastTapRef.current = now;
+        }
+      }
+    }
+  };
+
+  const handleDragHandleClick = () => {
+    if (!touchMovedRef.current && Math.abs(dragTranslateYRef.current) < 5) {
+      togglePanelHeight();
+    }
+  };
+
   return (
-    <div className="flex h-full flex-col bg-[#1e1e1e]">
-      <div className="flex h-9 items-center justify-between px-2 md:px-4 bg-[#1e1e1e] border-b border-[#3c3c3c] overflow-x-auto scrollbar-hide">
-        <div className="flex items-center space-x-4 text-[11px] uppercase tracking-wider text-gray-400 whitespace-nowrap">
+    <div 
+      ref={panelRef}
+      className={`flex h-full flex-col bg-[#2a2529] text-[#f3f0e7] ${
+        isFloating ? 'rounded-2xl border border-[#f3f0e7]/20 shadow-2xl' : 'will-change-transform'
+      }`}
+      style={isFloating ? {
+        position: 'fixed',
+        left: `${floatPos.x}px`,
+        top: `${floatPos.y}px`,
+        width: `${floatSize.width}px`,
+        height: `${floatSize.height}px`,
+        zIndex: 100,
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.75)',
+      } : {
+        transform: isDockedSide ? 'none' : `translateY(${dragTranslateY}px)`,
+        transition: (isDragging && !isDockedSide) ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+      }}
+    >
+      {/* Visual Drag Handle & Swipe Bar — Hidden when side-docked or floating */}
+      {!isDockedSide && !isFloating && (
+        <div 
+          onMouseDown={handleDragStart}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onClick={handleDragHandleClick}
+          onDoubleClick={togglePanelHeight}
+          className="w-full pt-1.5 pb-1 flex flex-col items-center justify-center cursor-ns-resize bg-[#231e22] hover:bg-[#f3f0e7]/10 transition-colors border-b border-[#f3f0e7]/5 touch-none select-none group"
+          title="Swipe down to dismiss • Tap or double-tap to toggle height • Drag to resize"
+        >
+          <div className="w-10 h-1 rounded-full bg-[#f3f0e7]/30 my-1 mx-auto group-hover:bg-[#f3f0e7]/50 transition-colors" />
+        </div>
+      )}
+
+      {/* Header Tabs with Move handle when floating */}
+      <div 
+        onMouseDown={isFloating ? handleFloatDragStart : undefined}
+        onTouchStart={isFloating ? handleFloatDragStart : (isDockedSide ? undefined : handleTouchStart)}
+        onTouchMove={isFloating ? undefined : (isDockedSide ? undefined : handleTouchMove)}
+        onTouchEnd={isFloating ? undefined : (isDockedSide ? undefined : handleTouchEnd)}
+        onDoubleClick={isDockedSide || isFloating ? undefined : togglePanelHeight}
+        className={`flex h-9 items-center justify-between px-2 md:px-4 bg-[#231e22] border-b border-[#f3f0e7]/10 overflow-x-auto scrollbar-hide select-none flex-shrink-0 ${
+          isFloating ? 'cursor-move' : ''
+        }`}
+      >
+        <div 
+          role="tablist"
+          aria-label="Bottom panel tabs"
+          className="flex items-center space-x-4 text-[11px] uppercase tracking-wider text-[#f3f0e7]/75 whitespace-nowrap"
+        >
           <ProblemsTabLabel active={activeTab === 'problems'} onClick={() => setActiveTab('problems')} />
           <OutputTabLabel active={activeTab === 'output'} onClick={() => setActiveTab('output')} />
-          <div
-            className={`flex items-center space-x-2 cursor-pointer h-9 px-1 ${activeTab === 'console' ? 'text-white border-b border-blue-500' : 'hover:text-white'}`}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'console'}
+            aria-label="Console tab"
+            tabIndex={0}
+            className={`flex items-center space-x-2 cursor-pointer h-9 px-1 uppercase tracking-wider text-[11px] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none rounded ${activeTab === 'console' ? 'text-[#f3f0e7] border-b-2 border-[#f3f0e7] font-bold' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7]'}`}
             onClick={() => setActiveTab('console')}
           >
             <span>Console</span>
             {consoleLogs.length > 0 && (
-              <span className="bg-purple-500/20 text-purple-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{consoleLogs.length}</span>
+              <span className="bg-[#7c9b79]/20 text-[#7c9b79] text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{consoleLogs.length}</span>
             )}
-          </div>
-          <div
-            className={`flex items-center space-x-2 cursor-pointer h-9 px-1 ${activeTab === 'terminal' ? 'text-white border-b border-blue-500' : 'hover:text-white'}`}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'terminal'}
+            aria-label="Terminal tab"
+            tabIndex={0}
+            className={`flex items-center space-x-2 cursor-pointer h-9 px-1 uppercase tracking-wider text-[11px] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none rounded ${activeTab === 'terminal' ? 'text-[#f3f0e7] border-b-2 border-[#f3f0e7] font-bold' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7]'}`}
             onClick={() => setActiveTab('terminal')}
           >
             <span>Terminal</span>
-          </div>
+          </button>
           {isAndroidProject && (
-            <div
-              className={`flex items-center space-x-1.5 cursor-pointer h-9 px-1 ${activeTab === 'build' ? 'text-blue-400 border-b border-blue-500' : 'hover:text-white text-blue-500/70'}`}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'build'}
+              aria-label="Build APK tab"
+              tabIndex={0}
+              className={`flex items-center space-x-1.5 cursor-pointer h-9 px-1 uppercase tracking-wider text-[11px] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none rounded ${activeTab === 'build' ? 'text-[#f3f0e7] border-b-2 border-[#f3f0e7] font-bold' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7]'}`}
               onClick={() => setActiveTab('build')}
             >
               <Package size={14} />
               <span className="font-bold">Build APK</span>
-            </div>
+            </button>
           )}
         </div>
 
         <div className="flex items-center space-x-2">
-          {/* Kotlin/Java Target Selector */}
           {isKotlinOrJava && (
-            <div className="hidden md:flex items-center bg-[#252526] rounded-full p-0.5 border border-[#3c3c3c] mr-2">
+            <div className="hidden md:flex items-center bg-[#32303a] rounded-full p-0.5 border border-[#f3f0e7]/10 mr-2">
               <button
                 onClick={() => setRunTarget('java')}
-                className={`px-3 py-0.5 rounded-full text-[10px] font-bold transition-all ${
-                  runTarget === 'java' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-gray-400 hover:text-gray-200'
+                className={`px-3 py-0.5 rounded-full text-[10px] font-bold transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
+                  runTarget === 'java' ? 'bg-[#f3f0e7] text-[#2a2529] shadow-md' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7]'
                 }`}
               >
                 JVM
               </button>
               <button
                 onClick={() => setRunTarget('wasm')}
-                className={`px-3 py-0.5 rounded-full text-[10px] font-bold transition-all ${
-                  runTarget === 'wasm' ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40' : 'text-gray-400 hover:text-gray-200'
+                className={`px-3 py-0.5 rounded-full text-[10px] font-bold transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
+                  runTarget === 'wasm' ? 'bg-[#7c9b79] text-[#2a2529] shadow-md' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7]'
                 }`}
               >
                 WASM
@@ -98,42 +312,74 @@ export function BottomPanel({ onClose, height, setHeight }: BottomPanelProps) {
             </div>
           )}
 
-          <div className="flex items-center space-x-1 text-gray-400 flex-shrink-0">
-            <button onClick={() => setHeight(height > 400 ? 250 : window.innerHeight - 150)} className="p-1 hover:text-white hover:bg-white/10 rounded" title="Toggle Maximize">
-              {height > 400 ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+          <div className="flex items-center space-x-1 text-[#f3f0e7]/75 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                hapticSelection();
+                setIsFloating(!isFloating);
+              }}
+              className="p-1 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+              title={isFloating ? "Dock terminal to bottom" : "Float terminal freely on screen"}
+              aria-label={isFloating ? "Dock terminal" : "Float terminal"}
+            >
+              {isFloating ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             </button>
-            <button onClick={onClose} className="p-1 hover:text-white hover:bg-white/10 rounded" title="Close Panel"><X size={14} /></button>
+            {!isDockedSide && !isFloating && (
+              <button 
+                onClick={togglePanelHeight} 
+                className="p-1 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none" 
+                title="Toggle Height"
+                aria-label="Toggle bottom panel height"
+              >
+                {height >= (Math.round(window.innerHeight * 0.40) + Math.round(window.innerHeight * 0.75)) / 2 ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+              </button>
+            )}
+            <button 
+              onClick={onClose} 
+              className="p-1 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none" 
+              title="Close Panel"
+              aria-label="Close bottom panel"
+            ><X size={14} /></button>
           </div>
         </div>
       </div>
-        {activeTab === 'terminal' && <TerminalPanel />}
+
+      <div className="flex-1 overflow-hidden min-h-0 relative">
+        <div className={`h-full w-full flex flex-col ${activeTab === 'terminal' ? '' : 'hidden'}`}>
+          <TerminalPanel />
+        </div>
         {activeTab === 'problems' && <ProblemsPanel />}
         {activeTab === 'output' && <OutputPanel />}
         {activeTab === 'console' && <ConsolePanel logs={consoleLogs} onClear={clearConsoleLogs} />}
         {activeTab === 'build' && <BuildPanel onMinimize={onClose} />}
       </div>
-  );
-}
-
-// ─── Build Panel (APK build via GitHub Actions) ──────────────
-function BuildPanel({ onMinimize }: { onMinimize: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm space-y-3 px-8">
-      <Package size={32} className="opacity-30" />
-      <p className="text-center">Use the <span className="text-blue-400 font-semibold">GitHub</span> panel to trigger APK builds via GitHub Actions.</p>
-      <p className="text-[11px] text-gray-600 text-center">Go to Git Panel → Actions → Trigger Build Workflow</p>
     </div>
   );
 }
 
-// ─── Problems Tab Label (with badge counts) ─────────────────
+function BuildPanel({ onMinimize }: { onMinimize: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-[#f3f0e7]/75 text-sm space-y-3 px-8">
+      <Package size={32} className="opacity-40 text-[#f3f0e7]" />
+      <p className="text-center">Use the <span className="text-[#f3f0e7] font-semibold">GitHub</span> panel to trigger APK builds via GitHub Actions.</p>
+      <p className="text-[11px] text-[#f3f0e7]/70 text-center">Go to Git Panel → Actions → Trigger Build Workflow</p>
+    </div>
+  );
+}
+
 function ProblemsTabLabel({ active, onClick }: { active: boolean; onClick: () => void }) {
   const errorCount = useProblemsStore(s => s.errorCount);
   const warningCount = useProblemsStore(s => s.warningCount);
 
   return (
-    <div
-      className={`flex items-center space-x-2 cursor-pointer h-9 px-1 ${active ? 'text-white border-b border-blue-500' : 'hover:text-white'}`}
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      aria-label={`Problems tab (${errorCount} errors, ${warningCount} warnings)`}
+      tabIndex={0}
+      className={`flex items-center space-x-2 cursor-pointer h-9 px-1 uppercase tracking-wider text-[11px] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none rounded ${active ? 'text-[#f3f0e7] border-b-2 border-[#f3f0e7] font-bold' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7]'}`}
       onClick={onClick}
     >
       <span>Problems</span>
@@ -141,30 +387,33 @@ function ProblemsTabLabel({ active, onClick }: { active: boolean; onClick: () =>
         <span className="bg-red-500/20 text-red-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{errorCount}</span>
       )}
       {warningCount > 0 && (
-        <span className="bg-yellow-500/20 text-yellow-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{warningCount}</span>
+        <span className="bg-amber-500/20 text-amber-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{warningCount}</span>
       )}
-    </div>
+    </button>
   );
 }
 
-// ─── Output Tab Label ───────────────────────────────────────
 function OutputTabLabel({ active, onClick }: { active: boolean; onClick: () => void }) {
   const entryCount = useOutputStore(s => s.entries.length);
 
   return (
-    <div
-      className={`flex items-center space-x-2 cursor-pointer h-9 px-1 ${active ? 'text-white border-b border-blue-500' : 'hover:text-white'}`}
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      aria-label={`Output tab (${entryCount} entries)`}
+      tabIndex={0}
+      className={`flex items-center space-x-2 cursor-pointer h-9 px-1 uppercase tracking-wider text-[11px] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none rounded ${active ? 'text-[#f3f0e7] border-b-2 border-[#f3f0e7] font-bold' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7]'}`}
       onClick={onClick}
     >
       <span>Output</span>
       {entryCount > 0 && (
-        <span className="bg-blue-500/20 text-blue-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{entryCount}</span>
+        <span className="bg-[#f3f0e7]/20 text-[#f3f0e7] text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{entryCount}</span>
       )}
-    </div>
+    </button>
   );
 }
 
-// ─── Problems Panel ─────────────────────────────────────────
 function ProblemsPanel() {
   const problems = useProblemsStore(s => s.problems);
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'error' | 'warning' | 'info'>('all');
@@ -174,7 +423,6 @@ function ProblemsPanel() {
     ? problems 
     : problems.filter(p => p.severity === filterSeverity);
 
-  // Group by file
   const grouped = filtered.reduce<Record<string, typeof problems>>((acc, p) => {
     const key = p.fileName;
     if (!acc[key]) acc[key] = [];
@@ -189,10 +437,8 @@ function ProblemsPanel() {
       `[${p.severity.toUpperCase()}] ${p.fileName}:${p.startLine}:${p.startCol} — ${p.message}`
     ).join('\n');
 
-    // Switch to AI sidebar and set input
     setSidebarView('ai');
     
-    // Dispatch a custom event so AiAssistant can pick it up
     window.dispatchEvent(new CustomEvent('krypton-send-to-agent', {
       detail: {
         text: `Fix these problems in my project:\n\n${summary}`
@@ -203,32 +449,23 @@ function ProblemsPanel() {
   const severityIcon = (severity: string) => {
     switch (severity) {
       case 'error': return <AlertCircle size={14} className="text-red-400 flex-shrink-0" />;
-      case 'warning': return <AlertTriangle size={14} className="text-yellow-400 flex-shrink-0" />;
-      default: return <Info size={14} className="text-blue-400 flex-shrink-0" />;
-    }
-  };
-
-  const severityColor = (severity: string) => {
-    switch (severity) {
-      case 'error': return 'text-red-400';
-      case 'warning': return 'text-yellow-400';
-      default: return 'text-blue-400';
+      case 'warning': return <AlertTriangle size={14} className="text-amber-400 flex-shrink-0" />;
+      default: return <Info size={14} className="text-[#88c0d0] flex-shrink-0" />;
     }
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#2d2d2d] flex-shrink-0">
+    <div className="flex flex-col h-full bg-[#2a2529]">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#f3f0e7]/10 flex-shrink-0">
         <div className="flex items-center space-x-1">
           {(['all', 'error', 'warning', 'info'] as const).map(sev => (
             <button
               key={sev}
               onClick={() => setFilterSeverity(sev)}
-              className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider font-semibold transition-colors ${
+              className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
                 filterSeverity === sev
-                  ? 'bg-blue-600/20 text-blue-400'
-                  : 'text-gray-500 hover:text-white hover:bg-white/5'
+                  ? 'bg-[#f3f0e7]/20 text-[#f3f0e7]'
+                  : 'text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/5'
               }`}
             >
               {sev === 'all' ? `All (${problems.length})` : `${sev} (${problems.filter(p => p.severity === sev).length})`}
@@ -239,37 +476,35 @@ function ProblemsPanel() {
           <button
             onClick={sendToAgent}
             disabled={problems.length === 0}
-            className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] uppercase tracking-wider font-semibold bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            title="Send all problems to Larry AI"
+            className="p-1.5 rounded hover:bg-[#f3f0e7]/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-[#f3f0e7] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+            title="Send to Oorty Lite"
+            aria-label="Send problems to Oorty Lite"
           >
-            <Send size={11} />
-            <span>Send to Larry</span>
+            <OortyLiteIcon size={14} />
           </button>
         </div>
       </div>
 
-      {/* Problem List */}
       <div className="flex-1 overflow-y-auto">
         {Object.keys(grouped).length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+          <div className="flex items-center justify-center h-full text-[#f3f0e7]/70 text-sm">
             <div className="text-center">
               <AlertCircle size={24} className="mx-auto mb-2 opacity-30" />
-              <p>No problems have been detected.</p>
+              <p>No problems detected.</p>
             </div>
           </div>
         ) : (
           Object.entries(grouped).map(([fileName, fileProblems]) => (
             <div key={fileName}>
-              <div className="px-3 py-1.5 text-[11px] font-semibold text-gray-300 bg-[#252526] sticky top-0 flex items-center space-x-2">
+              <div className="px-3 py-1.5 text-[11px] font-semibold text-[#f3f0e7] bg-[#32303a] sticky top-0 flex items-center space-x-2 border-b border-[#f3f0e7]/5">
                 <span>{fileName}</span>
-                <span className="text-gray-500">({fileProblems.length})</span>
+                <span className="text-[#f3f0e7]/70">({fileProblems.length})</span>
               </div>
               {fileProblems.map(problem => (
                 <div
                   key={problem.id}
-                  className="flex items-start space-x-2 px-3 py-1.5 hover:bg-[#2a2d2e] cursor-pointer text-[12px] border-b border-[#2d2d2d]/50"
+                  className="flex items-start space-x-2 px-3 py-1.5 hover:bg-[#32303a]/60 cursor-pointer text-[12px] border-b border-[#f3f0e7]/5"
                   onClick={() => {
-                    // Open the file and navigate to the problem location
                     const store = useIdeStore.getState();
                     const fileEntry = Object.values(store.files).find(f => f.name === problem.fileName);
                     if (fileEntry) {
@@ -279,12 +514,12 @@ function ProblemsPanel() {
                 >
                   {severityIcon(problem.severity)}
                   <div className="flex-1 min-w-0">
-                    <span className="text-gray-300">{problem.message}</span>
+                    <span className="text-[#f3f0e7]">{problem.message}</span>
                   </div>
-                  <span className="text-gray-600 text-[10px] flex-shrink-0 font-mono">
+                  <span className="text-[#f3f0e7]/70 text-[10px] flex-shrink-0 font-mono">
                     [{problem.startLine}:{problem.startCol}]
                   </span>
-                  <span className="text-gray-600 text-[10px] flex-shrink-0">
+                  <span className="text-[#f3f0e7]/70 text-[10px] flex-shrink-0">
                     {problem.source}
                   </span>
                 </div>
@@ -297,7 +532,6 @@ function ProblemsPanel() {
   );
 }
 
-// ─── Output Panel ───────────────────────────────────────────
 function OutputPanel() {
   const entries = useOutputStore(s => s.entries);
   const clearOutput = useOutputStore(s => s.clear);
@@ -308,7 +542,6 @@ function OutputPanel() {
     ? entries 
     : entries.filter(e => e.source === filterSource);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -318,35 +551,34 @@ function OutputPanel() {
   const typeColor = (type: string) => {
     switch (type) {
       case 'stderr': return 'text-red-400';
-      case 'info': return 'text-blue-400';
-      case 'system': return 'text-purple-400';
-      default: return 'text-gray-300';
+      case 'info': return 'text-[#88c0d0]';
+      case 'system': return 'text-[#7c9b79]';
+      default: return 'text-[#f3f0e7]';
     }
   };
 
   const sourceTag = (source: string) => {
     const colors: Record<string, string> = {
       terminal: 'bg-green-500/15 text-green-400',
-      runner: 'bg-blue-500/15 text-blue-400',
-      git: 'bg-orange-500/15 text-orange-400',
-      system: 'bg-purple-500/15 text-purple-400',
+      runner: 'bg-[#f3f0e7]/15 text-[#f3f0e7]',
+      git: 'bg-amber-500/15 text-amber-400',
+      system: 'bg-[#7c9b79]/15 text-[#7c9b79]',
     };
-    return colors[source] || 'bg-gray-500/15 text-gray-400';
+    return colors[source] || 'bg-stone-500/15 text-stone-400';
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#2d2d2d] flex-shrink-0">
+    <div className="flex flex-col h-full bg-[#2a2529]">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#f3f0e7]/10 flex-shrink-0">
         <div className="flex items-center space-x-1">
           {(['all', 'runner', 'terminal', 'git', 'system'] as const).map(src => (
             <button
               key={src}
               onClick={() => setFilterSource(src)}
-              className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider font-semibold transition-colors ${
+              className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
                 filterSource === src
-                  ? 'bg-blue-600/20 text-blue-400'
-                  : 'text-gray-500 hover:text-white hover:bg-white/5'
+                  ? 'bg-[#f3f0e7]/20 text-[#f3f0e7]'
+                  : 'text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/5'
               }`}
             >
               {src}
@@ -355,23 +587,23 @@ function OutputPanel() {
         </div>
         <button
           onClick={clearOutput}
-          className="p-1 text-gray-500 hover:text-white hover:bg-white/10 rounded"
+          className="p-1 text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
           title="Clear Output"
+          aria-label="Clear output"
         >
           <Trash2 size={13} />
         </button>
       </div>
 
-      {/* Log Entries */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto font-mono text-[12px]">
         {filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-            No output yet. Run code or execute terminal commands.
+          <div className="flex items-center justify-center h-full text-[#f3f0e7]/70 text-sm">
+            No output available.
           </div>
         ) : (
           filtered.map(entry => (
-            <div key={entry.id} className="flex items-start px-3 py-1 hover:bg-[#2a2d2e] border-b border-[#2d2d2d]/30">
-              <span className="text-gray-600 text-[10px] mr-2 flex-shrink-0 pt-0.5 min-w-[60px]">
+            <div key={entry.id} className="flex items-start px-3 py-1 hover:bg-[#32303a]/50 border-b border-[#f3f0e7]/5">
+              <span className="text-[#f3f0e7]/70 text-[10px] mr-2 flex-shrink-0 pt-0.5 min-w-[60px]">
                 {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour12: false })}
               </span>
               <span className={`text-[9px] px-1.5 py-0.5 rounded mr-2 flex-shrink-0 uppercase tracking-wider font-bold ${sourceTag(entry.source)}`}>
@@ -388,7 +620,6 @@ function OutputPanel() {
   );
 }
 
-// ─── Console Panel (preview iframe logs) ─────────────────────
 function ConsolePanel({ logs, onClear }: { logs: { type: string; args: string; ts: number }[]; onClear: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -401,41 +632,36 @@ function ConsolePanel({ logs, onClear }: { logs: { type: string; args: string; t
   const logColor = (type: string) => {
     switch (type) {
       case 'error': return 'text-red-400';
-      case 'warn': return 'text-yellow-400';
-      case 'info': return 'text-blue-400';
-      default: return 'text-gray-300';
-    }
-  };
-
-  const logIcon = (type: string) => {
-    switch (type) {
-      case 'error': return '✕';
-      case 'warn': return '⚠';
-      case 'info': return 'ℹ';
-      default: return '›';
+      case 'warn': return 'text-amber-400';
+      case 'info': return 'text-[#88c0d0]';
+      default: return 'text-[#f3f0e7]';
     }
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-3 py-1 border-b border-[#2d2d2d] flex-shrink-0">
-        <span className="text-[10px] text-gray-500">Preview Console Output</span>
-        <button onClick={onClear} className="p-1 text-gray-500 hover:text-white hover:bg-white/10 rounded" title="Clear">
+    <div className="flex flex-col h-full bg-[#2a2529]">
+      <div className="flex items-center justify-between px-3 py-1 border-b border-[#f3f0e7]/10 flex-shrink-0">
+        <span className="text-[10px] text-[#f3f0e7]/70">Console Output</span>
+        <button 
+          onClick={onClear} 
+          className="p-1 text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none" 
+          title="Clear"
+          aria-label="Clear console"
+        >
           <Trash2 size={12} />
         </button>
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto font-mono text-[12px]">
         {logs.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-            No console output. Run your preview to see logs here.
+          <div className="flex items-center justify-center h-full text-[#f3f0e7]/70 text-sm">
+            No console output.
           </div>
         ) : (
           logs.map((log, i) => (
-            <div key={i} className={`flex items-start px-3 py-1 hover:bg-[#2a2d2e] border-b border-[#2d2d2d]/30 ${logColor(log.type)}`}>
-              <span className="text-gray-600 text-[10px] mr-2 flex-shrink-0 pt-0.5 min-w-[52px]">
+            <div key={i} className={`flex items-start px-3 py-1 hover:bg-[#32303a]/50 border-b border-[#f3f0e7]/5 ${logColor(log.type)}`}>
+              <span className="text-[#f3f0e7]/70 text-[10px] mr-2 flex-shrink-0 pt-0.5 min-w-[52px]">
                 {new Date(log.ts).toLocaleTimeString('en-US', { hour12: false })}
               </span>
-              <span className="mr-2 flex-shrink-0 w-3 text-center">{logIcon(log.type)}</span>
               <pre className="flex-1 whitespace-pre-wrap break-words">{log.args}</pre>
             </div>
           ))

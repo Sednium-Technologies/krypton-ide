@@ -1,7 +1,7 @@
 {
   "name": "krypton-ide",
   "private": true,
-  "version": "3.0.0",
+  "version": "4.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -9,6 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
+    "test": "tsx --test tests/*.test.ts",
+    "type-check": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "cap:build": "npm run build && npx cap sync",
     "cap:android": "npx cap open android",
@@ -27,14 +29,14 @@
     "@capacitor/share": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
-    "@google/genai": "^1.29.0",
+    "@huggingface/transformers": "^4.3.2",
     "@isomorphic-git/lightning-fs": "^4.6.2",
     "@monaco-editor/react": "^4.7.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
+    "comlink": "^4.4.2",
+    "dompurify": "^3.2.7",
     "firebase": "^12.13.0",
     "idb-keyval": "^6.2.2",
     "isomorphic-git": "^1.37.4",
@@ -49,12 +51,12 @@
     "tailwind-merge": "^3.5.0",
     "vite": "^6.2.0",
     "xterm": "^5.3.0",
+    "xterm-addon-canvas": "^0.5.0",
     "xterm-addon-fit": "^0.8.0",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
-    "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -63,7 +65,10 @@
     "monaco-editor": "^0.55.1",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
-    "typescript": "~5.8.2",
+    "typescript": "^7.0.2",
     "vite": "^6.2.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.62.2"
   }
 }

@@ -19,6 +19,7 @@ export interface Project {
   files: Record<string, FileNode>;
   template: ProjectTemplate;
   githubRepo?: string;
+  folderPath?: string;
 }
 
 interface ProjectsState {
@@ -26,7 +27,7 @@ interface ProjectsState {
   currentProjectId: string | null;
   isLoaded: boolean;
   
-  createProject: (name: string, template: ProjectTemplate) => string;
+  createProject: (name: string, template: ProjectTemplate, folderPath?: string) => string;
   deleteProject: (id: string) => void;
   renameProject: (id: string, newName: string) => void;
   openProject: (id: string) => void;
@@ -77,6 +78,7 @@ export const useProjectsStore = create<ProjectsState>()(
             files: files,
             template: meta.template as ProjectTemplate,
             githubRepo: meta.githubRepo,
+            folderPath: meta.folderPath,
           };
         }
 
@@ -87,7 +89,7 @@ export const useProjectsStore = create<ProjectsState>()(
       }
     },
 
-    createProject: (name, template) => {
+    createProject: (name, template, folderPath) => {
       const id = generateId(name, Object.keys(get().projects));
       const now = Date.now();
       const files = getTemplateFiles(template);
@@ -102,6 +104,7 @@ export const useProjectsStore = create<ProjectsState>()(
         updatedAt: now,
         files,
         template,
+        folderPath,
       };
 
       set((state) => ({
@@ -109,7 +112,7 @@ export const useProjectsStore = create<ProjectsState>()(
       }));
 
       // Save to disk
-      const meta: ProjectMeta = { id, name, createdAt: now, updatedAt: now, template };
+      const meta: ProjectMeta = { id, name, createdAt: now, updatedAt: now, template, folderPath };
       saveProjectMeta(meta).catch(e => console.error('[Projects] Save meta error:', e));
       writeProjectFiles(id, files).catch(e => console.error('[Projects] Write files error:', e));
 

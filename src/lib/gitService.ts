@@ -16,8 +16,8 @@ export async function initGitFs() {
   if (isInitialized) return;
   try {
     await fs.promises.mkdir(DIR);
-  } catch (error) {
-    if (error.code !== 'EEXIST') console.error(error);
+  } catch (error: any) {
+    if (error?.code !== 'EEXIST') console.error(error);
   }
   
   // Try to init a repo if not exists

@@ -42,12 +42,16 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
       - name: Decode Android Keystore
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD || 'android' }}
         run: |
           mkdir -p ~/.android
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
-          # Fallback if secret not set (for local forks)
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 --decode > android/app/release.keystore
+          fi
           if [ ! -s android/app/release.keystore ]; then
-            keytool -genkey -v -keystore android/app/release.keystore -storepass "${{ secrets.KEYSTORE_PASSWORD || 'android' }}" -alias krypton -keypass "${{ secrets.KEYSTORE_PASSWORD || 'android' }}" -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
+            keytool -genkey -v -keystore android/app/release.keystore -storepass "$KS_PASS" -alias kryptonide -keypass "$KS_PASS" -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
           fi
 
 

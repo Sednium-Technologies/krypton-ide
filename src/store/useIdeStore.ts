@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { loadWorkspaceCustomCss } from '../lib/customCssManager';
 
 export type FileNode = {
   id: string;
@@ -17,24 +18,38 @@ interface CursorPosition {
   col: number;
 }
 
+export type SidebarView = 'explorer' | 'search' | 'git' | 'ai' | 'extensions' | 'settings' | 'extension-view';
+
+export interface ActiveExtensionView {
+  extensionId: string;
+  viewContainerId: string;
+  title: string;
+  icon?: string;
+  toolId?: string;
+}
+
 interface IdeState {
   files: Record<string, FileNode>;
   activeFileId: string | null;
   openFiles: string[];
-  sidebarView: 'explorer' | 'search' | 'git' | 'ai' | 'extensions' | 'settings';
+  sidebarView: SidebarView;
+  activeExtensionView: ActiveExtensionView | null;
   isSidebarOpen: boolean;
-  theme: 'vs-dark' | 'light' | 'hc-black';
+  theme: 'krypton-warm' | 'vs-dark' | 'light' | 'hc-black';
   activeFont: string;
   cursorPosition: CursorPosition;
   isPreviewOpen: boolean;
+  isTerminalOpen: boolean;
   isCommandPaletteOpen: boolean;
   aiMessages: { role: 'user' | 'assistant' | 'system'; content: string }[];
   isAiLoading: boolean;
   isAiFullscreen: boolean;
   isHapticsEnabled: boolean;
   runTarget: 'java' | 'wasm' | 'js';
+  fileFontSizes: Record<string, number>;
   
   // Actions
+  setFileFontSize: (fileId: string, size: number) => void;
   setAiFullscreen: (fullscreen: boolean) => void;
   setAiMessages: (messages: { role: 'user' | 'assistant' | 'system'; content: string }[]) => void;
   setAiLoading: (loading: boolean) => void;
@@ -44,13 +59,17 @@ interface IdeState {
   renameFile: (id: string, newName: string) => void;
   openFile: (id: string) => void;
   closeFile: (id: string) => void;
+  closeAllFiles: () => void;
   setActiveFile: (id: string | null) => void;
-  setSidebarView: (view: 'explorer' | 'search' | 'git' | 'ai' | 'extensions' | 'settings') => void;
+  setSidebarView: (view: SidebarView) => void;
+  setActiveExtensionView: (view: ActiveExtensionView | null) => void;
+  openExtensionView: (view: ActiveExtensionView) => void;
   toggleSidebar: () => void;
-  setTheme: (theme: 'vs-dark' | 'light' | 'hc-black') => void;
+  setTheme: (theme: 'krypton-warm' | 'vs-dark' | 'light' | 'hc-black') => void;
   setActiveFont: (font: string) => void;
   setCursorPosition: (pos: CursorPosition) => void;
   setPreviewOpen: (open: boolean) => void;
+  setIsTerminalOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setHaptics: (val: boolean) => void;
   setRunTarget: (target: 'java' | 'wasm' | 'js') => void;
@@ -123,16 +142,22 @@ export const useIdeStore = create<IdeState>()(
     activeFileId: null,
     openFiles: [],
     sidebarView: 'explorer',
+    activeExtensionView: null,
     isSidebarOpen: false,
     theme: 'vs-dark',
     activeFont: '',
     cursorPosition: { line: 1, col: 1 },
     isPreviewOpen: false,
+    isTerminalOpen: false,
     isCommandPaletteOpen: false,
     aiMessages: [],
     isAiLoading: false,
     isAiFullscreen: false,
+    fileFontSizes: {},
 
+    setFileFontSize: (fileId, size) => set((state) => ({
+      fileFontSizes: { ...state.fileFontSizes, [fileId]: size }
+    })),
     setAiFullscreen: (fullscreen) => set({ isAiFullscreen: fullscreen }),
     setAiMessages: (messages) => set({ aiMessages: messages }),
     setAiLoading: (loading) => set({ isAiLoading: loading }),
@@ -167,12 +192,17 @@ export const useIdeStore = create<IdeState>()(
     },
 
     updateFileContent: (id, content) => {
-      set((state) => ({
-        files: {
-          ...state.files,
-          [id]: { ...state.files[id], content, isUnsaved: true },
-        },
-      }));
+      set((state) => {
+        const file = state.files[id];
+        if (!file) return state;
+        if (file.content === content) return state;
+        return {
+          files: {
+            ...state.files,
+            [id]: { ...file, content, isUnsaved: true },
+          },
+        };
+      });
     },
 
     deleteFile: (id) => {
@@ -254,7 +284,23 @@ export const useIdeStore = create<IdeState>()(
       });
     },
 
-    setActiveFile: (id) => set({ activeFileId: id }),
+    setActiveFile: (id) => {
+      const state = get();
+      if (state.activeFileId && state.files[state.activeFileId]?.isUnsaved) {
+        state.saveFile(state.activeFileId);
+      }
+      set({ activeFileId: id });
+    },
+
+    closeAllFiles: () => {
+      const state = get();
+      state.openFiles.forEach((fileId) => {
+        if (state.files[fileId]?.isUnsaved) {
+          state.saveFile(fileId);
+        }
+      });
+      set({ openFiles: [], activeFileId: null });
+    },
     
     setSidebarView: (view) => {
       set((state) => {
@@ -265,12 +311,35 @@ export const useIdeStore = create<IdeState>()(
         return { sidebarView: view, isSidebarOpen: true };
       });
     },
+
+    setActiveExtensionView: (activeExtensionView) => set({ activeExtensionView }),
+
+    openExtensionView: (view) => {
+      set((state) => {
+        // If clicking the same extension view and sidebar is open, toggle closed (VS Code behavior)
+        if (
+          state.sidebarView === 'extension-view' &&
+          state.isSidebarOpen &&
+          state.activeExtensionView?.toolId === view.toolId
+        ) {
+          return { isSidebarOpen: false };
+        }
+        return {
+          sidebarView: 'extension-view',
+          activeExtensionView: view,
+          isSidebarOpen: true,
+        };
+      });
+    },
     
     toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
     setTheme: (theme) => set({ theme }),
     setActiveFont: (activeFont) => set({ activeFont }),
     setCursorPosition: (pos) => set({ cursorPosition: pos }),
     setPreviewOpen: (open) => set({ isPreviewOpen: open }),
+    setIsTerminalOpen: (open) => set((state) => ({
+      isTerminalOpen: typeof open === 'function' ? open(state.isTerminalOpen) : open,
+    })),
     setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
 
     setHaptics: (val) => {
@@ -299,7 +368,25 @@ export const useIdeStore = create<IdeState>()(
       });
     },
 
-    loadProject: (files) => set({ files, openFiles: [], activeFileId: null, cursorPosition: { line: 1, col: 1 } }),
+    loadProject: (files) => {
+      loadWorkspaceCustomCss(files);
+      const fileNodes = Object.entries(files).filter(([_, f]) => f.type === 'file');
+      let defaultFileId: string | null = null;
+
+      if (fileNodes.length > 0) {
+        const mainFile = fileNodes.find(([_, f]) => 
+          ['index.html', 'app.tsx', 'app.jsx', 'app.js', 'main.py', 'main.ts', 'main.js', 'index.js', 'page.tsx', 'page.jsx'].includes(f.name.toLowerCase())
+        );
+        defaultFileId = mainFile ? mainFile[0] : fileNodes[0][0];
+      }
+
+      set({
+        files,
+        openFiles: defaultFileId ? [defaultFileId] : [],
+        activeFileId: defaultFileId,
+        cursorPosition: { line: 1, col: 1 },
+      });
+    },
 
     getFileByPath: (pathSegments: string[]) => {
       const { files } = get();
@@ -411,3 +498,25 @@ export const useIdeStore = create<IdeState>()(
     setRunTarget: (target) => set({ runTarget: target }),
   })
 );
+
+// Atomic selector hooks to avoid re-rendering entire component tree
+export const useActiveFileId = () => useIdeStore((s) => s.activeFileId);
+export const useActiveFile = () => useIdeStore((s) => (s.activeFileId ? s.files[s.activeFileId] : null));
+export const useTheme = () => useIdeStore((s) => s.theme);
+export const useOpenFiles = () => useIdeStore((s) => s.openFiles);
+export const useActiveFont = () => useIdeStore((s) => s.activeFont);
+export const useIsSidebarOpen = () => useIdeStore((s) => s.isSidebarOpen);
+export const useFileMetadata = (id: string) =>
+  useIdeStore((s) => {
+    const f = s.files[id];
+    if (!f) return null;
+    return {
+      id: f.id,
+      name: f.name,
+      type: f.type,
+      parentId: f.parentId,
+      language: f.language,
+      isUnsaved: f.isUnsaved,
+    };
+  });
+

@@ -4,9 +4,12 @@ import { useIdeStore } from '../store/useIdeStore';
 interface KeyboardShortcutsOptions {
   onRun: () => void;
   onToggleTerminal: () => void;
+  onSave?: () => void;
+  onToggleSidebar?: () => void;
+  onCommandPalette?: () => void;
 }
 
-export function useKeyboardShortcuts({ onRun, onToggleTerminal }: KeyboardShortcutsOptions) {
+export function useKeyboardShortcuts({ onRun, onToggleTerminal, onSave, onCommandPalette }: KeyboardShortcutsOptions) {
   const { 
     activeFileId, saveFile, saveAllFiles, setCommandPaletteOpen, 
     toggleSidebar, createFile, openFile

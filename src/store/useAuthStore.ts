@@ -44,7 +44,7 @@ function persistAuth(state: AuthState) {
     githubUser: state.githubUser,
     githubRepoLink: state.githubRepoLink,
     googleUser: state.googleUser,
-    // Note: accessToken is NOT persisted — it's session-only and needs to be refreshed on app start if needed
+    googleAccessToken: state.googleAccessToken,
   });
 }
 
@@ -60,12 +60,17 @@ export const useAuthStore = create<AuthState>()(
       try {
         const data = await readAuth();
         if (data) {
+          const accessToken = data.googleAccessToken || null;
           set({
             githubToken: data.githubToken || null,
             githubUser: data.githubUser || null,
             githubRepoLink: data.githubRepoLink || null,
             googleUser: data.googleUser || null,
+            googleAccessToken: accessToken,
           });
+          if (accessToken) {
+            setDriveAccessToken(accessToken);
+          }
         }
       } catch (e) {
         console.error('[Auth] Failed to load from disk:', e);

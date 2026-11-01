@@ -12,19 +12,45 @@ export default defineConfig({
   },
   server: {
     allowedHosts: true,
+    proxy: {
+      '/api/github-oauth': {
+        target: 'https://github.com/login',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/github-oauth/, ''),
+      },
+    },
+  },
+  worker: {
+    format: 'es',
   },
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'monaco': ['monaco-editor', '@monaco-editor/react'],
-          'xterm': ['xterm', 'xterm-addon-fit'],
-          'vendor': ['react', 'react-dom', 'zustand', 'lucide-react'],
-          'tools': ['jszip'],
+        manualChunks(id) {
+          if (id.includes('@huggingface/transformers')) {
+            return 'transformers';
+          }
+          if (id.includes('monaco-editor') || id.includes('@monaco-editor')) {
+            return 'monaco';
+          }
+          if (id.includes('xterm')) {
+            return 'xterm';
+          }
+          if (id.includes('src/lib/projectTemplates.ts')) {
+            return 'templates';
+          }
+          if (id.includes('src/lib/languageSnippets.ts')) {
+            return 'snippets';
+          }
+          if (id.includes('src/lib/shellEngine.ts')) {
+            return 'shell';
+          }
+          if (id.includes('src/lib/ai/')) {
+            return 'ai';
+          }
         },
       },
     },
   },
 });
-

@@ -1,22 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Send, Key, X, Sparkles, Loader2, Plus, MessageSquare, Trash2, ChevronDown, ChevronRight, BrainCircuit, FileCode, CheckCircle2, AlertCircle, Square, ClipboardList, Zap, Maximize, Minimize, Settings2, Paperclip } from 'lucide-react';
+import { Bot, Send, Key, X, Sparkles, Loader2, Plus, MessageSquare, Trash2, ChevronDown, ChevronRight, BrainCircuit, FileCode, CheckCircle2, AlertCircle, Square, ClipboardList, Zap, Settings2, Paperclip, RotateCw, Check, Search, TerminalSquare } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useAiStore, Message, AttachedFile } from '../../store/useAiStore';
 import { useProblemsStore } from '../../store/useProblemsStore';
 import { useOutputStore } from '../../store/useOutputStore';
 import { useDynamicModels } from '../../hooks/useDynamicModels';
-import SYSTEM_INSTRUCTION from '../../../Larry.txt?raw';
+import SYSTEM_INSTRUCTION from '../../config/prompts/oorty_lite.txt?raw';
+import { OortyLiteIcon } from '../ui/OortyLiteIcon';
+import { SlashCommandPicker } from '../ai/SlashCommandPicker';
+import { AtMentionPicker } from '../ai/AtMentionPicker';
+import { MentionChip, MentionTag } from '../ai/MentionChip';
+import { AgentSettingsPanel } from '../settings/AgentSettingsPanel';
+import { AI_PROVIDERS, getProviderById, DEFAULT_AI_PROVIDER, DEFAULT_AI_MODEL } from '../../config/aiProviders';
+import { useMcpStore, getMcpPromptContext } from '../../store/useMcpStore';
+import { useSkillsStore, getSkillsPromptContext } from '../../store/useSkillsStore';
 
 function ThinkBlock({ content, duration }: { content: string; duration?: number }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <div className="my-2 border border-[#30363d] rounded-lg overflow-hidden w-full max-w-full">
-      <button onClick={() => setExpanded(!expanded)} className="w-full bg-[#161b22] hover:bg-[#21262d] px-3 py-2 text-[11px] font-mono text-gray-400 flex items-center transition-colors border-b border-transparent" style={{ borderBottomColor: expanded ? '#30363d' : 'transparent' }}>
-        {expanded ? <ChevronDown size={14} className="mr-2" /> : <ChevronRight size={14} className="mr-2" />}
-        <BrainCircuit size={14} className="mr-2 text-blue-400" />
+    <div className="my-2 border border-[#f3f0e7]/10 rounded-xl overflow-hidden w-full max-w-full bg-[#231e22]">
+      <button 
+        onClick={() => setExpanded(!expanded)} 
+        className="w-full bg-[#231e22] hover:bg-[#342f33] px-3 py-2 text-[11px] font-mono text-[#f3f0e7]/75 flex items-center transition-colors border-b border-transparent focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none" 
+        style={{ borderBottomColor: expanded ? 'rgba(243,240,231,0.1)' : 'transparent' }}
+      >
+        {expanded ? <ChevronDown size={14} className="mr-2 text-[#f3f0e7]/70" /> : <ChevronRight size={14} className="mr-2 text-[#f3f0e7]/70" />}
+        <BrainCircuit size={14} className="mr-2 text-[#f3f0e7]/80" />
         Thought for {duration ? `${(duration / 1000).toFixed(1)} seconds` : 'a few seconds'}
       </button>
-      {expanded && <pre className="p-3 text-[11px] overflow-x-auto bg-[#0d1117] text-gray-400 whitespace-pre-wrap font-sans leading-relaxed">{content.trim()}</pre>}
+      {expanded && <pre className="p-3 text-[11px] overflow-x-auto bg-[#1a1720] text-[#f3f0e7]/75 whitespace-pre-wrap font-sans leading-relaxed">{content.trim()}</pre>}
     </div>
   );
 }
@@ -24,92 +36,134 @@ function ThinkBlock({ content, duration }: { content: string; duration?: number 
 function PlanBlock({ content, onComment }: { content: string, onComment?: () => void }) {
   const [expanded, setExpanded] = useState(true);
   return (
-    <div className="my-2 border border-amber-800/40 rounded-lg overflow-hidden w-full max-w-full">
-      <div className="flex bg-amber-950/30 transition-colors">
-        <button onClick={() => setExpanded(!expanded)} className="flex-1 hover:bg-amber-950/50 px-3 py-2 text-[11px] font-mono text-amber-300 flex items-center text-left">
-          {expanded ? <ChevronDown size={14} className="mr-2 shrink-0" /> : <ChevronRight size={14} className="mr-2 shrink-0" />}
-          <ClipboardList size={14} className="mr-2 shrink-0 text-amber-400" />
-          <span className="truncate">Implementation Plan</span>
+    <div className="my-2 border border-[#f3f0e7]/15 rounded-xl overflow-hidden w-full max-w-full bg-[#231e22]">
+      <div className="flex bg-[#342f33] transition-colors">
+        <button onClick={() => setExpanded(!expanded)} className="flex-1 hover:bg-[#3d373c] px-3 py-2 text-[11px] font-mono text-[#f3f0e7] flex items-center text-left">
+          {expanded ? <ChevronDown size={14} className="mr-2 shrink-0 text-[#f3f0e7]/70" /> : <ChevronRight size={14} className="mr-2 shrink-0 text-[#f3f0e7]/70" />}
+          <ClipboardList size={14} className="mr-2 shrink-0 text-[#f3f0e7]" />
+          <span className="truncate font-semibold">Implementation Plan</span>
         </button>
         {onComment && (
           <button 
             onClick={onComment}
-            className="px-3 py-2 hover:bg-amber-900/50 text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center transition-colors border-l border-amber-800/20"
+            className="px-3 py-2 hover:bg-[#3d373c] text-[10px] font-bold text-[#f3f0e7]/80 uppercase tracking-wider flex items-center transition-colors border-l border-[#f3f0e7]/10"
             title="Add a comment to this plan"
           >
             <MessageSquare size={12} className="mr-1.5" /> Comment
           </button>
         )}
       </div>
-      {expanded && <pre className="p-3 text-[11px] overflow-x-auto bg-[#0d1117] text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">{content.trim()}</pre>}
+      {expanded && <pre className="p-3 text-[11px] overflow-x-auto bg-[#1a1720] text-[#f3f0e7]/90 whitespace-pre-wrap font-sans leading-relaxed">{content.trim()}</pre>}
     </div>
   );
 }
 
 function StatusBlock({ content }: { content: string }) {
   return (
-    <div className="my-1 flex items-center space-x-2 px-3 py-1.5 bg-blue-950/20 border border-blue-800/30 rounded-lg">
-      <Zap size={12} className="text-blue-400 shrink-0" />
-      <span className="text-[11px] text-blue-300 font-mono">{content.trim()}</span>
+    <div className="my-1 flex items-center space-x-2 px-3 py-1.5 bg-[#342f33] border border-[#f3f0e7]/10 rounded-xl">
+      <Zap size={12} className="text-[#f3f0e7] shrink-0" />
+      <span className="text-[11px] text-[#f3f0e7]/80 font-mono">{content.trim()}</span>
     </div>
   );
 }
 
 function ToolResultBlock({ msg }: { msg: Message }) {
   const isError = msg.content.toLowerCase().includes('error');
+
+  // Dedicated terminal command execution display
+  if (msg.name === 'run_terminal_command' || msg.name === 'execute_terminal_command') {
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(msg.content);
+    } catch {}
+
+    const exitCode = parsed?.exitCode ?? (isError ? 1 : 0);
+    const command = parsed?.command || 'command';
+    const output = parsed?.stdout || parsed?.stderr || msg.content;
+
+    return (
+      <div className="my-2 border border-[#f3f0e7]/15 rounded-xl overflow-hidden w-full max-w-full bg-[#1e1b20]">
+        <div className="px-3 py-2 flex items-center justify-between border-b border-[#f3f0e7]/10 bg-[#2a2529]">
+          <div className="flex items-center space-x-2 min-w-0 flex-1 mr-2">
+            <TerminalSquare size={13} className="text-emerald-400 flex-shrink-0" />
+            <span className="text-[11px] font-mono font-bold text-[#f3f0e7] truncate">${command}</span>
+          </div>
+          <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${
+            exitCode === 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'
+          }`}>
+            exit {exitCode}
+          </span>
+        </div>
+        {output && (
+          <pre className="p-2.5 text-[10px] font-mono text-[#f3f0e7]/80 overflow-x-auto max-h-48 whitespace-pre-wrap bg-[#151217]">
+            {output}
+          </pre>
+        )}
+      </div>
+    );
+  }
+
   const toolLabel = msg.name === 'read_file' ? 'Read File' 
+    : msg.name === 'write_file' || msg.name === 'write_new_file' ? 'Write File'
     : msg.name === 'edit_lines' ? 'Edited Lines'
     : msg.name === 'insert_lines' ? 'Inserted Lines'
     : msg.name === 'patch_file' ? 'Patched File'
-    : msg.name === 'write_new_file' ? 'Created File'
     : msg.name === 'create_directory' ? 'Created Directory'
+    : msg.name === 'list_dir' ? 'List Directory'
+    : msg.name === 'lsp_get_diagnostics' ? 'LSP Diagnostics'
+    : msg.name === 'lsp_get_symbols' ? 'LSP Symbols'
+    : msg.name === 'lsp_find_definition' ? 'LSP Definition'
+    : msg.name === 'aif_recall' ? 'AIF Boot Recall'
+    : msg.name === 'aif_scratch' ? 'AIF Volatile Scratch'
+    : msg.name === 'aif_note' ? 'AIF Cognitive Commit'
+    : msg.name === 'aif_query' ? 'AIF Memory Query'
+    : msg.name?.startsWith('mcp_') ? `MCP: ${msg.name.replace(/^mcp_/, '')}`
     : 'Tool Result';
   return (
-    <div className="my-2 border border-[#30363d] rounded-lg overflow-hidden w-full max-w-full bg-[#0d1117]">
-      <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#30363d]">
+    <div className="my-2 border border-[#f3f0e7]/10 rounded-xl overflow-hidden w-full max-w-full bg-[#231e22]">
+      <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#f3f0e7]/10">
         <div className="flex items-center space-x-2">
           {isError ? <AlertCircle size={12} className="text-red-400" /> : <CheckCircle2 size={12} className="text-emerald-400" />}
-          <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">{toolLabel}</span>
+          <span className="text-[10px] font-mono text-[#f3f0e7]/75 uppercase tracking-wider">{toolLabel}</span>
         </div>
       </div>
-      <pre className="p-2.5 text-[10px] font-mono text-gray-500 overflow-x-auto max-h-32">
+      <pre className="p-2.5 text-[10px] font-mono text-[#f3f0e7]/75 overflow-x-auto max-h-32">
         {msg.content.slice(0, 500)}{msg.content.length > 500 ? '...' : ''}
       </pre>
     </div>
   );
 }
 
-const PROVIDERS = [
-  { id: 'gemini', name: 'Google Gemini', placeholder: 'AIzaSy...', models: ['gemini-3.0-pro', 'gemini-2.5-pro', 'gemini-1.5-pro', 'gemini-1.5-flash'], defaultModel: 'gemini-1.5-flash', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
-  { id: 'openai', name: 'OpenAI', placeholder: 'sk-...', models: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini'], defaultModel: 'gpt-4o', baseUrl: 'https://api.openai.com/v1' },
-  { id: 'anthropic', name: 'Anthropic Claude', placeholder: 'sk-ant-...', models: ['claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-opus-20240229'], defaultModel: 'claude-3-7-sonnet-20250219', baseUrl: 'https://api.anthropic.com/v1' },
-  { id: 'groq', name: 'Groq', placeholder: 'gsk_...', models: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768'], defaultModel: 'llama-3.3-70b-versatile', baseUrl: 'https://api.groq.com/openai/v1' },
-  { id: 'mistral', name: 'Mistral AI', placeholder: 'M...', models: ['mistral-large-latest', 'codestral-latest'], defaultModel: 'mistral-large-latest', baseUrl: 'https://api.mistral.ai/v1' },
-  { id: 'openrouter', name: 'OpenRouter', placeholder: 'sk-or-...', models: ['anthropic/claude-3.7-sonnet', 'google/gemini-2.0-flash-exp:free'], defaultModel: 'google/gemini-2.0-flash-exp:free', baseUrl: 'https://openrouter.ai/api/v1' },
-];
+const PROVIDERS = AI_PROVIDERS;
 
 export function AiAssistant() {
   const { files, updateFileContent, saveFile, createFile, isAiFullscreen, setAiFullscreen } = useIdeStore();
   const aiStore = useAiStore();
-  const activeProvider = aiStore.provider;
-  const currentProvider = PROVIDERS.find(p => p.id === activeProvider) || PROVIDERS[0];
+  const activeProvider = aiStore.provider || DEFAULT_AI_PROVIDER;
+  const currentProvider = getProviderById(activeProvider);
   const currentKey = aiStore.apiKey;
-  const selectedModel = aiStore.model;
+  const selectedModel = aiStore.model || currentProvider.defaultModel;
   const isAiLoading = aiStore.isLoading;
 
-  const { models: dynamicModels, isLoading: isModelsLoading } = useDynamicModels(activeProvider, currentKey);
+  const { 
+    models: dynamicModels, 
+    isLoading: isModelsLoading,
+    isLive: isModelsLive,
+    refresh: refreshModels
+  } = useDynamicModels(activeProvider, currentKey, aiStore.baseUrl);
   
   const [input, setInput] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showSessionList, setShowSessionList] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showQuickModelPicker, setShowQuickModelPicker] = useState(false);
+  const [modelSearchQuery, setModelSearchQuery] = useState('');
   const [mentionQuery, setMentionQuery] = useState({ active: false, text: '', startIdx: 0 });
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const activeSession = aiStore.sessions.find(s => s.id === aiStore.activeSessionId) || aiStore.sessions[0];
   const aiMessages = activeSession?.messages || [];
@@ -139,42 +193,68 @@ export function AiAssistant() {
     setInput('');
   };
 
-  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [activeMentionTags, setActiveMentionTags] = useState<MentionTag[]>([]);
+  const [showSlashPicker, setShowSlashPicker] = useState(false);
+  const [slashQuery, setSlashQuery] = useState('');
+  const [showAtPicker, setShowAtPicker] = useState(false);
+  const [atQuery, setAtQuery] = useState('');
+
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setInput(val);
     const cursor = e.target.selectionStart || 0;
     const textBeforeCursor = val.slice(0, cursor);
     const words = textBeforeCursor.split(/\s+/);
-    const lastWord = words[words.length - 1];
-    if (lastWord.startsWith('@')) {
-      setMentionQuery({ active: true, text: lastWord.slice(1).toLowerCase(), startIdx: cursor - lastWord.length });
+    const lastWord = words[words.length - 1] || '';
+
+    if (lastWord.startsWith('/')) {
+      setShowSlashPicker(true);
+      setSlashQuery(lastWord.slice(1));
+      setShowAtPicker(false);
+    } else if (lastWord.startsWith('@')) {
+      setShowAtPicker(true);
+      setAtQuery(lastWord.slice(1));
+      setShowSlashPicker(false);
     } else {
-      setMentionQuery({ active: false, text: '', startIdx: 0 });
+      setShowSlashPicker(false);
+      setShowAtPicker(false);
     }
   };
 
-  const insertMention = (filename: string) => {
-    const before = input.slice(0, mentionQuery.startIdx);
-    const after = input.slice(mentionQuery.startIdx + mentionQuery.text.length + 1);
-    setInput(before + `@${filename} ` + after);
-    setMentionQuery({ active: false, text: '', startIdx: 0 });
+  const handleSelectSkillTag = (skill: { id: string; name: string }) => {
+    setActiveMentionTags(prev => [...prev, { type: 'skill', id: skill.id, name: skill.name }]);
+    // Remove the typed /skill command from input
+    setInput(prev => prev.replace(/\/[a-zA-Z0-9_\-]*$/, ''));
+    setShowSlashPicker(false);
     inputRef.current?.focus();
   };
 
-  const getMentionOptions = () => {
-    const fileMatches = Object.values(files).filter(f => f.type === 'file' && f.name.toLowerCase().includes(mentionQuery.text)).slice(0, 8);
-    const options: any[] = [...fileMatches];
-    if ('problems'.includes(mentionQuery.text.toLowerCase())) {
-      options.unshift({ name: 'problems', isSpecial: true });
+  const handleSelectFileTag = (file: { id: string; name: string }) => {
+    setActiveMentionTags(prev => [...prev, { type: 'file', id: file.id, name: file.name }]);
+    // Remove typed @file command from input
+    setInput(prev => prev.replace(/@[a-zA-Z0-9_\-\.]*$/, ''));
+    setShowAtPicker(false);
+    inputRef.current?.focus();
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDropFile = (e: React.DragEvent) => {
+    e.preventDefault();
+    const fileId = e.dataTransfer.getData('fileId');
+    const fileName = e.dataTransfer.getData('fileName');
+    if (fileName) {
+      setActiveMentionTags(prev => [...prev, { type: 'file', id: fileId || fileName, name: fileName }]);
     }
-    return options.slice(0, 8);
   };
 
   const sendMessage = async () => {
     if ((!input.trim() && attachments.length === 0) || (!aiStore.apiKey && aiStore.provider !== 'openrouter')) return;
     
-    const words = input.split(/\s+/);
-    const mentions = words.filter(w => w.startsWith('@')).map(w => w.slice(1));
+    const rawMentions = (input.match(/@([a-zA-Z0-9_.-]+)/g) || []).map(m => m.slice(1).replace(/[.,?!:;]+$/, ''));
+    const mentions = Array.from(new Set(rawMentions));
     let contextString = '';
     
     if (mentions.includes('problems')) {
@@ -192,12 +272,22 @@ export function AiAssistant() {
       contextString += `\n<problems_context>\n${pText}\n\n${cText}\n</problems_context>\n`;
     }
 
+    // Active mention tags (skills & tagged files)
+    const skillTags = activeMentionTags.filter(t => t.type === 'skill');
+    if (skillTags.length > 0) {
+      const loadedSkills = (window as any).__skills || [];
+      skillTags.forEach(st => {
+        contextString += `\n\n<active_skill name="${st.name}">\nActive Skill Instructions applied.\n</active_skill>\n`;
+      });
+    }
+
     const fileMentions = mentions.filter(m => m !== 'problems');
-    if (fileMentions.length > 0) {
-      const taggedFiles = Object.values(files).filter(f => f.type === 'file' && fileMentions.includes(f.name));
+    const fileTagNames = activeMentionTags.filter(t => t.type === 'file').map(t => t.name);
+    const combinedFileMentions = Array.from(new Set([...fileMentions, ...fileTagNames]));
+    if (combinedFileMentions.length > 0) {
+      const taggedFiles = Object.values(files).filter(f => f.type === 'file' && combinedFileMentions.includes(f.name));
       if (taggedFiles.length > 0) {
         contextString += '\n\n<tagged_files>\n' + taggedFiles.map(f => {
-          // Build full path for the file
           const buildPath = (nodeId: string): string => {
             const node = files[nodeId];
             if (!node || !node.parentId || nodeId === 'root') return '';
@@ -211,7 +301,6 @@ export function AiAssistant() {
       }
     }
 
-    // Build hierarchical file tree with paths
     const buildPathForNode = (nodeId: string): string => {
       const node = files[nodeId];
       if (!node || !node.parentId || nodeId === 'root') return '';
@@ -223,8 +312,6 @@ export function AiAssistant() {
       .map(([id]) => `  - ${buildPathForNode(id)}`)
       .join('\n');
 
-
-    // Include active file context if one is open
     const activeFile = useIdeStore.getState().activeFileId;
     let activeFileContext = '';
     if (activeFile && files[activeFile]) {
@@ -233,20 +320,33 @@ export function AiAssistant() {
       activeFileContext = `\n<active_file path="${afPath}" language="${af.language || 'text'}" />\n`;
     }
 
-    // Build project context so AI knows which project & directory it's working in
     const projectName = files['root']?.name || 'Untitled Project';
     const projectContext = `\n<project_context>\nProject Name: ${projectName}\nWorking Directory: ${projectName}/\nAll file paths are relative to the project root ("${projectName}/").\nWhen using read_file or edit tools, use paths relative to the project root (e.g., "src/App.tsx").\n</project_context>\n`;
 
-    const systemContext = SYSTEM_INSTRUCTION + projectContext + `\n<project_file_tree>\n${fileTreeItems}\n</project_file_tree>\n` + activeFileContext + contextString;
+    const mcpServers = useMcpStore.getState().servers;
+    const mcpContext = getMcpPromptContext(mcpServers);
+    const skills = useSkillsStore.getState().skills;
+    const skillsContext = getSkillsPromptContext(skills);
+
+    const systemContext = [
+      SYSTEM_INSTRUCTION,
+      mcpContext ? `\n\n${mcpContext}\n` : '',
+      skillsContext ? `\n\n${skillsContext}\n` : '',
+      projectContext,
+      `\n<project_file_tree>\n${fileTreeItems}\n</project_file_tree>\n`,
+      activeFileContext,
+      contextString
+    ].filter(Boolean).join('');
 
     const currentInput = input;
     const currentAttachments = [...attachments];
     setInput('');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
     setAttachments([]);
     setMentionQuery({ active: false, text: '', startIdx: 0 });
 
-    const prov = PROVIDERS.find(p => p.id === aiStore.provider);
-    aiStore.setBaseUrl(prov?.baseUrl || '');
+    const prov = getProviderById(aiStore.provider || DEFAULT_AI_PROVIDER);
+    aiStore.setBaseUrl(prov.baseUrl || '');
 
     let sessionId = activeSession?.id;
     if (!sessionId) {
@@ -254,11 +354,9 @@ export function AiAssistant() {
     }
 
     await aiStore.sendMessage(sessionId, currentInput, systemContext, currentAttachments);
-  }
+  };
 
   const applyCode = (filename: string, content: string) => {
-    // filename might be a full path like "src/components/App.tsx"
-    // We need to resolve it against the exact path in the file tree
     const buildPath = (nodeId: string): string => {
       const node = files[nodeId];
       if (!node || !node.parentId || nodeId === 'root') return '';
@@ -283,14 +381,12 @@ export function AiAssistant() {
   const getModifiedFiles = (msg: Message) => {
     const filesModified = new Set<string>();
     
-    // 1. Extact from <edit> tags
     const regex = /<edit(?: file="([^"]*)")?>/g;
     let match;
     while ((match = regex.exec(msg.content)) !== null) {
       if (match[1]) filesModified.add(match[1].split('/').pop() || match[1]);
     }
 
-    // 2. Extract from tool calls (if model adapters pass them down)
     if (msg.tool_calls) {
       msg.tool_calls.forEach(call => {
         const name = call.function?.name;
@@ -298,7 +394,7 @@ export function AiAssistant() {
           try {
             const args = JSON.parse(call.function.arguments);
             if (args.path) filesModified.add(args.path.split('/').pop() || args.path);
-          } catch { } // ignore incomplete JSON streaming
+          } catch { }
         }
       });
     }
@@ -309,33 +405,26 @@ export function AiAssistant() {
   const renderMessageContent = (content: string, msg: Message) => {
     if (msg.role === 'tool') return <ToolResultBlock msg={msg} />;
 
-    // If this is a tool-call-only message (no visible text content), show a tool indicator
     if (msg.tool_calls && msg.tool_calls.length > 0 && (!content || content.trim() === '')) {
       return (
-        <div className="flex items-center gap-2 text-xs text-gray-500 italic py-1">
-          <Loader2 size={12} className="animate-spin text-blue-400" />
+        <div className="flex items-center gap-2 text-xs text-[#f3f0e7]/60 italic py-1">
+          <Loader2 size={12} className="animate-spin text-[#f3f0e7]" />
           <span>Using {msg.tool_calls.map(tc => tc.function?.name || tc.name || 'tool').join(', ')}...</span>
         </div>
       );
     }
 
-    // If content is empty (and no tool calls), don't render anything
     if (!content || content.trim() === '') return null;
     
-    // Check if the message contains any of our special tags
     const hasTags = content.includes('<ans>') || content.includes('<edit ') || content.includes('<plan>') || content.includes('<status>');
     
-    // Fallback: If no tags are found, treat the whole message as a standard response
     if (!hasTags) {
       const rendered = content.replace(/```([a-z]*)\n([\s\S]*?)```/g, (_m, _lang, code) => code);
       return <span key="fallback" className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed break-words block">{rendered}</span>;
     }
 
-    // Split by tags (ans, edit, plan, status) while preserving them.
-    // Removed naive quote matching which swallowed tags after apostrophes.
     const rawParts = content.split(/(<ans>[\s\S]*?(?:<\/ans>|$)|<edit(?: file="[^"]*")?>[\s\S]*?(?:<\/edit>|$)|<plan>[\s\S]*?(?:<\/plan>|$)|<status>[\s\S]*?(?:<\/status>|$))/g);
     
-    // Merge adjacent reasoning parts to keep Thought blocks contiguous
     const parts: string[] = [];
     rawParts.forEach(p => {
       if (!p) return;
@@ -378,98 +467,73 @@ export function AiAssistant() {
           const filename = match[1] || 'untitled', code = match[2].trim();
           const isClosed = part.includes('</edit>');
           return (
-            <div key={i} className="my-2 border border-[#30363d] rounded-lg overflow-hidden w-full max-w-full">
-              <div className="bg-[#21262d] px-3 py-1.5 text-xs font-mono text-gray-300 flex justify-between items-center truncate">
-                <div className="flex items-center space-x-2 min-w-0"><FileCode size={14} className="text-blue-400" /><span className="truncate">{filename}</span></div>
+            <div key={i} className="my-2 border border-[#f3f0e7]/10 rounded-xl overflow-hidden w-full max-w-full">
+              <div className="bg-[#231e22] px-3 py-1.5 text-xs font-mono text-[#f3f0e7]/80 flex justify-between items-center truncate border-b border-[#f3f0e7]/10">
+                <div className="flex items-center space-x-2 min-w-0"><FileCode size={14} className="text-[#f3f0e7]/70" /><span className="truncate">{filename}</span></div>
                 {isClosed && (
-                  <button onClick={() => applyCode(filename, code)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 rounded h-6 text-[10px] font-bold uppercase transition-colors shrink-0">Apply</button>
+                  <button onClick={() => applyCode(filename, code)} className="bg-[#f3f0e7] hover:bg-white text-[#2a2529] px-2.5 py-0.5 rounded-lg text-[10px] font-bold uppercase transition-colors shrink-0">Apply</button>
                 )}
               </div>
-              <pre className="p-3 text-[11px] overflow-x-auto bg-[#0d1117] text-gray-300 whitespace-pre-wrap">{code}</pre>
+              <pre className="p-3 text-[11px] overflow-x-auto bg-[#1a1720] text-[#f3f0e7]/80 whitespace-pre-wrap">{code}</pre>
             </div>
           );
         }
       }
 
-      // Default: Consider everything else as "Thinking"
       const duration = msg.completedAt ? msg.completedAt - msg.timestamp : undefined;
       return <ThinkBlock key={i} content={part} duration={duration} />;
     });
   };
 
-  if (!aiStore.apiKey && aiStore.provider !== 'openrouter' && !showSettings) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-10 text-center space-y-8 bg-[#1e1e1e]">
-        <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-2xl shadow-blue-500/20 animate-pulse">
-          <Sparkles size={48} className="text-white" />
-        </div>
-        <div className="space-y-2">
-          <h3 className="text-xl font-bold text-white tracking-tight border-b border-white/10 pb-2 inline-block">Larry Elite</h3>
-          <p className="text-sm text-gray-400 max-w-[240px] leading-relaxed">
-            Unleash the full power of Larry AI. Connect your Sednium API keys to begin.
-          </p>
-        </div>
-        <button 
-          onClick={() => setShowSettings(true)}
-          className="flex items-center space-x-2 bg-white text-black hover:bg-gray-200 active:scale-95 px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-xl shadow-white/5"
-        >
-          <Key size={18} />
-          <span>Setup Connection</span>
-        </button>
-      </div>
-    );
-  }
-
   // Settings panel
   if (showSettings) {
     return (
-      <div className="flex h-full flex-col bg-[#1e1e1e]">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#2d2d2d] shrink-0">
+      <div className="flex h-full flex-col bg-[#2a2529] text-[#f3f0e7]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#f3f0e7]/10 shrink-0 bg-[#231e22]">
           <div className="flex items-center space-x-2">
-            <Bot size={18} className="text-blue-500" />
-            <h3 className="text-sm font-bold text-white uppercase tracking-widest">Model Configurations</h3>
+            <Bot size={18} className="text-[#f3f0e7]" />
+            <h3 className="text-sm font-bold uppercase tracking-widest text-[#f3f0e7]">Model Configurations</h3>
           </div>
-          <button onClick={() => setShowSettings(false)} className="p-1.5 text-gray-500 hover:text-white rounded-lg hover:bg-white/5 transition-colors">
+          <button onClick={() => setShowSettings(false)} className="p-1.5 text-[#f3f0e7]/60 hover:text-[#f3f0e7] rounded-lg hover:bg-[#f3f0e7]/5 transition-colors">
             <X size={18} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
-          {/* Saved Models List */}
           <div>
-            <h4 className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] mb-3 block">Saved Models</h4>
+            <h4 className="text-[10px] text-[#f3f0e7]/50 font-black uppercase tracking-[0.2em] mb-3 block">Saved Models</h4>
             <div className="space-y-2">
               {aiStore.savedModels.map(model => (
-                <div key={model.id} className="flex items-center justify-between bg-[#161b22] px-3 py-2.5 rounded-xl border border-[#30363d]">
+                <div key={model.id} className="flex items-center justify-between bg-[#342f33] px-3.5 py-2.5 rounded-xl border border-[#f3f0e7]/10">
                   <div className="flex items-center space-x-3">
                     <button 
                       onClick={() => aiStore.setActiveSavedModel(model.id)}
-                      className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${aiStore.activeModelId === model.id ? 'border-emerald-500 bg-emerald-500/20' : 'border-gray-500'}`}
+                      className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${aiStore.activeModelId === model.id ? 'border-[#f3f0e7] bg-[#f3f0e7]/20' : 'border-[#f3f0e7]/40'}`}
                     >
-                      {aiStore.activeModelId === model.id && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                      {aiStore.activeModelId === model.id && <div className="w-1.5 h-1.5 rounded-full bg-[#f3f0e7]" />}
                     </button>
                     <div className="flex flex-col text-left">
-                      <span className="text-xs font-bold text-gray-200">{model.name}</span>
-                      <span className="text-[9px] text-gray-500 font-mono mt-0.5">{model.provider} / {model.model}</span>
+                      <span className="text-xs font-bold text-[#f3f0e7]">{model.name}</span>
+                      <span className="text-[9px] text-[#f3f0e7]/50 font-mono mt-0.5">{model.provider} / {model.model}</span>
                     </div>
                   </div>
-                  <button onClick={() => aiStore.removeSavedModel(model.id)} className="text-gray-500 hover:text-red-400 p-1.5 transition-colors rounded-lg hover:bg-white/5">
+                  <button onClick={() => aiStore.removeSavedModel(model.id)} className="text-[#f3f0e7]/40 hover:text-red-400 p-1.5 transition-colors rounded-lg hover:bg-[#f3f0e7]/5">
                     <Trash2 size={14} />
                   </button>
                 </div>
               ))}
               {aiStore.savedModels.length === 0 && (
-                <div className="text-[11px] text-gray-500 italic p-4 text-center border border-dashed border-gray-700/50 rounded-xl">
+                <div className="text-[11px] text-[#f3f0e7]/50 italic p-4 text-center border border-dashed border-[#f3f0e7]/15 rounded-xl">
                   No saved models yet. Create one below to continue.
                 </div>
               )}
             </div>
           </div>
 
-          <div className="border-t border-[#30363d] pt-6 space-y-6">
-            <h4 className="text-[10px] text-blue-400 font-black uppercase tracking-[0.2em] mb-3 block">Add New Configuration</h4>
+          <div className="border-t border-[#f3f0e7]/10 pt-6 space-y-6">
+            <h4 className="text-[10px] text-[#f3f0e7]/80 font-black uppercase tracking-[0.2em] mb-3 block">Add New Configuration</h4>
             <div>
-              <label className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] mb-3 block">Infrastructure Provider</label>
+              <label className="text-[10px] text-[#f3f0e7]/50 font-black uppercase tracking-[0.2em] mb-3 block">Infrastructure Provider</label>
               <div className="grid grid-cols-2 gap-2">
                 {PROVIDERS.map(provider => (
                   <button
@@ -481,8 +545,8 @@ export function AiAssistant() {
                     }}
                   className={`px-3 py-2.5 rounded-xl text-xs text-center border transition-all duration-200 ${
                     activeProvider === provider.id
-                      ? 'bg-blue-600/10 text-blue-400 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.1)]'
-                      : 'bg-[#161b22] text-gray-500 border-[#30363d] hover:border-gray-500'
+                      ? 'bg-[#f3f0e7]/15 text-[#f3f0e7] border-[#f3f0e7]/40 font-bold'
+                      : 'bg-[#342f33] text-[#f3f0e7]/60 border-[#f3f0e7]/10 hover:border-[#f3f0e7]/30'
                   }`}
                 >
                   {provider.name}
@@ -492,29 +556,89 @@ export function AiAssistant() {
           </div>
 
           <div className="space-y-4">
+            {(currentProvider?.allowCustomBaseUrl || activeProvider === 'custom' || activeProvider === 'ollama') && (
+              <div>
+                <label className="text-[10px] text-[#f3f0e7]/50 font-black uppercase tracking-[0.2em] mb-2 block">
+                  API Base URL {activeProvider === 'custom' && '(OpenAI Compatible)'}
+                </label>
+                <input
+                  type="text"
+                  value={aiStore.baseUrl !== undefined ? aiStore.baseUrl : (currentProvider.baseUrl || '')}
+                  onChange={(e) => aiStore.setBaseUrl(e.target.value)}
+                  placeholder={currentProvider.baseUrl || 'http://localhost:8080/v1'}
+                  className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-4 py-3 text-sm text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
+                />
+                <p className="text-[10px] text-[#f3f0e7]/40 mt-1">
+                  {activeProvider === 'custom' 
+                    ? 'Target URL of any OpenAI-compatible server (e.g. vLLM, LM Studio, Ollama /v1)' 
+                    : activeProvider === 'ollama'
+                    ? 'Ollama endpoint (e.g. http://localhost:11434)'
+                    : 'Override default API host endpoint'}
+                </p>
+              </div>
+            )}
+
             <div>
-              <label className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] mb-2 block">Secret Key</label>
+              <label className="text-[10px] text-[#f3f0e7]/50 font-black uppercase tracking-[0.2em] mb-2 block">
+                Secret Key {(!currentProvider.requiresKey || activeProvider === 'custom' || activeProvider === 'ollama') ? '(Optional)' : ''}
+              </label>
               <input
                 type="text"
                 value={currentKey}
                 onChange={(e) => aiStore.setApiKey(e.target.value)}
                 placeholder={currentProvider.placeholder}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded-xl px-4 py-3 text-sm text-white placeholder-gray-700 focus:border-blue-500/50 focus:outline-none transition-all"
+                className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-4 py-3 text-sm text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
               />
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] block">Deployment Model</label>
-                {isModelsLoading && <Loader2 size={12} className="animate-spin text-blue-500" />}
+                <div className="flex items-center space-x-2">
+                  <label className="text-[10px] text-[#f3f0e7]/50 font-black uppercase tracking-[0.2em] block">Deployment Model</label>
+                  {isModelsLive && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      Live ({dynamicModels.length})
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => refreshModels()}
+                  disabled={isModelsLoading}
+                  className="flex items-center space-x-1 text-[10px] text-[#f3f0e7]/60 hover:text-[#f3f0e7] disabled:opacity-40 transition-colors"
+                  title="Refresh models list"
+                >
+                  <RotateCw size={11} className={isModelsLoading ? 'animate-spin' : ''} />
+                  <span>{isModelsLoading ? 'Syncing...' : 'Sync Models'}</span>
+                </button>
               </div>
+
+              {dynamicModels.length > 0 && (
+                <div className="mb-2">
+                  <select
+                    value={dynamicModels.some(m => m.id === selectedModel) ? selectedModel : ''}
+                    onChange={(e) => {
+                      if (e.target.value) aiStore.setModel(e.target.value);
+                    }}
+                    className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-3 py-2.5 text-xs text-[#f3f0e7] focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
+                  >
+                    <option value="" disabled>Select from available models ({dynamicModels.length})...</option>
+                    {dynamicModels.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.name || m.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <input
                 type="text"
                 list={`models-${activeProvider}`}
                 value={selectedModel}
                 onChange={(e) => aiStore.setModel(e.target.value)}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded-xl px-4 py-3 text-sm text-white placeholder-gray-700 focus:border-blue-500/50 focus:outline-none transition-all"
-                placeholder="Model ID..."
+                className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-4 py-3 text-sm text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
+                placeholder="Or enter custom model ID..."
               />
               <datalist id={`models-${activeProvider}`}>
                 {dynamicModels.map(m => (
@@ -526,26 +650,24 @@ export function AiAssistant() {
         </div>
       </div>
 
-      <div className="px-5 py-4 flex-shrink-0 border-t border-[#2d2d2d] bg-[#1a1a1a]">
+      <div className="px-5 py-4 flex-shrink-0 border-t border-[#f3f0e7]/10 bg-[#231e22]">
           <button 
             onClick={() => {
-              if (currentKey || activeProvider === 'openrouter') {
+              const canSave = currentKey || !currentProvider.requiresKey || activeProvider === 'openrouter' || activeProvider === 'ollama' || activeProvider === 'custom';
+              if (canSave) {
                 aiStore.addSavedModel({
                   id: Date.now().toString(36),
-                  name: `${currentProvider.name} - Custom`,
+                  name: `${currentProvider.name} - ${selectedModel}`,
                   provider: activeProvider,
                   model: selectedModel,
                   apiKey: currentKey,
-                  baseUrl: currentProvider.baseUrl
+                  baseUrl: aiStore.baseUrl || currentProvider.baseUrl
                 });
-                if (aiStore.savedModels.length === 0 && (!aiStore.activeModelId)) {
-                  // automatically set active if it's the first
-                  const newId = aiStore.savedModels[0]?.id; // wait, state update is queued, so this might not catch it instantly. We can manually set it if needed.
-                }
+                setShowSettings(false);
               }
             }}
-            disabled={!currentKey && activeProvider !== 'openrouter'}
-            className="w-full bg-[#161b22] hover:bg-blue-600 border border-[#30363d] disabled:opacity-50 disabled:hover:bg-[#161b22] text-white py-3.5 rounded-2xl text-sm font-bold transition-all shadow-lg"
+            disabled={currentProvider.requiresKey && !currentKey && activeProvider !== 'openrouter' && activeProvider !== 'ollama' && activeProvider !== 'custom'}
+            className="w-full bg-[#f3f0e7] text-[#2a2529] hover:bg-white disabled:opacity-40 py-3.5 rounded-2xl text-sm font-bold transition-all shadow-lg active:scale-[0.98]"
           >
             Save Model Configuration
           </button>
@@ -556,56 +678,95 @@ export function AiAssistant() {
 
   // Chat view
   return (
-    <div className="flex h-full flex-col relative w-full overflow-hidden bg-[#212121]">
+    <div className="flex h-full flex-col relative w-full overflow-hidden bg-[#2a2529] text-[#f3f0e7]">
       {/* Chat header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-white/5 flex-shrink-0 bg-[#212121] z-30">
-        <div className="flex items-center space-x-3">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#f3f0e7]/10 flex-shrink-0 bg-[#231e22] z-30">
+        <div 
+          onClick={() => setShowQuickModelPicker(!showQuickModelPicker)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setShowQuickModelPicker(!showQuickModelPicker);
+            }
+          }}
+          className="flex items-center space-x-2.5 cursor-pointer hover:opacity-85 transition-opacity select-none focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none rounded-xl p-1"
+          role="button"
+          tabIndex={0}
+          aria-label="Switch AI model"
+          title="Click to quickly switch models"
+        >
+          <div className="w-7 h-7 rounded-xl bg-[#342f33] border border-[#f3f0e7]/15 flex items-center justify-center relative overflow-hidden">
+            <OortyLiteIcon size={16} />
+            {isModelsLive && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-[#231e22]" />
+            )}
+          </div>
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Larry</span>
-            <span className="text-[9px] text-gray-500 border border-white/10 rounded px-1">{selectedModel}</span>
+            <div className="flex items-center space-x-1.5">
+              <span className="text-xs font-bold text-[#f3f0e7] leading-none">Oorty Lite</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#f3f0e7]/10 text-[#f3f0e7]/80 font-mono leading-none">
+                {currentProvider.name}
+              </span>
+              <ChevronDown size={11} className="text-[#f3f0e7]/70" />
+            </div>
+            <span className="text-[9px] text-[#f3f0e7]/70 font-mono truncate max-w-[150px] mt-0.5">
+              {currentProvider.requiresKey && !currentKey ? 'No API key set' : (aiStore.model || currentProvider.defaultModel)}
+            </span>
           </div>
         </div>
         <div className="flex items-center space-x-1">
-          <button onClick={() => setAiFullscreen(!isAiFullscreen)} className="p-2 text-gray-500 hover:text-white rounded-xl hover:bg-white/5 transition-all">
-            {isAiFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-          </button>
-          <button onClick={() => setShowSessionList(!showSessionList)} className="p-2 text-gray-500 hover:text-white rounded-xl hover:bg-white/5 transition-all">
+          <button 
+            onClick={() => setShowSessionList(!showSessionList)} 
+            className="p-2 text-[#f3f0e7]/75 hover:text-[#f3f0e7] rounded-xl hover:bg-[#f3f0e7]/10 transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+            title="View conversations"
+            aria-label="View conversations list"
+          >
             <MessageSquare size={16} />
           </button>
           <div className="relative">
-            <button onClick={() => setShowModelDropdown(!showModelDropdown)} className="p-2 text-gray-500 hover:text-white rounded-xl hover:bg-white/5 transition-all">
+            <button 
+              onClick={() => setShowModelDropdown(!showModelDropdown)} 
+              className="p-2 text-[#f3f0e7]/75 hover:text-[#f3f0e7] rounded-xl hover:bg-[#f3f0e7]/10 transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+              title="Saved models and API settings"
+              aria-label="Saved models and settings"
+              aria-haspopup="true"
+              aria-expanded={showModelDropdown}
+            >
               <Key size={16} />
             </button>
             {showModelDropdown && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowModelDropdown(false)} />
-                <div className="absolute right-0 top-full mt-2 w-64 bg-[#2d2d2d] border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-50 p-2 animate-scale-in">
-                  <div className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] mb-2 px-2 mt-1">Saved Models</div>
+                <div className="absolute right-0 top-full mt-2 w-64 bg-[#342f33] border border-[#f3f0e7]/15 rounded-2xl shadow-2xl z-50 p-2 animate-scale-in">
+                  <div className="text-[10px] text-[#f3f0e7]/70 font-black uppercase tracking-[0.2em] mb-2 px-2 mt-1">Saved Models</div>
                   <div className="flex flex-col mb-1 max-h-[300px] overflow-y-auto">
                     {aiStore.savedModels.map(m => (
                       <button 
                         key={m.id} 
                         onClick={() => { aiStore.setActiveSavedModel(m.id); setShowModelDropdown(false); }} 
-                        className={`w-full text-left px-3 py-2.5 rounded-xl text-xs flex flex-col transition-all ${
-                          aiStore.activeModelId === m.id ? 'bg-blue-600/10 text-blue-400' : 'text-gray-300 hover:bg-white/5'
+                        className={`w-full text-left px-3 py-2.5 rounded-xl text-xs flex flex-col transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
+                          aiStore.activeModelId === m.id ? 'bg-[#f3f0e7]/15 text-[#f3f0e7] font-bold' : 'text-[#f3f0e7]/70 hover:bg-[#f3f0e7]/5'
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-bold truncate">{m.name}</span>
-                          {aiStore.activeModelId === m.id && <CheckCircle2 size={12} className="text-blue-400 shrink-0" />}
+                          <span className="truncate">{m.name}</span>
+                          {aiStore.activeModelId === m.id && <CheckCircle2 size={12} className="text-[#f3f0e7] shrink-0" />}
                         </div>
-                        <span className="text-[9px] opacity-70 truncate font-mono mt-0.5">{m.provider} - {m.model}</span>
+                        <span className="text-[9px] opacity-60 truncate font-mono mt-0.5">{m.provider} - {m.model}</span>
                       </button>
                     ))}
                     {aiStore.savedModels.length === 0 && (
-                      <div className="px-3 py-4 text-center text-[10px] text-gray-500">
+                      <div className="px-3 py-4 text-center text-[10px] text-[#f3f0e7]/70">
                         No saved configurations.
                       </div>
                     )}
                   </div>
-                  <div className="p-1 border-t border-white/5 mt-1">
-                    <button onClick={() => { setShowModelDropdown(false); setShowSettings(true); }} className="w-full py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-semibold text-white transition-colors flex items-center justify-center space-x-2">
+                  <div className="p-1 border-t border-[#f3f0e7]/10 mt-1">
+                    <button 
+                      onClick={() => { setShowModelDropdown(false); setShowSettings(true); }} 
+                      className="w-full py-2 bg-[#f3f0e7]/10 hover:bg-[#f3f0e7]/20 rounded-xl text-xs font-semibold text-[#f3f0e7] transition-colors flex items-center justify-center space-x-2 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+                      aria-label="Configure AI models"
+                    >
                        <Settings2 size={14} />
                        <span>Configure Models</span>
                     </button>
@@ -617,12 +778,142 @@ export function AiAssistant() {
         </div>
       </div>
 
+      {/* Quick Model Picker popover */}
+      {showQuickModelPicker && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowQuickModelPicker(false)} />
+          <div className="absolute left-3 top-14 w-80 max-w-[calc(100vw-24px)] bg-[#342f33] border border-[#f3f0e7]/15 rounded-2xl shadow-2xl z-50 p-3 flex flex-col max-h-[460px] animate-scale-in">
+            <div className="flex items-center justify-between pb-2 border-b border-[#f3f0e7]/10">
+              <div className="flex items-center space-x-2">
+                <Sparkles size={14} className="text-[#f3f0e7]" />
+                <span className="text-xs font-bold text-[#f3f0e7]">Quick Model Switch</span>
+                {isModelsLive && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    Live
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={() => refreshModels()}
+                  disabled={isModelsLoading}
+                  className="p-1 rounded-lg hover:bg-[#f3f0e7]/10 text-[#f3f0e7]/75 hover:text-[#f3f0e7] disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+                  title="Sync models from API"
+                  aria-label="Sync models from API"
+                >
+                  <RotateCw size={13} className={isModelsLoading ? 'animate-spin' : ''} />
+                </button>
+                <button
+                  onClick={() => setShowQuickModelPicker(false)}
+                  className="p-1 rounded-lg hover:bg-[#f3f0e7]/10 text-[#f3f0e7]/75 hover:text-[#f3f0e7] transition-colors focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+                  aria-label="Close model picker"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Search filter */}
+            <div className="relative my-2">
+              <Search size={13} className="absolute left-2.5 top-2.5 text-[#f3f0e7]/70" />
+              <input
+                type="text"
+                value={modelSearchQuery}
+                onChange={(e) => setModelSearchQuery(e.target.value)}
+                placeholder={`Filter ${dynamicModels.length} models...`}
+                aria-label="Filter models"
+                className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl pl-8 pr-3 py-1.5 text-xs text-[#f3f0e7] placeholder-[#f3f0e7]/50 focus:outline-none focus:border-[#f3f0e7]/35 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 font-mono"
+                autoFocus
+              />
+            </div>
+
+            {/* API key missing warning banner */}
+            {currentProvider.requiresKey && !currentKey && (
+              <div className="p-2.5 mb-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-xs text-amber-200 flex items-center justify-between">
+                <span className="text-[11px] font-medium leading-tight">API key needed for {currentProvider.name}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickModelPicker(false);
+                    setShowSettings(true);
+                  }}
+                  className="px-2 py-0.5 rounded-lg bg-amber-400 text-[#2a2529] text-[10px] font-bold hover:bg-amber-300 transition-colors shrink-0 ml-2 cursor-pointer"
+                >
+                  Configure
+                </button>
+              </div>
+            )}
+
+            {/* Model item list */}
+            <div className="flex-1 overflow-y-auto space-y-1 py-1 pr-1 custom-scrollbar min-h-[140px] max-h-[260px]">
+              {dynamicModels
+                .filter(m => !modelSearchQuery.trim() || m.id.toLowerCase().includes(modelSearchQuery.toLowerCase()) || (m.name && m.name.toLowerCase().includes(modelSearchQuery.toLowerCase())))
+                .map(m => {
+                  const hasValidKey = !currentProvider.requiresKey || !!currentKey;
+                  const isSelected = hasValidKey && (aiStore.model ? aiStore.model === m.id : currentProvider.defaultModel === m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        aiStore.setModel(m.id);
+                        setShowQuickModelPicker(false);
+                        setModelSearchQuery('');
+                      }}
+                      className={`w-full text-left px-2.5 py-2 rounded-xl text-xs flex items-center justify-between transition-colors focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
+                        isSelected
+                          ? 'bg-[#f3f0e7]/15 text-[#f3f0e7] font-bold border border-[#f3f0e7]/20'
+                          : 'text-[#f3f0e7]/80 hover:bg-[#f3f0e7]/5 border border-transparent'
+                      }`}
+                    >
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="truncate text-xs">{m.name || m.id}</span>
+                        {m.name && m.name !== m.id && (
+                          <span className="truncate text-[9px] text-[#f3f0e7]/70 font-mono">{m.id}</span>
+                        )}
+                      </div>
+                      {isSelected && <Check size={13} className="text-emerald-400 shrink-0" />}
+                    </button>
+                  );
+                })}
+              {dynamicModels.filter(m => !modelSearchQuery.trim() || m.id.toLowerCase().includes(modelSearchQuery.toLowerCase())).length === 0 && (
+                <div className="text-center py-6 text-[11px] text-[#f3f0e7]/70">
+                  No models found matching "{modelSearchQuery}"
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 border-t border-[#f3f0e7]/10 flex items-center justify-between text-[10px] text-[#f3f0e7]/70">
+              <span className="font-mono">
+                {dynamicModels.length} models {isModelsLive ? 'synced' : 'loaded'}
+              </span>
+              <button
+                onClick={() => {
+                  setShowQuickModelPicker(false);
+                  setShowSettings(true);
+                }}
+                className="text-[#f3f0e7]/90 hover:text-white flex items-center space-x-1 font-semibold focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none rounded p-0.5"
+                aria-label="Configure models in settings"
+              >
+                <Settings2 size={11} />
+                <span>Configure</span>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Session list overlay */}
       {showSessionList && (
-        <div className="absolute inset-x-0 top-[52px] bottom-0 bg-[#212121] z-[45] flex flex-col border-r border-white/5 animate-slide-in-right">
-          <div className="p-4 border-b border-white/5 flex items-center justify-between">
-            <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Conversations</span>
-            <button onClick={startNewSession} className="p-1.5 bg-blue-600 rounded-lg text-white hover:bg-blue-500">
+        <div className="absolute inset-x-0 top-[52px] bottom-0 bg-[#2a2529] z-[45] flex flex-col border-r border-[#f3f0e7]/10 animate-slide-in-right">
+          <div className="p-4 border-b border-[#f3f0e7]/10 flex items-center justify-between">
+            <span className="text-[10px] font-black text-[#f3f0e7]/70 uppercase tracking-[0.2em]">Conversations</span>
+            <button 
+              onClick={startNewSession} 
+              className="p-2 bg-[#f3f0e7] text-[#2a2529] rounded-xl hover:bg-white transition-colors focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none shadow-md"
+              title="New conversation"
+              aria-label="New conversation"
+            >
               <Plus size={14} />
             </button>
           </div>
@@ -634,20 +925,22 @@ export function AiAssistant() {
                     aiStore.setActiveSession(session.id);
                     setShowSessionList(false);
                   }}
-                  className={`flex-1 text-left px-3 py-3 rounded-xl text-xs transition-all ${
+                  className={`flex-1 text-left px-3.5 py-3 rounded-xl text-xs transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
                     aiStore.activeSessionId === session.id
-                      ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                      : 'text-gray-400 hover:bg-white/5'
+                      ? 'bg-[#342f33] text-[#f3f0e7] font-semibold border border-[#f3f0e7]/15'
+                      : 'text-[#f3f0e7]/75 hover:bg-[#f3f0e7]/5'
                   }`}
                 >
-                  <div className="font-medium truncate">
+                  <div className="truncate">
                     {session.messages[session.messages.length - 1]?.content.slice(0, 30) || 'New Conversation'}
                   </div>
-                  <div className="text-[9px] opacity-50 mt-1">{new Date(session.id).toLocaleString()}</div>
+                  <div className="text-[9px] opacity-60 mt-1">{new Date(session.id).toLocaleString()}</div>
                 </button>
                 <button 
                   onClick={() => aiStore.deleteSession(session.id)}
-                  className="p-2 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-2 text-[#f3f0e7]/70 hover:text-red-400 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity focus-visible:ring-2 focus-visible:ring-red-400/50 focus-visible:outline-none rounded-lg"
+                  title="Delete conversation"
+                  aria-label="Delete conversation"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -658,21 +951,36 @@ export function AiAssistant() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth pb-24">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth pb-24">
         {aiMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center py-10 px-6">
-            <div className="w-16 h-16 rounded-[1.5rem] bg-gradient-to-tr from-[#2d2d2d] to-[#3d3d3d] flex items-center justify-center mb-6">
-               <Bot size={32} className="text-blue-500/30" />
+          <div className="flex flex-col items-center justify-center h-full text-center py-12 px-6">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-[#f3f0e7]/10 blur-xl rounded-full animate-pulse-glow" />
+              <div className="relative w-16 h-16 rounded-2xl bg-[#342f33] border border-[#f3f0e7]/15 flex items-center justify-center shadow-xl overflow-hidden p-3">
+                <OortyLiteIcon size={36} />
+              </div>
             </div>
-            <p className="text-sm text-gray-500 leading-relaxed max-w-[200px]">
-              Larry is online. Tag context with <span className="text-blue-400 font-mono">@</span>.
+            <h3 className="text-base font-bold text-[#f3f0e7] mb-1">Oorty Lite</h3>
+            <p className="text-xs text-[#f3f0e7]/60 leading-relaxed max-w-[240px]">
+              Tag files with <span className="text-[#f3f0e7] font-mono font-semibold">@</span> · Ask anything · Build faster
             </p>
-            <div className="mt-8 grid grid-cols-1 gap-2 w-full">
+
+            {!aiStore.apiKey && aiStore.provider !== 'openrouter' && (
+              <button
+                onClick={() => setShowSettings(true)}
+                className="mt-4 flex items-center space-x-2 bg-[#f3f0e7] text-[#2a2529] hover:bg-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+              >
+                <Key size={14} />
+                <span>Add API Key to Begin</span>
+              </button>
+            )}
+
+            <div className="mt-8 flex flex-col gap-2 w-full max-w-[280px]">
               {['@App.tsx fix the layout', 'Optimize @index.css', 'Create a new utility file'].map(suggestion => (
                 <button 
                   key={suggestion}
                   onClick={() => setInput(suggestion)}
-                  className="text-left px-4 py-3 text-[11px] font-medium text-gray-400 bg-white/5 rounded-2xl hover:bg-white/10 hover:text-white transition-all border border-white/5"
+                  className="text-left px-3.5 py-2.5 text-[11px] font-medium text-[#f3f0e7]/75 bg-[#342f33] rounded-xl hover:bg-[#3d373c] hover:text-[#f3f0e7] transition-all border border-[#f3f0e7]/10 truncate focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
                 >
                   {suggestion}
                 </button>
@@ -682,17 +990,16 @@ export function AiAssistant() {
         )}
         {aiMessages.filter(m => {
           if (m.role === 'system') return false;
-          // Hide empty assistant messages that have no tool calls and no content
           if (m.role === 'assistant' && (!m.content || m.content.trim() === '') && (!m.tool_calls || m.tool_calls.length === 0)) return false;
           return true;
         }).map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full animate-fade-in`}>
             <div className={`max-w-[100%] rounded-2xl px-4 py-3 ${
               msg.role === 'user' 
-                ? 'bg-blue-600 text-white rounded-br-none shadow-lg shadow-blue-900/20' 
+                ? 'bg-[#f3f0e7] text-[#2a2529] rounded-br-sm shadow-md font-medium' 
                 : msg.role === 'tool'
                   ? 'bg-transparent w-full px-0 py-0'
-                  : 'bg-[#2d2d2d] text-gray-200 border border-blue-500/15 rounded-bl-none w-full shadow-xl shadow-blue-500/[0.03]'
+                  : 'bg-[#342f33] text-[#f3f0e7] border border-[#f3f0e7]/10 rounded-bl-sm w-full shadow-md'
             }`}>
               {msg.role !== 'user' ? (
                 <>
@@ -701,14 +1008,14 @@ export function AiAssistant() {
                     const modified = getModifiedFiles(msg);
                     if (modified.length === 0) return null;
                     return (
-                      <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center gap-2 animate-fade-in">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest shrink-0">
+                      <div className="mt-3 pt-2.5 border-t border-[#f3f0e7]/10 flex flex-wrap items-center gap-1.5 animate-fade-in">
+                        <span className="text-[10px] font-bold text-[#f3f0e7]/75 uppercase tracking-widest shrink-0">
                           Modified ({modified.length})
                         </span>
                         {modified.map((file, idx) => (
-                          <div key={idx} className="flex items-center space-x-1.5 px-2 py-1 bg-[#161b22] border border-[#30363d] rounded-md shadow-sm">
-                            <FileCode size={12} className="text-blue-400" />
-                            <span className="text-[10px] font-mono text-gray-300">{file}</span>
+                          <div key={idx} className="flex items-center space-x-1.5 px-2 py-0.5 bg-[#231e22] border border-[#f3f0e7]/10 rounded-md shadow-sm">
+                            <FileCode size={12} className="text-[#f3f0e7]/70" />
+                            <span className="text-[10px] font-mono text-[#f3f0e7]/80">{file}</span>
                           </div>
                         ))}
                       </div>
@@ -721,10 +1028,10 @@ export function AiAssistant() {
                     <div className="flex flex-wrap gap-2 mb-1">
                       {msg.attachments.map((att: any, idx: number) => (
                         att.type.startsWith('image/') ? (
-                          <img key={idx} src={att.data} alt={att.name} className="w-48 max-w-full rounded-xl object-contain border border-white/20" />
+                          <img key={idx} src={att.data} alt={att.name} className="w-48 max-w-full rounded-xl object-contain border border-[#2a2529]/20" />
                         ) : (
-                          <div key={idx} className="flex items-center space-x-2 bg-white/10 px-3 py-1.5 rounded-xl border border-white/20">
-                            <span className="text-[11px] font-mono">{att.name}</span>
+                          <div key={idx} className="flex items-center space-x-2 bg-[#2a2529]/10 px-3 py-1.5 rounded-xl border border-[#2a2529]/20">
+                            <span className="text-[11px] font-mono text-[#2a2529]">{att.name}</span>
                           </div>
                         )
                       ))}
@@ -739,23 +1046,28 @@ export function AiAssistant() {
         {isAiLoading && (
           <div className="flex justify-start w-full animate-fade-in pb-4">
             {aiStore.streamingText ? (
-              <div className="max-w-[100%] rounded-2xl px-4 py-3 bg-[#161b22]/50 border border-blue-500/20 shadow-lg shadow-blue-500/5 backdrop-blur-sm">
+              <div className="max-w-[100%] rounded-2xl px-4 py-3 bg-[#342f33] border border-[#f3f0e7]/15 shadow-md w-full border-l-2 border-l-[#f3f0e7]/50">
                 {renderMessageContent(aiStore.streamingText, { 
                   role: 'assistant', 
                   content: aiStore.streamingText,
                   timestamp: Date.now() 
                 } as any)}
-                <div className="flex items-center space-x-1 mt-3 mb-1 px-1 opacity-60">
-                   <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                   <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                   <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                   <span className="text-[9px] font-mono text-blue-400 ml-2 uppercase tracking-widest animate-pulse">Reasoning...</span>
-                </div>
+                <span className="inline-block w-1.5 h-4 bg-[#f3f0e7] ml-0.5 animate-pulse align-middle" />
               </div>
             ) : (
-              <div className="bg-[#2d2d2d] border border-white/5 rounded-2xl px-5 py-4 flex items-center space-x-3 shadow-lg">
-                <Loader2 size={16} className="animate-spin text-blue-500" />
-                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Initial Connection...</span>
+              <div className="bg-[#342f33] border border-[#f3f0e7]/10 rounded-2xl px-4 py-3 flex items-center space-x-2.5 shadow-md">
+                <style>{`
+                  @keyframes aiSoundWave {
+                    0%, 100% { height: 6px; }
+                    50% { height: 18px; }
+                  }
+                `}</style>
+                <div className="flex items-center space-x-1 h-5">
+                  <div className="w-1 bg-[#f3f0e7] rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite]" style={{ animationDelay: '0ms' }} />
+                  <div className="w-1 bg-[#f3f0e7] rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite]" style={{ animationDelay: '200ms' }} />
+                  <div className="w-1 bg-[#f3f0e7] rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite]" style={{ animationDelay: '400ms' }} />
+                </div>
+                <span className="text-xs font-semibold text-[#f3f0e7]/70 uppercase tracking-widest ml-1">Thinking...</span>
               </div>
             )}
           </div>
@@ -763,31 +1075,34 @@ export function AiAssistant() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Mention Auto-Complete Menu */}
-      {mentionQuery.active && getMentionOptions().length > 0 && (
-        <div className="absolute bottom-[4.5rem] left-4 right-4 bg-[#2d2d2d] border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] py-2 z-50 animate-scale-in">
-          <div className="px-4 py-2 border-b border-white/5 text-[9px] text-gray-500 uppercase tracking-[0.2em] font-black">
-            Available File Context
-          </div>
-          <div className="max-h-48 overflow-y-auto">
-            {getMentionOptions().map(f => (
-              <button 
-                key={f.name}
-                onClick={() => insertMention(f.name)}
-                className="w-full text-left px-4 py-3 text-xs text-gray-300 hover:bg-blue-600 hover:text-white transition-all flex items-center space-x-3 group"
-              >
-                <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white/20">
-                  {f.isSpecial ? <AlertCircle size={12} className="text-red-400 group-hover:text-white" /> : <FileCode size={12} className="text-blue-400 group-hover:text-white" />}
-                </div>
-                <span>{f.isSpecial ? 'problems (Errors & Logs)' : f.name}</span>
-              </button>
-            ))}
-          </div>
+      {/* Slash Command Picker (/ skill) */}
+      {showSlashPicker && (
+        <div className="relative px-3">
+          <SlashCommandPicker
+            query={slashQuery}
+            onSelectSkill={handleSelectSkillTag}
+            onClose={() => setShowSlashPicker(false)}
+          />
+        </div>
+      )}
+
+      {/* At Mention Picker (@ file) */}
+      {showAtPicker && (
+        <div className="relative px-3">
+          <AtMentionPicker
+            query={atQuery}
+            onSelectFile={handleSelectFileTag}
+            onClose={() => setShowAtPicker(false)}
+          />
         </div>
       )}
 
       {/* Input Section */}
-      <div className="p-3 border-t border-white/5 flex-shrink-0 bg-[#212121] z-40 relative">
+      <div 
+        onDragOver={handleDragOver}
+        onDrop={handleDropFile}
+        className="p-3 border-t border-[#f3f0e7]/10 flex-shrink-0 bg-[#231e22] z-40 relative pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]"
+      >
         <input 
           type="file" 
           ref={fileInputRef} 
@@ -796,19 +1111,30 @@ export function AiAssistant() {
           accept="image/*,text/*,application/json,application/javascript,text/typescript" 
           className="hidden" 
         />
-        {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-2 px-1">
+        
+        {/* Active Mention Chips & File Attachments */}
+        {(activeMentionTags.length > 0 || attachments.length > 0) && (
+          <div className="flex flex-wrap gap-1.5 mb-2 px-1">
+            {activeMentionTags.map((tag, i) => (
+              <MentionChip
+                key={`${tag.type}-${tag.name}-${i}`}
+                tag={tag}
+                onRemove={() => setActiveMentionTags(prev => prev.filter((_, idx) => idx !== i))}
+              />
+            ))}
             {attachments.map((att, i) => (
-              <div key={i} className="flex items-center space-x-1.5 bg-[#2d2d2d] border border-white/10 rounded-lg px-2 py-1 shadow-lg">
+              <div key={i} className="flex items-center space-x-1.5 bg-[#342f33] border border-[#f3f0e7]/15 rounded-xl px-2.5 py-1 shadow-md">
                 {att.type.startsWith('image/') ? (
                   <img src={att.data} alt={att.name} className="w-4 h-4 object-cover rounded-[2px]" />
                 ) : (
-                  <Paperclip size={12} className="text-blue-400" />
+                  <Paperclip size={12} className="text-[#f3f0e7]/70" />
                 )}
-                <span className="text-[10px] text-gray-300 truncate max-w-[120px] font-medium">{att.name}</span>
+                <span className="text-[10px] text-[#f3f0e7]/80 truncate max-w-[120px] font-medium">{att.name}</span>
                 <button 
                   onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} 
-                  className="text-gray-500 hover:text-red-400 ml-1 transition-colors"
+                  className="text-[#f3f0e7]/70 hover:text-red-400 ml-1 transition-colors p-0.5 rounded-md focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+                  aria-label={`Remove attachment ${att.name}`}
+                  title={`Remove attachment ${att.name}`}
                 >
                   <X size={12} strokeWidth={3} />
                 </button>
@@ -816,34 +1142,43 @@ export function AiAssistant() {
             ))}
           </div>
         )}
-        <div className="flex items-center space-x-2 bg-[#0d1117] border border-white/10 rounded-2xl px-2 focus-within:border-blue-500/50 transition-all shadow-inner shadow-black/40">
-          <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-blue-400 rounded-xl transition-all flex-shrink-0 active:scale-95">
+        <div className="flex items-end space-x-2 bg-[#342f33] border border-[#f3f0e7]/15 rounded-2xl px-2 py-1.5 focus-within:border-[#f3f0e7]/40 transition-all shadow-inner">
+          <button 
+            onClick={() => fileInputRef.current?.click()} 
+            className="p-2 text-[#f3f0e7]/70 hover:text-[#f3f0e7] rounded-xl transition-all flex-shrink-0 active:scale-95 mb-0.5 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+            aria-label="Attach files"
+            title="Attach files"
+          >
             <Plus size={20} />
           </button>
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
+            rows={1}
             value={input}
-            onChange={handleInput}
+            onChange={(e) => {
+              handleInput(e);
+              e.target.style.height = 'auto';
+              e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
-                if (mentionQuery.active && getMentionOptions().length > 0) {
+                if (!isAiLoading) {
                   e.preventDefault();
-                  insertMention(getMentionOptions()[0].name);
-                } else if (!isAiLoading) {
                   sendMessage();
                 }
               }
             }}
             placeholder="Build something incredible..."
-            className="flex-1 min-w-0 bg-transparent py-3.5 text-sm text-white placeholder-gray-700 focus:outline-none"
+            aria-label="AI prompt input"
+            className="flex-1 min-w-0 bg-transparent py-2.5 text-sm text-[#f3f0e7] placeholder-[#f3f0e7]/40 focus:outline-none resize-none max-h-32 leading-relaxed"
           />
-          <div className="flex items-center pr-1 space-x-1">
+          <div className="flex items-center pr-1 pb-1 space-x-1">
             {isAiLoading ? (
               <button
                 onClick={() => aiStore.abortChat()}
-                className="p-2 bg-red-600 text-white hover:bg-red-500 rounded-[0.7rem] transition-all flex-shrink-0 active:scale-90 shadow-lg shadow-red-900/20"
-                title="Stop Generation"
+                className="p-2 bg-[#f3f0e7]/20 border border-[#f3f0e7]/30 text-[#f3f0e7] hover:bg-[#f3f0e7]/30 rounded-xl transition-all flex-shrink-0 active:scale-90 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+                aria-label="Stop generation"
+                title="Stop generation"
               >
                 <Square size={16} fill="currentColor" />
               </button>
@@ -851,7 +1186,9 @@ export function AiAssistant() {
               <button
                 onClick={sendMessage}
                 disabled={!input.trim() || (!currentKey && aiStore.provider !== 'openrouter')}
-                className="p-2 bg-white text-black hover:bg-gray-200 disabled:opacity-20 disabled:hover:bg-white rounded-[0.7rem] transition-all flex-shrink-0 active:scale-90"
+                className="p-2 bg-[#f3f0e7] text-[#2a2529] hover:bg-white disabled:opacity-20 rounded-xl transition-all flex-shrink-0 active:scale-90 shadow-md focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+                aria-label="Send message"
+                title="Send message"
               >
                 <Send size={16} />
               </button>

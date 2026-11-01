@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 interface MarkdownPreviewProps {
   content: string;
@@ -11,7 +12,7 @@ export function MarkdownPreview({ content }: MarkdownPreviewProps) {
       breaks: true,
       gfm: true,
     });
-    return marked.parse(content) as string;
+    return DOMPurify.sanitize(marked.parse(content) as string);
   }, [content]);
 
   return (

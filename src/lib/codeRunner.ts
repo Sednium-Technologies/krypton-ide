@@ -82,6 +82,8 @@ function executeJavaScript(code: string): Promise<ExecutionResult> {
     const outputs: string[] = [];
     const errors: string[] = [];
 
+    const __code = JSON.stringify(code);
+
     const html = `<!DOCTYPE html><html><head><script>
       const __outputs = [];
       const __errors = [];
@@ -94,8 +96,9 @@ function executeJavaScript(code: string): Promise<ExecutionResult> {
       
       window.addEventListener('error', (e) => __errors.push(e.message));
       
+      const __code = ${__code};
       try {
-        ${code}
+        new Function(__code)();
       } catch(e) {
         __errors.push(String(e));
       }
@@ -123,6 +126,7 @@ function executeJavaScript(code: string): Promise<ExecutionResult> {
     }, 5000);
 
     const handler = (event: MessageEvent) => {
+      if (event.source !== iframe.contentWindow) return;
       if (event.data?.type === 'exec-result') {
         cleanup();
         const out = event.data.outputs || [];
@@ -456,4 +460,49 @@ function getDefaultFilename(language: string): string {
     'fortran': 'main.f90',
   };
   return map[language] || 'main.txt';
+}
+
+export function getNativeTerminalCommand(language: string, filename: string): string {
+  const lang = (language || '').toLowerCase().trim();
+  switch (lang) {
+    case 'python':
+    case 'py':
+      return `python3 "${filename}"`;
+    case 'rust':
+    case 'rs':
+      return `if [ -f Cargo.toml ]; then cargo run; else rustc "${filename}" -o main && ./main; fi`;
+    case 'cpp':
+    case 'c++':
+      return `clang++ "${filename}" -o main && ./main`;
+    case 'c':
+      return `clang "${filename}" -o main && ./main`;
+    case 'javascript':
+    case 'js':
+      return `node "${filename}"`;
+    case 'typescript':
+    case 'ts':
+      return `node "${filename}"`;
+    case 'go':
+    case 'golang':
+      return `go run "${filename}"`;
+    case 'shell':
+    case 'bash':
+    case 'sh':
+      return `bash "${filename}"`;
+    case 'ruby':
+    case 'rb':
+      return `ruby "${filename}"`;
+    case 'lua':
+      return `lua "${filename}"`;
+    case 'php':
+      return `php "${filename}"`;
+    case 'perl':
+    case 'pl':
+      return `perl "${filename}"`;
+    case 'kotlin':
+    case 'kt':
+      return `kotlinc "${filename}" -include-runtime -d main.jar && java -jar main.jar`;
+    default:
+      return `./"${filename}"`;
+  }
 }

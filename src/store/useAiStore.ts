@@ -1,13 +1,8 @@
 import { create } from 'zustand';
 import { ModelAdapters } from '../lib/ai/modelAdapters';
-import { 
-  CapacitorFilesystemRead, 
-  CapacitorFilesystemPatch, 
-  CapacitorFilesystemMkdir, 
-  CapacitorFilesystemWrite,
-  CapacitorFilesystemEditLines,
-  CapacitorFilesystemInsertLines
-} from '../lib/ai/toolActions';
+import { defaultToolRegistry } from '../lib/ai/AgentToolRegistry';
+import { defaultAifManager } from '../lib/ai/AifManager';
+import { LayaSystem1 } from '../lib/pocket/LayaSystem1';
 import {
   readConfig,
   saveConfigDebounced,
@@ -20,6 +15,9 @@ import {
   type KryptonConfig,
   type SavedModel,
 } from '../lib/fileSystemStorage';
+import { DEFAULT_AI_PROVIDER, DEFAULT_AI_MODEL, getProviderById } from '../config/aiProviders';
+
+
 
 export interface AttachedFile {
   name: string;
@@ -103,6 +101,7 @@ async function persistAiConfig(state: AiState) {
       ...config.ai,
       provider: state.provider,
       model: state.model,
+      baseUrl: state.baseUrl,
       activeSessionId: state.activeSessionId,
       savedModels: state.savedModels,
       activeModelId: state.activeModelId,
@@ -119,9 +118,9 @@ export const useAiStore = create<AiState>()((set, get) => ({
   streamingText: '',
   abortController: null,
   
-  provider: 'openai',
+  provider: DEFAULT_AI_PROVIDER,
   apiKey: '',
-  model: 'gpt-4o',
+  model: DEFAULT_AI_MODEL,
   baseUrl: '',
   savedModels: [],
   activeModelId: undefined,
@@ -132,8 +131,9 @@ export const useAiStore = create<AiState>()((set, get) => ({
       const config = await readConfig();
       if (config) {
         set({
-          provider: config.ai.provider || 'openai',
-          model: config.ai.model || 'gpt-4o',
+          provider: config.ai.provider || DEFAULT_AI_PROVIDER,
+          model: config.ai.model || DEFAULT_AI_MODEL,
+          baseUrl: config.ai.baseUrl || '',
           savedModels: config.ai.savedModels || [],
           activeModelId: config.ai.activeModelId,
         });
@@ -176,7 +176,14 @@ export const useAiStore = create<AiState>()((set, get) => ({
   },
 
   setProvider: (p) => {
-    set({ provider: p });
+    const prov = getProviderById(p);
+    const existingBase = get().baseUrl;
+    const nextBaseUrl = prov.allowCustomBaseUrl && existingBase ? existingBase : prov.baseUrl;
+    set({
+      provider: p,
+      baseUrl: nextBaseUrl,
+      model: prov.defaultModel || get().model,
+    });
     persistAiConfig(get());
   },
   setApiKey: (apiKey) => {
@@ -187,7 +194,20 @@ export const useAiStore = create<AiState>()((set, get) => ({
     set({ model: m });
     persistAiConfig(get());
   },
-  setBaseUrl: (baseUrl) => set({ baseUrl }),
+  setBaseUrl: (baseUrl) => {
+    if (baseUrl) {
+      try {
+        const u = new URL(baseUrl);
+        if (u.hostname === '169.254.169.254' || u.host.includes('169.254.169.254')) {
+          throw new Error('Security Error: Cloud metadata IP (169.254.169.254) is prohibited.');
+        }
+      } catch (err: any) {
+        if (err?.message?.includes('Security Error')) throw err;
+      }
+    }
+    set({ baseUrl });
+    persistAiConfig(get());
+  },
   
   addSavedModel: (model) => {
     set(state => ({ savedModels: [...state.savedModels, model] }));
@@ -295,6 +315,8 @@ export const useAiStore = create<AiState>()((set, get) => ({
 
   sendMessage: async (sessionId, userPrompt, systemContext, attachments) => {
     const { addMessage, provider, apiKey, model, baseUrl, handleRecursiveChat } = get();
+    const currentProvider = getProviderById(provider);
+    const effectiveBaseUrl = (baseUrl && baseUrl.trim()) || currentProvider?.baseUrl || '';
     
     // Add user message
     addMessage(sessionId, { 
@@ -316,17 +338,50 @@ export const useAiStore = create<AiState>()((set, get) => ({
       return;
     }
 
+    // 1. Arm AIF volatile scratch buffer
+    defaultAifManager.writeScratch(userPrompt);
+
+    // 2. Evaluate Laya System 1 fast path (<50ms intent router)
+    if (!attachments || attachments.length === 0) {
+      const route = LayaSystem1.routeIntent(userPrompt);
+      if (route.path === 'fast_path' && route.fastResponse) {
+        addMessage(sessionId, {
+          role: 'assistant',
+          content: route.fastResponse,
+          timestamp: Date.now(),
+          completedAt: Date.now(),
+        });
+        return;
+      }
+    }
+
+    // 3. Automated Chat Boot Recall & Laya System 1 ambient status injection
+    let effectiveSystemContext = systemContext;
+    try {
+      const recallState = await defaultAifManager.recall();
+      if (recallState.formattedContext) {
+        effectiveSystemContext = `${systemContext}\n\n${recallState.formattedContext}\n`;
+      }
+    } catch (err) {
+      console.warn('[AI] AIF boot recall failed:', err);
+    }
+
+    // Inform API LLM about on-device Laya System 1 reflex capability
+    const layaStatus = LayaSystem1.getStatus();
+    const layaContext = `\n[ON-DEVICE SYSTEM 1 CAPABILITY]: Laya Engine (${layaStatus.modelId}): ${layaStatus.isReady ? 'READY' : 'STANDBY'} (Hardware Accelerated: ${layaStatus.isHardwareAccelerated}). You have access to tool 'laya_contrastive_decision' to run sub-35ms non-autoregressive option scoring across candidate hypotheses, safety checks, or branch selections.\n`;
+    effectiveSystemContext = `${effectiveSystemContext}\n${layaContext}`;
+
     const startTime = Date.now();
     const abortController = new AbortController();
     set({ isLoading: true, streamingText: '', abortController });
 
     try {
-      await handleRecursiveChat(sessionId, provider, apiKey, model, baseUrl, systemContext, startTime);
+      await handleRecursiveChat(sessionId, provider, apiKey, model, effectiveBaseUrl, effectiveSystemContext, startTime);
     } catch (error: any) {
       if (error.name === 'AbortError') {
         addMessage(sessionId, {
           role: 'assistant',
-          content: `> ● Generation canceled`,
+          content: `Generation canceled`,
           timestamp: Date.now()
         });
       } else {
@@ -345,6 +400,21 @@ export const useAiStore = create<AiState>()((set, get) => ({
     const session = get().sessions.find(s => s.id === sessionId);
     if (!session) return;
 
+    const currentProvider = getProviderById(provider);
+    const effectiveBaseUrl = (baseUrl && baseUrl.trim()) || currentProvider?.baseUrl || '';
+
+    // Validate custom baseUrl against cloud metadata IP
+    if (effectiveBaseUrl) {
+      try {
+        const parsedBase = new URL(effectiveBaseUrl);
+        if (parsedBase.hostname === '169.254.169.254' || parsedBase.host.includes('169.254.169.254')) {
+          throw new Error('Security Error: Cloud metadata IP (169.254.169.254) is prohibited.');
+        }
+      } catch (err: any) {
+        if (err?.message?.includes('Security Error')) throw err;
+      }
+    }
+
     // 1. Prepare history for provider
     const normalizedHistory = session.messages.map(m => ({
       role: m.role,
@@ -362,18 +432,20 @@ export const useAiStore = create<AiState>()((set, get) => ({
     const tools = ModelAdapters.getToolsForProvider(provider);
 
     // 2. API Call
+    const isGoogle = provider === 'google' || provider === 'gemini';
     const geminiModel = model.startsWith('models/') ? model.replace('models/', '') : model;
     let url: string;
-    if (provider === 'gemini') {
-      url = `${baseUrl}/models/${geminiModel}:streamGenerateContent?alt=sse&key=${key}`;
+    if (isGoogle) {
+      url = `${effectiveBaseUrl}/models/${geminiModel}:streamGenerateContent?alt=sse`;
     } else if (provider === 'anthropic') {
-      url = `${baseUrl}/messages`;
+      url = `${effectiveBaseUrl}/messages`;
     } else {
-      url = `${baseUrl}/chat/completions`;
+      url = `${effectiveBaseUrl}/chat/completions`;
     }
 
     const headers: any = { 'Content-Type': 'application/json' };
-    if (provider !== 'gemini' && provider !== 'anthropic') headers['Authorization'] = `Bearer ${key}`;
+    if (isGoogle && key) headers['x-goog-api-key'] = key;
+    if (!isGoogle && provider !== 'anthropic' && key) headers['Authorization'] = `Bearer ${key}`;
     if (provider === 'anthropic') {
       headers['x-api-key'] = key;
       headers['anthropic-version'] = '2023-06-01';
@@ -381,7 +453,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
     }
 
     let body: any = {};
-    if (provider === 'gemini') {
+    if (isGoogle) {
       // Maps attachments for Gemini
       body.contents = providerMessages.map((msg: any) => {
         // Find matching original message for attachments
@@ -441,7 +513,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
       ];
       body = { model, messages: messagesWithSystem.map((msg: any) => {
         const ogMatch = session.messages.find(m => m.content === msg.content);
-        if (ogMatch && ogMatch.attachments && ogMatch.attachments.length > 0 && provider === 'openai') {
+        if (ogMatch && ogMatch.attachments && ogMatch.attachments.length > 0 && (provider === 'openai' || provider === 'openrouter' || provider === 'groq' || provider === 'custom')) {
            const imgContents = ogMatch.attachments.map(att => ({
              type: 'image_url',
              image_url: { url: att.data.includes('base64,') ? att.data : `data:${att.type};base64,${att.data}` }
@@ -499,18 +571,28 @@ export const useAiStore = create<AiState>()((set, get) => ({
             }
             if (partialMessage.tool_calls) {
               partialMessage.tool_calls.forEach((tc: any, index: number) => {
-                const id = tc.id || `tc-${index}`;
-                if (!toolCallAccumulators[id]) {
-                  toolCallAccumulators[id] = { id, name: '', arguments: '', isObject: false, rawArgs: null };
+                const accKey = `idx_${tc.index ?? index ?? 0}`;
+                if (!toolCallAccumulators[accKey]) {
+                  toolCallAccumulators[accKey] = {
+                    id: tc.id || `call_${accKey}`,
+                    name: tc.name || '',
+                    arguments: '',
+                    isObject: false,
+                    rawArgs: null
+                  };
+                } else {
+                  if (tc.id && (!toolCallAccumulators[accKey].id || toolCallAccumulators[accKey].id.startsWith('call_idx_'))) {
+                    toolCallAccumulators[accKey].id = tc.id;
+                  }
                 }
-                if (tc.name) toolCallAccumulators[id].name = tc.name;
+                if (tc.name) toolCallAccumulators[accKey].name = tc.name;
                 
                 if (tc.arguments) {
                   if (typeof tc.arguments === 'object') {
-                    toolCallAccumulators[id].isObject = true;
-                    toolCallAccumulators[id].rawArgs = tc.arguments;
+                    toolCallAccumulators[accKey].isObject = true;
+                    toolCallAccumulators[accKey].rawArgs = tc.arguments;
                   } else {
-                    toolCallAccumulators[id].arguments += tc.arguments;
+                    toolCallAccumulators[accKey].arguments += tc.arguments;
                   }
                 }
               });
@@ -523,11 +605,24 @@ export const useAiStore = create<AiState>()((set, get) => ({
     }
 
     // Process accumulated tool calls
-    const finalToolCalls = Object.values(toolCallAccumulators).map(acc => ({
-      id: acc.id,
-      name: acc.name,
-      arguments: acc.isObject ? acc.rawArgs : (acc.arguments ? JSON.parse(acc.arguments) : {})
-    }));
+    const finalToolCalls = Object.values(toolCallAccumulators).map(acc => {
+      let parsedArgs: any = {};
+      if (acc.isObject) {
+        parsedArgs = acc.rawArgs;
+      } else if (acc.arguments) {
+        try {
+          parsedArgs = JSON.parse(acc.arguments);
+        } catch (err) {
+          console.warn(`[useAiStore] Failed to parse tool arguments for ${acc.name || acc.id}:`, err);
+          parsedArgs = {};
+        }
+      }
+      return {
+        id: acc.id,
+        name: acc.name,
+        arguments: parsedArgs
+      };
+    });
 
     // Result after stream finishes
     const result: any = {
@@ -546,25 +641,15 @@ export const useAiStore = create<AiState>()((set, get) => ({
         timestamp: Date.now()
       });
 
-      // Execute tools
+      // Execute tools via unified AgentToolRegistry
       for (const tc of result.tool_calls) {
         let toolOutput = "";
         try {
-          if (tc.name === 'read_file') {
-            toolOutput = await CapacitorFilesystemRead(tc.arguments.path, tc.arguments.start_line, tc.arguments.end_line);
-          } else if (tc.name === 'edit_lines') {
-            toolOutput = await CapacitorFilesystemEditLines(tc.arguments.path, tc.arguments.start_line, tc.arguments.end_line, tc.arguments.new_content);
-          } else if (tc.name === 'insert_lines') {
-            toolOutput = await CapacitorFilesystemInsertLines(tc.arguments.path, tc.arguments.at_line, tc.arguments.content);
-          } else if (tc.name === 'patch_file') {
-            const success = await CapacitorFilesystemPatch(tc.arguments.path, tc.arguments.search_string, tc.arguments.replace_string);
-            toolOutput = success ? "Success: File patched." : "Error: Search string not found. Use read_file to see the current content and try again with exact text.";
-          } else if (tc.name === 'create_directory') {
-            await CapacitorFilesystemMkdir(tc.arguments.path, { recursive: true });
-            toolOutput = `Success: Directory created at ${tc.arguments.path}`;
-          } else if (tc.name === 'write_new_file') {
-            await CapacitorFilesystemWrite(tc.arguments.path, tc.arguments.content);
-            toolOutput = `Success: File created at ${tc.arguments.path}`;
+          const res = await defaultToolRegistry.execute(tc.name, tc.arguments);
+          if (res.success) {
+            toolOutput = typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2);
+          } else {
+            toolOutput = `Error: ${res.error || 'Execution failed'}`;
           }
         } catch (e: any) {
           toolOutput = `Local execution error: ${e.message}`;
@@ -580,7 +665,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
       }
 
       // 4. Recurse
-      await get().handleRecursiveChat(sessionId, provider, key, model, baseUrl, systemContext, startTime);
+      await get().handleRecursiveChat(sessionId, provider, key, model, effectiveBaseUrl, systemContext, startTime);
     } else {
       // Final message
       get().addMessage(sessionId, {
@@ -589,6 +674,18 @@ export const useAiStore = create<AiState>()((set, get) => ({
         timestamp: startTime,
         completedAt: Date.now()
       });
+
+      // 5. Automatic End-of-Turn AIF Cognitive Commit
+      try {
+        const textToTag = `${result.content || ''}`;
+        const tags = LayaSystem1.extractSemanticTags(textToTag);
+        defaultAifManager.commitNote({
+          importance: 0.65,
+          summary: result.content ? result.content.slice(0, 160).replace(/\n/g, ' ') : 'Oorty Lite turn completed',
+          tags,
+          text: result.content || '',
+        }).catch(() => {});
+      } catch {}
     }
     set({ streamingText: '' });
   }

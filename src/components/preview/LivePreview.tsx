@@ -2,8 +2,9 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { X, RefreshCw, ExternalLink, Loader2, CheckCircle2, XCircle, Terminal as TerminalIcon, Package, Wifi, WifiOff, AlertTriangle, TerminalSquare, ChevronDown, ChevronUp } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useProjectsStore } from '../../store/useProjectsStore';
-import { executeCode, canExecuteLanguage } from '../../lib/codeRunner';
+import { executeCode, canExecuteLanguage, getNativeTerminalCommand } from '../../lib/codeRunner';
 import type { ExecutionResult } from '../../lib/codeRunner';
+import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
 
 interface LivePreviewProps {
   onClose: () => void;
@@ -229,6 +230,28 @@ export function LivePreview({ onClose }: LivePreviewProps) {
     } else {
       setRefreshKey(k => k + 1);
     }
+  };
+
+  const handleRunInNativeTerminal = () => {
+    const targetFile = activeFile || Object.values(files).find(
+      f => f.type === 'file' && f.language && canExecuteLanguage(f.language)
+    );
+    if (!targetFile) return;
+
+    if (targetFile.isUnsaved) {
+      useIdeStore.getState().saveFile(targetFile.id);
+    }
+
+    const currentPid = useProjectsStore.getState().currentProjectId;
+    if (currentPid) {
+      useProjectsStore.getState().saveProjectToDisk(currentPid).catch(() => {});
+    }
+
+    const cmd = getNativeTerminalCommand(targetFile.language || '', targetFile.name);
+    onClose();
+    useIdeStore.getState().setIsTerminalOpen(true);
+    useNativeTerminalStore.getState().switchTab('project');
+    useNativeTerminalStore.getState().sendInput(cmd + '\n', 'project');
   };
 
   // Build React project preview
@@ -508,7 +531,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   if (isAndroidCode) {
     return (
       <div className="fixed inset-0 z-50 bg-[#0d1117] flex flex-col animate-fade-in">
-        <PreviewHeader onClose={onClose} onRefresh={handleRefresh} isCodeMode={true} fileName={activeFile?.name} language={activeFile?.language} />
+        <PreviewHeader onClose={onClose} onRefresh={handleRefresh} isCodeMode={true} fileName={activeFile?.name} language={activeFile?.language} onRunInNativeTerminal={handleRunInNativeTerminal} />
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="max-w-md w-full bg-[#161b22] border border-[#21262d] rounded-3xl p-8 text-center shadow-2xl">
             <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
@@ -566,12 +589,25 @@ export function LivePreview({ onClose }: LivePreviewProps) {
     if (executableFile) {
       return (
         <div className="fixed inset-0 z-50 bg-[#0d1117] flex flex-col animate-fade-in">
-          <PreviewHeader onClose={onClose} onRefresh={handleRefresh} isCodeMode={true} previewUrl={null} />
+          <PreviewHeader 
+            onClose={onClose} 
+            onRefresh={handleRefresh} 
+            isCodeMode={true} 
+            previewUrl={null} 
+            onRunInNativeTerminal={handleRunInNativeTerminal}
+          />
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="text-center">
               <TerminalIcon size={48} className="mx-auto mb-4 text-gray-600" />
-              <p className="text-gray-400 mb-4">Open a file and press Run to execute it</p>
-              <p className="text-xs text-gray-600">Supported: Python, JavaScript, TypeScript, Java, C++, Go, Rust, and more</p>
+              <p className="text-gray-400 mb-2">Open a file and press Run to execute it</p>
+              <p className="text-xs text-gray-600 mb-4">Supported: Python, JavaScript, TypeScript, Java, C++, Go, Rust, and more</p>
+              <button
+                onClick={handleRunInNativeTerminal}
+                className="inline-flex items-center space-x-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-all shadow-md active:scale-95"
+              >
+                <TerminalSquare size={16} />
+                <span>Run in Native Terminal</span>
+              </button>
             </div>
           </div>
         </div>
@@ -604,6 +640,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
           isCodeMode={true}
           fileName={activeFile?.name}
           language={activeFile?.language}
+          onRunInNativeTerminal={handleRunInNativeTerminal}
         />
         
         <div className="flex-1 overflow-y-auto">
@@ -617,22 +654,31 @@ export function LivePreview({ onClose }: LivePreviewProps) {
             </div>
           ) : executionResult ? (
             <div className="p-4 space-y-3">
-              {/* Status Badge */}
-              <div className="flex items-center justify-between">
+              {/* Status Badge & Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-[#161b22] border border-[#21262d] rounded-2xl shadow-md">
                 <div className="flex items-center space-x-2">
                   {executionResult.success ? (
-                    <CheckCircle2 size={18} className="text-green-400" />
+                    <CheckCircle2 size={18} className="text-green-400 shrink-0" />
                   ) : (
-                    <XCircle size={18} className="text-red-400" />
+                    <XCircle size={18} className="text-red-400 shrink-0" />
                   )}
                   <span className={`text-sm font-medium ${executionResult.success ? 'text-green-400' : 'text-red-400'}`}>
                     {executionResult.success ? 'Success' : 'Error'}
                     {executionResult.exitCode !== null && ` (exit ${executionResult.exitCode})`}
                   </span>
+                  <span className="text-xs text-gray-500 hidden sm:inline">•</span>
+                  <span className="text-xs text-gray-500 hidden sm:inline">
+                    {executionResult.language} {executionResult.version}
+                  </span>
                 </div>
-                <span className="text-xs text-gray-600">
-                  {executionResult.language} {executionResult.version}
-                </span>
+                <button
+                  onClick={handleRunInNativeTerminal}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-all shadow-md shadow-emerald-950/40 active:scale-95 ml-auto"
+                  title="Run locally in Native Terminal"
+                >
+                  <TerminalSquare size={15} />
+                  <span>Run in Native Terminal</span>
+                </button>
               </div>
 
               {/* Output */}
@@ -657,14 +703,28 @@ export function LivePreview({ onClose }: LivePreviewProps) {
 
               {/* No output */}
               {!executionResult.output && !executionResult.stderr && (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-500 space-y-3">
                   <p>Program produced no output</p>
+                  <button
+                    onClick={handleRunInNativeTerminal}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-xl text-xs font-semibold transition-all border border-emerald-500/30 active:scale-95"
+                  >
+                    <TerminalSquare size={15} />
+                    <span>Run in Native Terminal</span>
+                  </button>
                 </div>
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex flex-col items-center justify-center h-full text-center p-6 space-y-3">
               <p className="text-gray-500">Press the refresh button to run</p>
+              <button
+                onClick={handleRunInNativeTerminal}
+                className="inline-flex items-center space-x-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-all shadow-md active:scale-95"
+              >
+                <TerminalSquare size={15} />
+                <span>Run in Native Terminal</span>
+              </button>
             </div>
           )}
         </div>
@@ -674,7 +734,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
 
   // HTML Preview View
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-[#2a2529] flex flex-col animate-fade-in text-[#f3f0e7]">
       <PreviewHeader onClose={onClose} onRefresh={handleRefresh} isCodeMode={false} previewUrl={previewSrc} showConsole={showConsole} onToggleConsole={() => setShowConsole(!showConsole)} unreadLogs={unreadLogs} />
       <div className="flex-1 bg-white relative">
         {previewSrc ? (
@@ -682,12 +742,12 @@ export function LivePreview({ onClose }: LivePreviewProps) {
             key={refreshKey}
             src={previewSrc}
             title="Live Preview"
-            sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
+            sandbox="allow-scripts allow-modals allow-forms"
             className="w-full h-full border-none"
           />
         ) : (
-          <div className="flex items-center justify-center h-full bg-[#0d1117]">
-            <p className="text-gray-500">Could not build preview</p>
+          <div className="flex items-center justify-center h-full bg-[#2a2529]">
+            <p className="text-[#f3f0e7]/50">Could not build preview</p>
           </div>
         )}
         <ConsoleOverlay logs={consoleLogs} isOpen={showConsole} />
@@ -696,7 +756,18 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   );
 }
 
-function PreviewHeader({ onClose, onRefresh, isCodeMode, fileName, language, previewUrl, showConsole, onToggleConsole, unreadLogs }: { 
+function PreviewHeader({ 
+  onClose, 
+  onRefresh, 
+  isCodeMode, 
+  fileName, 
+  language, 
+  previewUrl, 
+  showConsole, 
+  onToggleConsole, 
+  unreadLogs,
+  onRunInNativeTerminal,
+}: { 
   onClose: () => void; 
   onRefresh: () => void; 
   isCodeMode: boolean;
@@ -706,40 +777,52 @@ function PreviewHeader({ onClose, onRefresh, isCodeMode, fileName, language, pre
   showConsole?: boolean;
   onToggleConsole?: () => void;
   unreadLogs?: number;
+  onRunInNativeTerminal?: () => void;
 }) {
 
   const handleOpenInBrowser = () => {
     if (previewUrl) {
-      window.open(previewUrl, '_blank');
+      window.open(previewUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
   return (
     <div 
-      className="flex items-center justify-between bg-[#161b22] border-b border-[#21262d] px-3 flex-shrink-0"
-      style={{ height: 'calc(3rem + env(safe-area-inset-top, 0px))', paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      className="flex items-center justify-between bg-[#231e22] border-b border-[#f3f0e7]/15 px-3 flex-shrink-0"
+      style={{ height: 'calc(3.2rem + env(safe-area-inset-top, 0px))', paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
-      <div className="flex items-center space-x-2 text-sm text-gray-300">
-        <div className={`w-3 h-3 rounded-full ${isCodeMode ? 'bg-blue-500' : 'bg-green-500'} animate-pulse`} />
-        <span className="font-medium">{isCodeMode ? 'Output' : 'Preview'}</span>
+      <div className="flex items-center space-x-2 text-xs text-[#f3f0e7]">
+        <div className={`w-2.5 h-2.5 rounded-full ${isCodeMode ? 'bg-[#f3f0e7]' : 'bg-emerald-400'} animate-pulse`} />
+        <span className="font-bold">{isCodeMode ? 'Output' : 'Preview'}</span>
         {fileName && (
-          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-md">{fileName}</span>
+          <span className="text-[11px] text-[#f3f0e7]/70 bg-[#342f33] px-2 py-0.5 rounded-md border border-[#f3f0e7]/10 font-mono">{fileName}</span>
         )}
         {language && (
-          <span className="text-xs text-gray-600">{language}</span>
+          <span className="text-[11px] text-[#f3f0e7]/50">{language}</span>
         )}
       </div>
       <div className="flex items-center space-x-1">
+        {onRunInNativeTerminal && (
+          <button 
+            onClick={onRunInNativeTerminal}
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 active:bg-emerald-600/40 text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 transition-all font-semibold text-xs active:scale-95 shadow-sm"
+            title="Run in Native Terminal"
+          >
+            <TerminalSquare size={15} className="shrink-0 text-emerald-400" />
+            <span className="hidden sm:inline">Run in Native Terminal</span>
+            <span className="sm:hidden">Terminal</span>
+          </button>
+        )}
         {onToggleConsole && (
           <button 
             onClick={onToggleConsole}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg transition-colors relative ${showConsole ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl transition-colors relative ${showConsole ? 'bg-[#f3f0e7]/20 text-[#f3f0e7] font-bold' : 'text-[#f3f0e7]/60 hover:bg-[#f3f0e7]/10 hover:text-[#f3f0e7]'}`}
             title="Toggle Console"
           >
             <TerminalSquare size={16} />
             <span className="text-xs font-semibold">Console</span>
             {unreadLogs !== undefined && unreadLogs > 0 && !showConsole && (
-              <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center">
+              <span className="absolute -top-1 -right-1 bg-[#f3f0e7] text-[#2a2529] text-[9px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[16px] text-center shadow-md">
                 {unreadLogs > 99 ? '99+' : unreadLogs}
               </span>
             )}
@@ -749,7 +832,7 @@ function PreviewHeader({ onClose, onRefresh, isCodeMode, fileName, language, pre
         {previewUrl && (
           <button 
             onClick={handleOpenInBrowser}
-            className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg active:bg-white/20 transition-colors"
+            className="p-2 text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded-xl transition-colors"
             title="Open in Browser"
           >
             <ExternalLink size={18} />
@@ -757,14 +840,14 @@ function PreviewHeader({ onClose, onRefresh, isCodeMode, fileName, language, pre
         )}
         <button 
           onClick={onRefresh}
-          className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg active:bg-white/20 transition-colors"
+          className="p-2 text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded-xl transition-colors"
           title={isCodeMode ? 'Re-run' : 'Refresh'}
         >
           <RefreshCw size={18} />
         </button>
         <button 
           onClick={onClose}
-          className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg active:bg-white/20 transition-colors"
+          className="p-2 text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded-xl transition-colors"
         >
           <X size={18} />
         </button>
@@ -789,22 +872,22 @@ function ConsoleOverlay({ logs, isOpen }: { logs: { type: string, args: string }
   if (!isOpen) return null;
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 h-[40vh] bg-[#1e1e1e]/95 backdrop-blur-md border-t border-[#3c3c3c] shadow-2xl z-20 flex flex-col animate-overlay-up">
-      <div className="flex-1 overflow-y-auto p-2 font-mono text-[11px] md:text-xs">
+    <div className="absolute bottom-0 left-0 right-0 h-[40vh] bg-[#342f33]/95 backdrop-blur-md border-t border-[#f3f0e7]/15 shadow-2xl z-20 flex flex-col animate-overlay-up text-[#f3f0e7]">
+      <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] md:text-xs">
         {logs.map((log, i) => (
-          <div key={i} className={`px-2 py-1.5 mb-1 rounded border-l-2 ${
+          <div key={i} className={`px-2.5 py-1.5 mb-1.5 rounded-xl border-l-2 ${
             log.type === 'error' ? 'bg-red-500/10 text-red-400 border-red-500' : 
-            log.type === 'warn' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500' : 
-            log.type === 'info' ? 'bg-blue-500/10 text-blue-400 border-blue-500' :
-            'text-gray-300 border-gray-600 hover:bg-white/5'
+            log.type === 'warn' ? 'bg-amber-500/10 text-amber-300 border-amber-500' : 
+            log.type === 'info' ? 'bg-[#f3f0e7]/10 text-[#f3f0e7] border-[#f3f0e7]' :
+            'text-[#f3f0e7]/80 border-[#f3f0e7]/30 hover:bg-[#f3f0e7]/5'
           }`}>
             <span className="opacity-50 mr-2 shrink-0">[{log.type}]</span>
             <span className="whitespace-pre-wrap break-all">{log.args}</span>
           </div>
         ))}
         {logs.length === 0 && (
-          <div className="text-gray-500 text-center py-8 italic flex flex-col items-center">
-            <TerminalSquare size={32} className="mb-2 opacity-20" />
+          <div className="text-[#f3f0e7]/40 text-center py-8 italic flex flex-col items-center">
+            <TerminalSquare size={32} className="mb-2 opacity-30" />
             <span>Console is empty</span>
           </div>
         )}

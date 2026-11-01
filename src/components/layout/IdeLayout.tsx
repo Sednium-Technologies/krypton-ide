@@ -12,42 +12,154 @@ import { AiAssistant } from '../sidebar/AiAssistant';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useProjectsStore } from '../../store/useProjectsStore';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
-import { ArrowLeft, Play, Upload, Download, Files, TerminalSquare, Puzzle, Bot, Settings, ChevronLeft, Menu, GitBranch } from 'lucide-react';
+import { useIsLandscape } from '../../hooks/useIsLandscape';
+import { ArrowLeft, Play, Upload, Download, Files, TerminalSquare, Puzzle, Bot, Settings, ChevronLeft, Menu, GitBranch, Code2, FolderTree, Command, X, Save, ChevronDown, ChevronUp, Check, FileCode2, Columns, MoreHorizontal } from 'lucide-react';
 import JSZip from 'jszip';
-import { StatusBar as CapacitorStatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { BottomSheet } from '../ui/BottomSheet';
+import { FileExplorer } from '../sidebar/FileExplorer';
+import { LanguageIcon } from '../sidebar/LanguageIcon';
+import { hapticLight, hapticMedium } from '../../lib/haptics';
+import { toast } from '../../store/useToastStore';
+import { useNavbarStore } from '../../store/useNavbarStore';
+import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
+import { NavbarOverflowDrawer } from './NavbarOverflowDrawer';
+import { NavbarSettingsPanel } from '../settings/NavbarSettingsPanel';
+import { ToolIcon } from '../ui/ToolIcon';
+import { ExtensionViewPanel } from '../sidebar/ExtensionViewPanel';
+import { loadWorkspaceCustomCss } from '../../lib/customCssManager';
+import { cn } from '../../lib/utils';
 
 interface IdeLayoutProps {
   onBackToProjects: () => void;
 }
 
 export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
-  const { isSidebarOpen, toggleSidebar, sidebarView, setSidebarView, isPreviewOpen, setPreviewOpen, isCommandPaletteOpen, setCommandPaletteOpen, files, saveFile, activeFileId, createFile, openFile, loadProject, isAiFullscreen, setAiFullscreen } = useIdeStore();
-  const { currentProjectId, projects } = useProjectsStore();
+  const isSidebarOpen = useIdeStore((state) => state.isSidebarOpen);
+  const toggleSidebar = useIdeStore((state) => state.toggleSidebar);
+  const sidebarView = useIdeStore((state) => state.sidebarView);
+  const activeExtensionView = useIdeStore((state) => state.activeExtensionView);
+  const setSidebarView = useIdeStore((state) => state.setSidebarView);
+  const isPreviewOpen = useIdeStore((state) => state.isPreviewOpen);
+  const setPreviewOpen = useIdeStore((state) => state.setPreviewOpen);
+  const isCommandPaletteOpen = useIdeStore((state) => state.isCommandPaletteOpen);
+  const setCommandPaletteOpen = useIdeStore((state) => state.setCommandPaletteOpen);
+  const files = useIdeStore((state) => state.files);
+  const openFiles = useIdeStore((state) => state.openFiles);
+  const saveFile = useIdeStore((state) => state.saveFile);
+  const activeFileId = useIdeStore((state) => state.activeFileId);
+  const createFile = useIdeStore((state) => state.createFile);
+  const openFile = useIdeStore((state) => state.openFile);
+  const loadProject = useIdeStore((state) => state.loadProject);
+  const isAiFullscreen = useIdeStore((state) => state.isAiFullscreen);
+  const setAiFullscreen = useIdeStore((state) => state.setAiFullscreen);
+  const theme = useIdeStore((state) => state.theme);
+  const isLight = theme === 'light';
+  const currentProjectId = useProjectsStore((state) => state.currentProjectId);
+  const projects = useProjectsStore((state) => state.projects);
+  const isLandscape = useIsLandscape();
+  const isSideNav = isLandscape || (typeof window !== 'undefined' && window.innerWidth >= 600);
   const [terminalHeight, setTerminalHeight] = useState(200);
-  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-  const [showSaveToast, setShowSaveToast] = useState(false);
+  const isTerminalOpen = useIdeStore((state) => state.isTerminalOpen);
+  const setIsTerminalOpen = useIdeStore((state) => state.setIsTerminalOpen);
   const [showFileMenu, setShowFileMenu] = useState(false);
-  // Fullscreen overlays
-  const [showSettings, setShowSettings] = useState(false);
-  const [showExtensions, setShowExtensions] = useState(false);
+  const [showProjectTreeSheet, setShowProjectTreeSheet] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Resizable split-pane width for docked sidebar in landscape / desktop
+  const [sidebarWidth, setSidebarWidth] = useState(340);
+  const isResizingRef = useRef(false);
+
+  const startResizing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    isResizingRef.current = true;
+    const isTouch = 'touches' in e;
+    const startX = isTouch ? e.touches[0].clientX : e.clientX;
+    const startWidth = sidebarWidth;
+
+    const handleMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!isResizingRef.current) return;
+      const currentX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const delta = currentX - startX;
+      const newWidth = Math.max(240, Math.min(650, startWidth + delta));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleStop = () => {
+      isResizingRef.current = false;
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleStop);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchend', handleStop);
+      window.dispatchEvent(new Event('resize'));
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleStop);
+    window.addEventListener('touchmove', handleMove);
+    window.addEventListener('touchend', handleStop);
+  }, [sidebarWidth]);
+
+  // Resizable split-pane width for right-docked terminal in landscape / desktop
+  const [terminalWidth, setTerminalWidth] = useState(460);
+  const isTerminalResizingRef = useRef(false);
+
+  const startTerminalResizing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    isTerminalResizingRef.current = true;
+    const isTouch = 'touches' in e;
+    const startX = isTouch ? e.touches[0].clientX : e.clientX;
+    const startWidth = terminalWidth;
+
+    const handleMove = (moveEvent: MouseEvent | TouchEvent) => {
+      if (!isTerminalResizingRef.current) return;
+      const currentX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      // Moving handle left expands right-docked terminal, moving right shrinks it
+      const delta = startX - currentX;
+      const maxW = Math.max(300, Math.min(window.innerWidth * 0.75, 900));
+      const newWidth = Math.max(280, Math.min(maxW, startWidth + delta));
+      setTerminalWidth(newWidth);
+    };
+
+    const handleStop = () => {
+      isTerminalResizingRef.current = false;
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleStop);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchend', handleStop);
+      window.dispatchEvent(new Event('resize'));
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleStop);
+    window.addEventListener('touchmove', handleMove);
+    window.addEventListener('touchend', handleStop);
+  }, [terminalWidth]);
+
   const currentProject = currentProjectId ? projects[currentProjectId] : null;
+  const activeFile = activeFileId ? files[activeFileId] : null;
 
-  // NOTE: Files are persisted to project store by App.tsx's saveCurrentProject()
-  // which runs on a 30s interval, on blur, visibility change, and app background.
-  // Do NOT add a useEffect here that syncs on every `files` change — it fires
-  // on every keystroke and causes massive performance issues.
+  // Navbar customization state
+  const isNavbarCustomizerOpen = useNavbarStore((state) => state.isCustomizerOpen);
+  const setNavbarCustomizerOpen = useNavbarStore((state) => state.setCustomizerOpen);
 
-  // Auto-open first code file when entering a project (no more empty dashboard)
+  // Sync extension tools on mount
   useEffect(() => {
-    if (activeFileId) return; // already has a file open
+    useNavbarStore.getState().syncExtensionTools();
+  }, []);
+
+  // Load & sync workspace custom CSS (.krypton/custom.css)
+  useEffect(() => {
+    loadWorkspaceCustomCss(files);
+  }, [files]);
+
+  // Auto-open first code file when entering a project
+  useEffect(() => {
+    if (activeFileId) return;
     const codeFiles = Object.values(files).filter(
       f => f.type === 'file' && f.id !== 'root' && f.content !== undefined
     );
     if (codeFiles.length > 0) {
-      // Prioritize common entry files
       const priority = ['index.html', 'App.jsx', 'App.tsx', 'index.js', 'index.ts', 'main.py', 'main.js', 'app.js'];
       const entryFile = codeFiles.find(f => priority.includes(f.name)) || codeFiles[0];
       openFile(entryFile.id);
@@ -72,7 +184,6 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
     const handleOrientation = () => setTimeout(setVH, 100);
     window.addEventListener('orientationchange', handleOrientation);
 
-    // Keyboard-aware: use visualViewport to detect keyboard
     const vv = window.visualViewport;
     if (vv) {
       const onViewportResize = () => {
@@ -83,7 +194,6 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
         } else {
           document.documentElement.classList.remove('keyboard-open');
         }
-        // Also recalc vh based on visual viewport
         const vh = vv.height * 0.01;
         document.documentElement.style.setProperty('--vh', `${vh}px`);
       };
@@ -91,57 +201,154 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
       return () => {
         window.removeEventListener('resize', setVH);
         window.removeEventListener('orientationchange', handleOrientation);
-        vv.removeEventListener('resize', onViewportResize);
       };
     }
+
     return () => {
       window.removeEventListener('resize', setVH);
       window.removeEventListener('orientationchange', handleOrientation);
     };
   }, []);
 
-
-
   const handleRun = useCallback(() => {
+    const active = activeFileId ? files[activeFileId] : null;
+    const isRustFile = active?.language === 'rust' || (active?.name ? active.name.endsWith('.rs') : false);
+    const hasCargoToml = Object.values(files).some(f => f.name === 'Cargo.toml');
+    const isRustProject = currentProject?.template === 'rust-cli' || hasCargoToml || isRustFile;
+
+    if (isRustProject) {
+      if (activeFileId && files[activeFileId]?.isUnsaved) {
+        saveFile(activeFileId);
+      }
+      if (currentProjectId) {
+        useProjectsStore.getState().saveProjectToDisk(currentProjectId).catch(() => {});
+      }
+      setIsTerminalOpen(true);
+      const termStore = useNativeTerminalStore.getState();
+      termStore.switchTab('project');
+      const cmd = hasCargoToml
+        ? 'cargo run'
+        : `if [ -f Cargo.toml ]; then cargo run; else rustc "${active?.name || 'src/main.rs'}" -o main && ./main; fi`;
+      setTimeout(() => {
+        useNativeTerminalStore.getState().sendInput(cmd + '\n', 'project');
+      }, 100);
+      toast.info('Running offline Rust compilation via Cargo...');
+      return;
+    }
+
     setPreviewOpen(true);
-  }, [setPreviewOpen]);
+  }, [setPreviewOpen, activeFileId, files, currentProject, currentProjectId, saveFile, setIsTerminalOpen]);
+
+  const handleSave = useCallback(() => {
+    if (activeFileId) {
+      saveFile(activeFileId);
+      toast.success('File saved');
+    }
+  }, [activeFileId, saveFile]);
+
+  // Auto-save on window blur, beforeunload, and app backgrounding (zero data loss)
+  useEffect(() => {
+    const handleAutoSave = () => {
+      const state = useIdeStore.getState();
+      if (state.activeFileId) {
+        const f = state.files[state.activeFileId];
+        if (f?.isUnsaved) {
+          state.saveFile(state.activeFileId);
+        }
+      }
+    };
+
+    window.addEventListener('blur', handleAutoSave);
+    window.addEventListener('beforeunload', handleAutoSave);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleAutoSave();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('blur', handleAutoSave);
+      window.removeEventListener('beforeunload', handleAutoSave);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  const handleBackToProjects = useCallback(() => {
+    const state = useIdeStore.getState();
+    if (state.activeFileId) {
+      const f = state.files[state.activeFileId];
+      if (f?.isUnsaved) {
+        state.saveFile(state.activeFileId);
+      }
+    }
+    onBackToProjects();
+  }, [onBackToProjects]);
 
   const handleToggleTerminal = useCallback(() => {
     setIsTerminalOpen(prev => !prev);
   }, []);
 
-  const handleSave = useCallback(() => {
-    if (activeFileId) {
-      saveFile(activeFileId);
-      setShowSaveToast(true);
-      setTimeout(() => setShowSaveToast(false), 1500);
-    }
-  }, [activeFileId, saveFile]);
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    onSave: handleSave,
+    onCommandPalette: () => setCommandPaletteOpen(true),
+    onToggleTerminal: handleToggleTerminal,
+    onRun: handleRun,
+  });
 
-  // Upload files from device
-  const handleUploadFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const uploadedFiles = e.target.files;
-    if (!uploadedFiles) return;
-
-    for (let i = 0; i < uploadedFiles.length; i++) {
-      const file = uploadedFiles[i];
-      const reader = new FileReader();
-      reader.onload = () => {
-        const content = reader.result as string;
-        const id = createFile(file.name, 'root', 'file', content);
-        if (i === 0) openFile(id);
-      };
-      reader.readAsText(file);
-    }
-    
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    setShowFileMenu(false);
+  const handleNavCanvas = () => {
+    if (isSidebarOpen) toggleSidebar();
+    setShowProjectTreeSheet(false);
   };
 
-  // Download project as zip
+  const handleNavGit = () => {
+    useIdeStore.setState({ sidebarView: 'git', isSidebarOpen: true });
+    setShowProjectTreeSheet(false);
+  };
+
+  const handleNavSettings = () => {
+    useIdeStore.setState({ sidebarView: 'settings', isSidebarOpen: true });
+    setShowProjectTreeSheet(false);
+  };
+
+  const handleNavExtensions = () => {
+    useIdeStore.setState({ sidebarView: 'extensions', isSidebarOpen: true });
+    setShowProjectTreeSheet(false);
+  };
+
+  const handleNavAi = () => {
+    useIdeStore.setState({ sidebarView: 'ai', isSidebarOpen: true });
+    setShowProjectTreeSheet(false);
+  };
+
+  const handleUploadFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const uploadedFiles = e.target.files;
+    if (!uploadedFiles || uploadedFiles.length === 0) return;
+
+    Array.from(uploadedFiles).forEach((file, index) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        const newFileId = createFile(file.name, 'root', 'file', content);
+        saveFile(newFileId);
+        if (index === 0) openFile(newFileId);
+      };
+      const isBinary = /\.(png|jpe?g|gif|webp|ico|wasm|pdf|ttf|woff2?|zip|jar|apk|bin)$/i.test(file.name) ||
+        file.type.startsWith('image/') ||
+        file.type.startsWith('font/');
+      if (isBinary) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleDownloadZip = async () => {
     const zip = new JSZip();
-    
     const addToZip = (nodeId: string, currentPath: string) => {
       const node = files[nodeId];
       if (!node) return;
@@ -154,46 +361,46 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
     };
 
     addToZip('root', '');
+    const fileName = `${currentProject?.name || 'krypton-project'}.zip`;
 
-    const content = await zip.generateAsync({ type: 'blob' });
-    const url = URL.createObjectURL(content);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${currentProject?.name || 'project'}.zip`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setShowFileMenu(false);
-  };
-
-  // Register keyboard shortcuts
-  useKeyboardShortcuts({ onRun: handleRun, onToggleTerminal: handleToggleTerminal });
-
-  // Override Ctrl+S to show toast
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's' && !e.shiftKey) {
-        setShowSaveToast(true);
-        setTimeout(() => setShowSaveToast(false), 1500);
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const base64 = await zip.generateAsync({ type: 'base64' });
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: base64,
+          directory: Directory.Documents,
+        });
+        toast.success(`Exported ${fileName} to Documents`);
+        try {
+          if (result.uri) {
+            await Share.share({
+              title: fileName,
+              url: result.uri,
+              dialogTitle: `Share ${fileName}`,
+            });
+          }
+        } catch {
+          // Sharing is optional or dismissed by user
+        }
+      } catch (err) {
+        console.error('Failed to export ZIP on native platform:', err);
+        toast.error('Failed to export ZIP file');
       }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-
-  // Handle bottom nav for Settings/Extensions — open fullscreen instead of sidebar
-  const handleNavSettings = () => {
-    setShowSettings(true);
-    setShowExtensions(false);
-  };
-  const handleNavExtensions = () => {
-    setShowExtensions(true);
-    setShowSettings(false);
+    } else {
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
   return (
-    <div className="flex h-full w-full flex-col bg-white dark:bg-[#1e1e1e] overflow-hidden">
+    <div className="flex flex-col h-full bg-[#2a2529] text-[#f3f0e7] overflow-hidden select-none">
       <style>{`
-        html.keyboard-open .bottom-nav,
         .keyboard-open .bottom-nav {
           display: none !important;
           visibility: hidden !important;
@@ -207,66 +414,104 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
           border: none !important;
         }
       `}</style>
-      {/* Top Bar with notch (safe-area) handling on mobile */}
+      
+      {/* Top Bar */}
       <div 
-        className="flex h-[calc(3rem+env(safe-area-inset-top,0px))] md:h-9 items-center justify-between px-2 text-[13px] flex-shrink-0 z-20 bg-gray-100 dark:bg-[#252526] border-b border-gray-200 dark:border-[#1a1a1a]"
+        className="flex h-[calc(3.25rem+env(safe-area-inset-top,0px))] md:h-12 items-center justify-between px-3 text-[13px] flex-shrink-0 z-20 bg-[#231e22] border-b border-[#f3f0e7]/10"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         <div className="flex items-center space-x-1 min-w-0 flex-1 md:flex-none">
-          {/* Mobile: Back + Menu */}
-          <button className="p-2 md:hidden landscape:hidden hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-700 dark:text-gray-300 active:bg-gray-300 dark:active:bg-white/20 mt-1" onClick={onBackToProjects}>
-            <ArrowLeft size={20} />
+          <button 
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center md:hidden hover:bg-[#f3f0e7]/10 active:scale-95 rounded-xl text-[#f3f0e7] transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none cursor-pointer" 
+            onClick={() => {
+              hapticLight();
+              handleBackToProjects();
+            }}
+            aria-label="Back to projects"
+            title="Back to projects"
+          >
+            <ArrowLeft size={18} />
           </button>
-          <button className="p-2 md:p-1 md:hidden landscape:hidden hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-700 dark:text-gray-300 active:bg-gray-300 dark:active:bg-white/20 mt-1" onClick={toggleSidebar}>
-            <Menu size={20} />
+          <button 
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center md:hidden hover:bg-[#f3f0e7]/10 active:scale-95 rounded-xl text-[#f3f0e7] transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none cursor-pointer" 
+            onClick={() => {
+              hapticLight();
+              if (isLandscape) {
+                if (isSidebarOpen && sidebarView === 'explorer') {
+                  toggleSidebar();
+                } else {
+                  setSidebarView('explorer');
+                  if (!isSidebarOpen) toggleSidebar();
+                }
+              } else {
+                setShowProjectTreeSheet(true);
+              }
+            }}
+            title="Toggle file drawer"
+            aria-label="Toggle file drawer"
+          >
+            <Menu size={18} />
           </button>
 
-          {/* Project Name (Mobile & Desktop) */}
-          <div className="flex items-center px-2 py-1 max-w-[150px] md:max-w-[200px] mt-1 md:mt-0">
-            <span className="text-[14px] md:text-[13px] font-bold text-gray-900 dark:text-white truncate">
+          <div className="flex items-center px-1.5 py-1 max-w-[120px] md:max-w-[170px] flex-shrink-0">
+            <span className="text-sm font-bold text-[#f3f0e7] truncate">
               {currentProject?.name || 'Krypton'}
             </span>
           </div>
-          
-          {/* Desktop menu */}
-          <div className="hidden md:flex landscape:flex items-center space-x-0.5 ml-1">
-            <button className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" onClick={onBackToProjects} title="Back to Projects">
+
+          <div className="hidden md:flex items-center space-x-0.5 ml-1">
+            <button 
+              className="p-1 hover:bg-[#f3f0e7]/10 rounded text-[#f3f0e7]/70 hover:text-[#f3f0e7] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none" 
+              onClick={handleBackToProjects} 
+              title="Back to Projects"
+              aria-label="Back to projects"
+            >
               <ArrowLeft size={16} />
             </button>
             <div className="relative">
-              <button className="px-2 py-0.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" onClick={() => setShowFileMenu(!showFileMenu)}>File</button>
+              <button 
+                className="px-2 py-0.5 hover:bg-[#f3f0e7]/10 rounded cursor-pointer text-[#f3f0e7]/75 hover:text-[#f3f0e7] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none" 
+                onClick={() => setShowFileMenu(!showFileMenu)}
+                aria-label="File menu"
+                aria-haspopup="true"
+                aria-expanded={showFileMenu}
+              >File</button>
               {showFileMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowFileMenu(false)} />
-                  <div className="absolute left-0 top-full mt-1 w-48 bg-[#2d2d2d] border border-[#3c3c3c] rounded-xl shadow-2xl shadow-black/50 z-50 py-1 animate-scale-in">
+                  <div className="absolute left-0 top-full mt-1 w-48 bg-[#342f33] border border-[#f3f0e7]/10 rounded-xl shadow-2xl z-50 py-1 animate-scale-in">
                     <button 
                       onClick={() => {
                         const name = prompt('File name:');
                         if (name) { const id = createFile(name, 'root', 'file'); openFile(id); }
                         setShowFileMenu(false);
                       }} 
-                      className="w-full flex items-center space-x-3 px-4 py-3 md:py-2 text-sm text-gray-300 hover:bg-white/10 active:bg-white/20 border-b border-[#3c3c3c]"
+                      className="w-full flex items-center space-x-3 px-4 py-2 text-sm text-[#f3f0e7] hover:bg-[#f3f0e7]/10 border-b border-[#f3f0e7]/10 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none"
+                      aria-label="Create new file"
                     >
                       <Files size={16} />
                       <span>New File...</span>
                     </button>
                     <button 
                       onClick={() => fileInputRef.current?.click()} 
-                      className="w-full flex items-center space-x-3 px-4 py-3 md:py-2 text-sm text-gray-300 hover:bg-white/10 active:bg-white/20"
+                      className="w-full flex items-center space-x-3 px-4 py-2 text-sm text-[#f3f0e7] hover:bg-[#f3f0e7]/10 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none"
+                      aria-label="Upload files"
                     >
                       <Upload size={16} />
                       <span>Upload Files</span>
                     </button>
                     <button 
                       onClick={handleDownloadZip} 
-                      className="w-full flex items-center space-x-3 px-4 py-3 md:py-2 text-sm text-gray-300 hover:bg-white/10 active:bg-white/20 border-b border-[#3c3c3c]"
+                      className="w-full flex items-center space-x-3 px-4 py-2 text-sm text-[#f3f0e7] hover:bg-[#f3f0e7]/10 border-b border-[#f3f0e7]/10 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none"
+                      aria-label="Download project as zip"
                     >
                       <Download size={16} />
                       <span>Download .zip</span>
                     </button>
                     <button 
                       onClick={() => { setCommandPaletteOpen(true); setShowFileMenu(false); }} 
-                      className="w-full flex items-center space-x-3 px-4 py-3 md:py-2 text-sm text-gray-300 hover:bg-white/10 active:bg-white/20"
+                      className="w-full flex items-center space-x-3 px-4 py-2 text-sm text-[#f3f0e7] hover:bg-[#f3f0e7]/10 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none"
+                      aria-label="Open command palette"
                     >
                       <span>Command Palette</span>
                     </button>
@@ -274,41 +519,100 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
                 </>
               )}
             </div>
-            <button className="px-2 py-0.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" onClick={() => setCommandPaletteOpen(true)}>View</button>
-            <button className="px-2 py-0.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" onClick={handleRun}>Run</button>
-            <button className="px-2 py-0.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" onClick={handleToggleTerminal}>Terminal</button>
+            <button 
+              className="px-2 py-0.5 hover:bg-[#f3f0e7]/10 rounded cursor-pointer text-[#f3f0e7]/75 hover:text-[#f3f0e7] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none" 
+              onClick={() => setCommandPaletteOpen(true)}
+              aria-label="Open view command palette"
+            >View</button>
+            <button 
+              className="px-2 py-0.5 hover:bg-[#f3f0e7]/10 rounded cursor-pointer text-[#f3f0e7]/75 hover:text-[#f3f0e7] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none" 
+              onClick={handleRun}
+              aria-label="Run project or active file"
+            >Run</button>
+            <button 
+              className="px-2 py-0.5 hover:bg-[#f3f0e7]/10 rounded cursor-pointer text-[#f3f0e7]/75 hover:text-[#f3f0e7] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none" 
+              onClick={handleToggleTerminal}
+              aria-label="Toggle terminal panel"
+            >Terminal</button>
           </div>
         </div>
 
         {/* Right side actions */}
-        <div className="flex items-center space-x-1 mt-1 md:mt-0">
-          <button onClick={handleToggleTerminal} className="md:hidden landscape:hidden p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-700 dark:text-gray-300 active:bg-gray-300 dark:active:bg-white/20 transition-colors" title="Toggle Terminal">
-            <TerminalSquare size={20} />
+        <div className="flex items-center space-x-1">
+
+          <button 
+            onClick={() => {
+              hapticLight();
+              setCommandPaletteOpen(true);
+            }} 
+            className="md:hidden min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#f3f0e7]/10 active:scale-95 rounded-xl text-[#f3f0e7] transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none cursor-pointer" 
+            title="Command Palette (Ctrl+P)"
+            aria-label="Open command palette"
+          >
+            <Command size={18} />
           </button>
-          <button onClick={handleRun} className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white px-4 py-2 md:px-2.5 md:py-1 rounded-lg text-sm md:text-xs font-semibold transition-all duration-200 shadow-lg shadow-emerald-900/40 active:scale-95">
-            <Play size={16} fill="currentColor" />
+          <button 
+            onClick={() => {
+              hapticLight();
+              handleToggleTerminal();
+            }} 
+            className="md:hidden min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#f3f0e7]/10 active:scale-95 rounded-xl text-[#f3f0e7] transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none cursor-pointer" 
+            title="Toggle Terminal"
+            aria-label="Toggle terminal panel"
+          >
+            <TerminalSquare size={18} />
+          </button>
+          <button 
+            onClick={() => {
+              hapticLight();
+              handleRun();
+            }} 
+            className="flex items-center justify-center space-x-1.5 bg-[#f3f0e7] text-[#2a2529] hover:bg-white active:scale-95 min-h-[44px] px-3.5 rounded-xl text-xs font-bold transition-all shadow-md focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none cursor-pointer"
+            title="Run project or active file"
+            aria-label="Run project or active file"
+          >
+            <Play size={14} fill="currentColor" />
             <span>Run</span>
           </button>
 
-          {/* Desktop toolbar buttons */}
-          <div className="hidden md:flex landscape:flex items-center space-x-0.5">
-            <button onClick={() => fileInputRef.current?.click()} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" title="Upload Files">
+          <div className="hidden md:flex items-center space-x-0.5">
+            <button 
+              onClick={() => {
+                hapticLight();
+                fileInputRef.current?.click();
+              }} 
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#f3f0e7]/10 active:scale-95 rounded-xl text-[#f3f0e7]/70 hover:text-[#f3f0e7] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none transition-all cursor-pointer" 
+              title="Upload Files"
+              aria-label="Upload files"
+            >
               <Upload size={15} />
             </button>
-            <button onClick={handleDownloadZip} className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" title="Download .zip">
+            <button 
+              onClick={() => {
+                hapticLight();
+                handleDownloadZip();
+              }} 
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#f3f0e7]/10 active:scale-95 rounded-xl text-[#f3f0e7]/70 hover:text-[#f3f0e7] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none transition-all cursor-pointer" 
+              title="Download .zip"
+              aria-label="Download project as zip"
+            >
               <Download size={15} />
             </button>
-            <button onClick={toggleSidebar} className={`p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded transition-colors ${isSidebarOpen ? 'text-gray-900 bg-gray-200 dark:text-white dark:bg-white/10' : 'text-gray-600 dark:text-gray-400'}`} title="Toggle Sidebar">
-              <Files size={15} />
-            </button>
-            <button onClick={handleToggleTerminal} className={`p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded transition-colors ${isTerminalOpen ? 'text-gray-900 bg-gray-200 dark:text-white dark:bg-white/10' : 'text-gray-600 dark:text-gray-400'}`} title="Toggle Terminal">
+            <button 
+              onClick={() => {
+                hapticLight();
+                handleToggleTerminal();
+              }} 
+              className={`min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#f3f0e7]/10 active:scale-95 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/40 focus-visible:outline-none cursor-pointer ${isTerminalOpen ? 'text-[#f3f0e7] bg-[#f3f0e7]/10' : 'text-[#f3f0e7]/70'}`} 
+              title="Toggle Terminal"
+              aria-label="Toggle terminal panel"
+            >
               <TerminalSquare size={15} />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Hidden file input for uploads */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -320,19 +624,75 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
 
       {/* Main Area */}
       <div className="flex flex-1 overflow-hidden relative min-h-0">
-        {/* Activity Bar (Desktop) */}
-        <div className="hidden md:block landscape:block">
+        <div className={cn(isSideNav ? "flex" : "hidden")}>
           <ActivityBar />
         </div>
 
-        {/* Sidebar */}
-        {isSidebarOpen && (
-          <>
-            <div className="md:hidden landscape:hidden fixed inset-0 bg-black/60 z-40 animate-fade-in" onClick={toggleSidebar} />
-            <div className="fixed md:static landscape:static inset-y-0 left-0 z-50 w-[85%] md:w-[300px] landscape:w-[250px] max-w-[300px] border-r shadow-2xl md:shadow-none landscape:shadow-none animate-slide-right md:animate-none landscape:animate-none flex flex-col flex-shrink-0" style={{ background: 'var(--ide-sidebar, #252526)', borderColor: 'var(--ide-border, #1a1a1a)', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+        {/* Docked Sidebar (Desktop, Tablet, or Landscape - Zero Blur, Side-by-Side with Monaco, Resizable) */}
+        {isSidebarOpen && isSideNav && (
+          <div 
+            className={cn(
+              "flex border-r flex-col flex-shrink-0 transition-colors relative",
+              isLight ? "bg-[#f4f0e6] border-[#2a2529]/10" : "bg-[#2a2529] border-[#f3f0e7]/10"
+            )}
+            style={{ width: `${sidebarWidth}px` }}
+          >
+            <Sidebar />
+            {/* Draggable Divider Handle */}
+            <div
+              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-[#f3f0e7]/20 active:bg-blue-500/40 z-30 transition-colors"
+              onMouseDown={startResizing}
+              onTouchStart={startResizing}
+              title="Drag to resize sidebar"
+            />
+          </div>
+        )}
+
+        {/* Mobile Portrait Bottom Sheet Sidebar for Standard Views — Only mounted when isSideNav is false */}
+        {!isSideNav && (
+          <BottomSheet
+            isOpen={isSidebarOpen && sidebarView !== 'extension-view'}
+            onClose={toggleSidebar}
+            maxHeight="92vh"
+            showDragHandle={true}
+            showCloseButton={false}
+          >
+            <div className="flex-1 flex flex-col min-h-0 h-full">
               <Sidebar />
             </div>
-          </>
+          </BottomSheet>
+        )}
+
+        {/* Dedicated Mobile Popup Bottom Sheet for Active Extension View */}
+        {!isSideNav && (
+          <BottomSheet
+            isOpen={isSidebarOpen && sidebarView === 'extension-view' && !!activeExtensionView}
+            onClose={() => useIdeStore.setState({ isSidebarOpen: false })}
+            title={activeExtensionView?.title || 'Extension'}
+            maxHeight="88vh"
+            showDragHandle={true}
+            showCloseButton={true}
+          >
+            <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
+              <ExtensionViewPanel />
+            </div>
+          </BottomSheet>
+        )}
+
+        {/* Project Files & Folders Tree Sheet (Top 3 Bars) — Mobile Portrait Only */}
+        {!isSideNav && (
+          <BottomSheet
+            isOpen={showProjectTreeSheet}
+            onClose={() => setShowProjectTreeSheet(false)}
+            title="Explorer"
+            maxHeight="92vh"
+            showDragHandle={true}
+            showCloseButton={true}
+          >
+            <div className="flex-1 flex flex-col min-h-0 h-full">
+              <FileExplorer />
+            </div>
+          </BottomSheet>
         )}
 
         {/* Editor Area */}
@@ -341,33 +701,71 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
             <CodeEditor />
           </div>
 
-          {/* Terminal */}
-          {isTerminalOpen && (
+          {/* Terminal (Mobile Portrait Bottom Panel) */}
+          {isTerminalOpen && !isSideNav && (
             <div 
-              className="flex flex-col z-20 border-t flex-shrink-0"
-              style={{ height: `${terminalHeight}px`, background: 'var(--ide-bg, #1e1e1e)', borderColor: 'var(--ide-border, #3c3c3c)' }}
+              className="flex flex-col z-20 border-t border-[#f3f0e7]/10 flex-shrink-0 bg-[#2a2529] overflow-hidden"
+              style={{ height: `${terminalHeight}px` }}
             >
-              <BottomPanel onClose={() => setIsTerminalOpen(false)} height={terminalHeight} setHeight={setTerminalHeight} />
+              <BottomPanel 
+                onClose={() => setIsTerminalOpen(false)} 
+                height={terminalHeight} 
+                setHeight={setTerminalHeight} 
+                isDockedSide={false} 
+              />
             </div>
           )}
         </div>
+
+        {/* Right Docked Terminal (Landscape / Desktop Split-Pane) */}
+        {isTerminalOpen && isSideNav && (
+          <aside 
+            className="flex border-l flex-col flex-shrink-0 transition-colors relative bg-[#2a2529] border-[#f3f0e7]/10 z-20 h-full overflow-hidden"
+            style={{ width: `${terminalWidth}px` }}
+          >
+            {/* Draggable Divider Handle on Left */}
+            <div
+              className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-[#f3f0e7]/20 active:bg-blue-500/40 z-30 transition-colors"
+              onMouseDown={startTerminalResizing}
+              onTouchStart={startTerminalResizing}
+              title="Drag to resize terminal"
+            />
+            <div className="flex-1 min-h-0 h-full w-full overflow-hidden">
+              <BottomPanel 
+                onClose={() => setIsTerminalOpen(false)} 
+                height={terminalHeight} 
+                setHeight={setTerminalHeight} 
+                isDockedSide={true} 
+              />
+            </div>
+          </aside>
+        )}
       </div>
       
-      <div 
-        className="md:hidden landscape:hidden bottom-nav flex justify-around items-center flex-shrink-0 z-30 bg-white dark:bg-[#1a1a1a] border-t border-gray-200 dark:border-[#2d2d2d]"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', minHeight: '56px' }}
-      >
-        <NavButton icon={<Files size={19} />} label="Files" active={sidebarView === 'explorer' && isSidebarOpen} onClick={() => setSidebarView('explorer')} />
-        <NavButton icon={<GitBranch size={19} />} label="Git" active={sidebarView === 'git' && isSidebarOpen} onClick={() => setSidebarView('git')} />
-        <NavButton icon={<Puzzle size={19} />} label="Extend" active={showExtensions} onClick={() => { handleNavExtensions(); setSidebarView('extensions'); }} />
-        <NavButton icon={<Bot size={19} />} label="AI" active={sidebarView === 'ai'} onClick={() => { setAiFullscreen(true); setSidebarView('ai'); }} />
-        <NavButton icon={<Settings size={19} />} label="More" active={showSettings} onClick={() => { handleNavSettings(); setSidebarView('settings'); }} />
-      </div>
+      {/* Bottom Navigation Bar & Unified More Drawer — Mobile Portrait Only */}
+      {!isSideNav && (
+        <NavbarOverflowDrawer />
+      )}
 
-      {/* Status Bar (Desktop) */}
-      <div className="hidden md:block landscape:block">
-        <StatusBar />
-      </div>
+      {/* Navbar Settings Customizer Sheet */}
+      <BottomSheet
+        isOpen={isNavbarCustomizerOpen}
+        onClose={() => setNavbarCustomizerOpen(false)}
+        title="Navbar Customizer"
+        maxHeight="92vh"
+        showDragHandle={true}
+        showCloseButton={true}
+        className="max-w-xl mx-auto"
+      >
+        <NavbarSettingsPanel onClose={() => setNavbarCustomizerOpen(false)} />
+      </BottomSheet>
+
+      {/* Fullscreen AI Assistant Overlay */}
+      {isAiFullscreen && (
+        <div className="fixed inset-0 z-50 bg-[#2a2529] flex flex-col animate-fade-in">
+          <AiAssistant />
+        </div>
+      )}
 
       {/* Live Preview Overlay */}
       {isPreviewOpen && (
@@ -379,111 +777,7 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
         <CommandPalette onRunProject={handleRun} onBackToProjects={onBackToProjects} />
       )}
 
-      {/* Fullscreen Settings Overlay */}
-      {showSettings && (
-        <div className="fixed inset-0 z-[60] flex flex-col animate-overlay-up bg-white dark:bg-[#1e1e1e] landscape:hidden">
-          <div 
-            className="flex items-center bg-gray-100 dark:bg-[#252526] border-b border-gray-200 dark:border-[#1a1a1a] px-2 flex-shrink-0"
-            style={{ height: 'calc(3rem + env(safe-area-inset-top, 0px))', paddingTop: 'env(safe-area-inset-top, 0px)' }}
-          >
-            <button onClick={() => setShowSettings(false)} className="p-2 text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg mr-1 mt-1">
-              <ChevronLeft size={22} />
-            </button>
-            <h2 className="text-gray-900 dark:text-white font-semibold text-sm flex-1">Settings</h2>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <SettingsPanel />
-          </div>
-          {/* Nav bar in settings */}
-          <div 
-            className="md:hidden landscape:hidden bottom-nav flex justify-around items-center flex-shrink-0 z-30 bg-white dark:bg-[#1a1a1a] border-t border-gray-200 dark:border-[#2d2d2d]"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', minHeight: '56px' }}
-          >
-            <NavButton icon={<Files size={19} />} label="Files" active={false} onClick={() => { setShowSettings(false); setSidebarView('explorer'); }} />
-            <NavButton icon={<GitBranch size={19} />} label="Git" active={false} onClick={() => { setShowSettings(false); setSidebarView('git'); }} />
-            <NavButton icon={<Puzzle size={19} />} label="Extend" active={false} onClick={() => { setShowSettings(false); handleNavExtensions(); }} />
-            <NavButton icon={<Bot size={19} />} label="AI" active={false} onClick={() => { setShowSettings(false); setSidebarView('ai'); }} />
-            <NavButton icon={<Settings size={19} />} label="More" active={true} onClick={() => {}} />
-          </div>
-        </div>
-      )}
 
-      {/* Fullscreen Extensions Overlay */}
-      {showExtensions && (
-        <div className="fixed inset-0 z-[60] flex flex-col animate-overlay-up bg-white dark:bg-[#1e1e1e] landscape:hidden">
-          <div 
-            className="flex items-center bg-gray-100 dark:bg-[#252526] border-b border-gray-200 dark:border-[#1a1a1a] px-2 flex-shrink-0"
-            style={{ height: 'calc(3rem + env(safe-area-inset-top, 0px))', paddingTop: 'env(safe-area-inset-top, 0px)' }}
-          >
-            <button onClick={() => setShowExtensions(false)} className="p-2 text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg mr-1 mt-1">
-              <ChevronLeft size={22} />
-            </button>
-            <h2 className="text-gray-900 dark:text-white font-semibold text-sm flex-1">Extensions</h2>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <ExtensionsPanel />
-          </div>
-          {/* Nav bar in extensions */}
-          <div 
-            className="md:hidden landscape:hidden bottom-nav flex justify-around items-center flex-shrink-0 z-30 bg-white dark:bg-[#1a1a1a] border-t border-gray-200 dark:border-[#2d2d2d]"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', minHeight: '56px' }}
-          >
-            <NavButton icon={<Files size={19} />} label="Files" active={false} onClick={() => { setShowExtensions(false); setSidebarView('explorer'); }} />
-            <NavButton icon={<GitBranch size={19} />} label="Git" active={false} onClick={() => { setShowExtensions(false); setSidebarView('git'); }} />
-            <NavButton icon={<Puzzle size={19} />} label="Extend" active={true} onClick={() => {}} />
-            <NavButton icon={<Bot size={19} />} label="AI" active={false} onClick={() => { setShowExtensions(false); setSidebarView('ai'); }} />
-            <NavButton icon={<Settings size={19} />} label="More" active={false} onClick={() => { setShowExtensions(false); handleNavSettings(); }} />
-          </div>
-        </div>
-      )}
-
-      {/* Fullscreen AI Overlay */}
-      {isAiFullscreen && (
-        <div className="fixed inset-0 z-[60] flex flex-col animate-overlay-up bg-white dark:bg-[#1e1e1e] landscape:hidden">
-          {/* We don't need a top header since AiAssistant has its own header, but we need safe-area padding if mobile */}
-          <div className="pt-[env(safe-area-inset-top,0px)] bg-[#212121] flex-shrink-0" />
-          <div className="flex-1 overflow-hidden relative border-t border-b border-gray-200 dark:border-[#1a1a1a]">
-            <AiAssistant />
-          </div>
-          {/* Nav bar in AI fullscreen */}
-          <div 
-            className="md:hidden landscape:hidden bottom-nav flex justify-around items-center flex-shrink-0 z-30 bg-white dark:bg-[#1a1a1a] border-t border-gray-200 dark:border-[#2d2d2d]"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', minHeight: '56px' }}
-          >
-            <NavButton icon={<Files size={19} />} label="Files" active={false} onClick={() => { setAiFullscreen(false); setSidebarView('explorer'); }} />
-            <NavButton icon={<GitBranch size={19} />} label="Git" active={false} onClick={() => { setAiFullscreen(false); setSidebarView('git'); }} />
-            <NavButton icon={<Puzzle size={19} />} label="Extend" active={false} onClick={() => { setAiFullscreen(false); handleNavExtensions(); }} />
-            <NavButton icon={<Bot size={19} />} label="AI" active={true} onClick={() => {}} />
-            <NavButton icon={<Settings size={19} />} label="More" active={false} onClick={() => { setAiFullscreen(false); handleNavSettings(); }} />
-          </div>
-        </div>
-      )}
-
-      {/* Save Toast */}
-      {showSaveToast && (
-        <div 
-          className="fixed left-1/2 -translate-x-1/2 bg-[#333] text-white text-sm px-4 py-2 rounded-lg shadow-xl z-[70] animate-fade-in flex items-center space-x-2"
-          style={{ top: 'calc(4rem + env(safe-area-inset-top, 0px))' }}
-        >
-          <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-          <span>Saved</span>
-        </div>
-      )}
     </div>
-  );
-}
-
-// Extracted NavButton component for cleaner bottom nav
-function NavButton({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex flex-col items-center justify-center py-2 px-1 min-w-[48px] rounded-lg transition-colors ${
-        active ? 'text-blue-400' : 'text-gray-500 active:text-white'
-      }`}
-    >
-      {icon}
-      <span className="text-[9px] mt-0.5 leading-tight">{label}</span>
-    </button>
   );
 }

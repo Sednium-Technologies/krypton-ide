@@ -1,0 +1,35 @@
+{
+  "appId": "com.sednium.kryptonide",
+  "appName": "Kryptonide",
+  "webDir": "dist",
+  "android": {
+    "buildOptions": {
+      "keystorePath": "release.keystore",
+      "keystoreAlias": "kryptonide"
+    }
+  },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com"]
+    },
+    "Keyboard": {
+      "resize": "NONE",
+      "resizeOnFullScreen": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0d1117"
+    },
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 1500,
+      "backgroundColor": "#0d1117",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    }
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

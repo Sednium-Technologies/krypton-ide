@@ -2,6 +2,7 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { useIdeStore } from '../../store/useIdeStore';
 import { getBasePath } from '../fileSystemStorage';
 import { Capacitor } from '@capacitor/core';
+import { LayaSystem1 } from '../pocket/LayaSystem1';
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -33,22 +34,38 @@ function getProjectBasePath(): string {
  * Resolve the full filesystem path from a project-relative path.
  * AI provides paths like "src/App.tsx", we need "KryptonIDE/projects/project_abc/src/App.tsx"
  */
-function resolveFullPath(relativePath: string): string {
-  // Strip leading ./ or /
-  const cleaned = relativePath.replace(/^\.?\//, '');
+export function resolveFullPath(relativePath: string): string {
+  // Strip leading ./ or / and normalize separators
+  const cleaned = relativePath.replace(/\\/g, '/').replace(/^\.?\//, '');
+  const segments = cleaned.split('/').filter(Boolean);
+  const safeSegments: string[] = [];
+
+  for (const seg of segments) {
+    if (seg === '.') continue;
+    if (seg === '..') {
+      throw new Error("Access Denied: Path traversal ('..') is prohibited.");
+    }
+    safeSegments.push(seg);
+  }
+
+  const safePath = safeSegments.join('/');
 
   if (!Capacitor.isNativePlatform()) {
-    // On web, just return cleaned path — FS operations go through web fallback
-    return cleaned;
+    // On web, just return safePath — FS operations go through web fallback
+    return safePath;
   }
 
   const basePath = getProjectBasePath();
   if (basePath) {
-    return `${basePath}/${cleaned}`;
+    const fullPath = `${basePath}/${safePath}`;
+    if (!fullPath.startsWith(basePath)) {
+      throw new Error("Access Denied: Path traversal ('..') is prohibited.");
+    }
+    return fullPath;
   }
 
   // Fallback: use path as-is (legacy behavior)
-  return cleaned;
+  return safePath;
 }
 
 /**
@@ -60,9 +77,13 @@ function findFileIdByPath(relativePath: string): string | null {
   const state = useIdeStore.getState();
   const { files } = state;
 
-  // Strip leading ./ or /
-  const cleaned = relativePath.replace(/^\.?\//, '');
+  // Strip leading ./ or / and normalize separators
+  const cleaned = relativePath.replace(/\\/g, '/').replace(/^\.?\//, '');
   const segments = cleaned.split('/').filter(Boolean);
+
+  if (segments.some(seg => seg === '..')) {
+    throw new Error("Access Denied: Path traversal ('..') is prohibited.");
+  }
 
   if (segments.length === 0) return null;
 
@@ -125,8 +146,10 @@ export async function CapacitorFilesystemRead(
   endLine?: number
 ): Promise<string> {
   try {
+    // Validate path traversal and resolve full path
+    const fullPath = resolveFullPath(path);
     // Clean the path
-    const cleaned = path.replace(/^\.?\//, '');
+    const cleaned = path.replace(/\\/g, '/').replace(/^\.?\//, '');
 
     // Strategy 1: Read from IDE store (in-memory, always fresh)
     const fileId = findFileIdByPath(cleaned);
@@ -150,10 +173,9 @@ export async function CapacitorFilesystemRead(
     }
 
     // Strategy 2: Read from disk (filesystem)
-    const fullPath = resolveFullPath(cleaned);
     const result = await Filesystem.readFile({
       path: fullPath,
-      directory: Directory.ExternalStorage,
+      directory: Directory.Documents,
       encoding: Encoding.UTF8,
     });
     const content = typeof result.data === 'string' ? result.data : '';
@@ -172,6 +194,9 @@ export async function CapacitorFilesystemRead(
     const header = `File: ${cleaned} (${lines.length} lines total, showing ${start}-${end})`;
     return `${header}\n${numbered}`;
   } catch (error: any) {
+    if (error.message?.includes('Access Denied')) {
+      throw error;
+    }
     // Last resort: try IDE store by basename as a final fallback
     const fileName = path.split('/').pop() || path;
     const state = useIdeStore.getState();
@@ -198,7 +223,8 @@ export async function CapacitorFilesystemRead(
 
 /** Internal: read raw content without line numbers (for edit operations) */
 async function readRawContent(path: string): Promise<string> {
-  const cleaned = path.replace(/^\.?\//, '');
+  const fullPath = resolveFullPath(path);
+  const cleaned = path.replace(/\\/g, '/').replace(/^\.?\//, '');
 
   // Try IDE store first (in-memory)
   const fileId = findFileIdByPath(cleaned);
@@ -210,10 +236,9 @@ async function readRawContent(path: string): Promise<string> {
   }
 
   // Fallback to disk
-  const fullPath = resolveFullPath(cleaned);
   const result = await Filesystem.readFile({
     path: fullPath,
-    directory: Directory.ExternalStorage,
+    directory: Directory.Documents,
     encoding: Encoding.UTF8,
   });
   return typeof result.data === 'string' ? result.data : '';
@@ -230,7 +255,7 @@ async function writeContent(path: string, content: string): Promise<void> {
     try {
       await Filesystem.mkdir({
         path: parentDir,
-        directory: Directory.ExternalStorage,
+        directory: Directory.Documents,
         recursive: true,
       });
     } catch (e: any) {
@@ -243,7 +268,7 @@ async function writeContent(path: string, content: string): Promise<void> {
   await Filesystem.writeFile({
     path: fullPath,
     data: content,
-    directory: Directory.ExternalStorage,
+    directory: Directory.Documents,
     encoding: Encoding.UTF8,
   });
 }
@@ -361,7 +386,7 @@ export async function CapacitorFilesystemMkdir(path: string, options: { recursiv
     const fullPath = resolveFullPath(path);
     await Filesystem.mkdir({
       path: fullPath,
-      directory: Directory.ExternalStorage,
+      directory: Directory.Documents,
       recursive: options.recursive,
     });
   } catch (error: any) {
@@ -419,3 +444,109 @@ export async function CapacitorFilesystemWrite(path: string, content: string): P
     throw new Error(`Could not write file at ${path}: ${error.message}`);
   }
 }
+
+/**
+ * Execute a real terminal command inside the project root directory using the native Linux PTY.
+ * Respects the 3 permission tiers (Supervised, Autonomous, Unbound).
+ */
+export async function executeTerminalCommand(
+  command: string,
+  timeoutMs: number = 60000
+): Promise<{ stdout: string; stderr: string; exitCode: number; command?: string }> {
+  try {
+    const { useHarnessStore } = await import('../../store/useHarnessStore');
+    const { useNativeTerminalStore } = await import('../../store/useNativeTerminalStore');
+
+    const harnessState = useHarnessStore.getState();
+    const executionMode = harnessState.executionMode;
+
+    // Real-time command risk assessment via Laya System 1
+    const risk = LayaSystem1.assessCommandRisk(command, executionMode);
+    if (risk.riskLevel === 'high' && executionMode !== 'unbound') {
+      throw new Error(
+        `Security Block: ${risk.reason}. Destructive command blocked by safety guardrails. Switch to "Unbound Mode" in Terminal Settings to execute without restrictions.`
+      );
+    }
+
+    if (risk.requiresConfirmation && executionMode === 'supervised') {
+      if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+        const approved = window.confirm(
+          `[Oorty Lite Terminal Supervision]\n\nCommand: ${command}\nRisk Assessment: ${risk.reason}\n\nDo you want to authorize execution?`
+        );
+        if (!approved) {
+          throw new Error(`Command cancelled by user in Supervised mode: "${command}"`);
+        }
+      }
+    }
+
+    const termStore = useNativeTerminalStore.getState();
+    const session = termStore.sessions.project;
+    if (!session.running) {
+      await termStore.initSession('project');
+    }
+
+    return new Promise((resolve) => {
+      let outputBuffer = '';
+      const nonce = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Math.random().toString(36).slice(2);
+      const startTag = `__KRYPTON_START_${nonce}__`;
+      const endTagPrefix = `__KRYPTON_EXIT_${nonce}_`;
+      const exitRegex = new RegExp(`__KRYPTON_EXIT_${nonce}_(\\d+)__`);
+
+      let resolved = false;
+      let timer: any = null;
+
+      const cleanup = termStore.subscribeOutput('project', (chunk: string) => {
+        outputBuffer += chunk;
+
+        // Detect exit tag
+        const exitMatch = outputBuffer.match(exitRegex);
+        if (exitMatch && !resolved) {
+          resolved = true;
+          if (timer) clearTimeout(timer);
+          cleanup();
+
+          const exitCode = parseInt(exitMatch[1], 10);
+          let cleanOutput = outputBuffer;
+          if (cleanOutput.includes(startTag)) {
+            cleanOutput = cleanOutput.split(startTag)[1] || cleanOutput;
+          }
+          cleanOutput = cleanOutput.replace(new RegExp(`__KRYPTON_EXIT_${nonce}_\\d+__[\\r\\n]*`), '');
+          // Surgical token pruning & ANSI stripping via Laya System 1
+          cleanOutput = LayaSystem1.pruneCompilerLog(cleanOutput);
+
+          resolve({
+            stdout: cleanOutput,
+            stderr: exitCode !== 0 ? cleanOutput : '',
+            exitCode,
+            command,
+          });
+        }
+      });
+
+      timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve({
+            stdout: LayaSystem1.pruneCompilerLog(outputBuffer),
+            stderr: `Command timed out after ${timeoutMs}ms`,
+            exitCode: 124,
+            command,
+          });
+        }
+      }, timeoutMs);
+
+      // Execute wrapped shell command with nonce sentinels
+      const wrappedCommand = `echo "${startTag}"; ${command}; echo "${endTagPrefix}$?__"\n`;
+      termStore.sendInput(wrappedCommand, 'project');
+    });
+  } catch (err: any) {
+    return {
+      stdout: '',
+      stderr: err.message || 'Execution error',
+      exitCode: 1,
+      command,
+    };
+  }
+}
+

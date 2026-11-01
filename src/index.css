@@ -1,8 +1,511 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Urbanist", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --vh: 1vh;
+  --keyboard-height: 0px;
+  --krypton-font: var(--font-sans);
+
+  /* Krypton Charcoal & Pale Ivory Theme Palette */
+  --krypton-bg: #2a2529;
+  --krypton-surface: #342f33;
+  --krypton-surface-elevated: #3d373c;
+  --krypton-border: rgba(243, 240, 231, 0.12);
+  --krypton-text: #f3f0e7;
+  --krypton-text-muted: rgba(243, 240, 231, 0.6);
+  --krypton-accent: #f3f0e7;
+  --krypton-accent-soft: rgba(243, 240, 231, 0.12);
+  --radius-soft: 16px;
+  --radius-card: 20px;
+}
+
+html[data-theme="light"], html.light, .light {
+  --krypton-bg: #f3f0e7;
+  --krypton-surface: #e8e4d9;
+  --krypton-surface-elevated: #dfdacd;
+  --krypton-border: rgba(42, 37, 41, 0.15);
+  --krypton-text: #2a2529;
+  --krypton-text-muted: rgba(42, 37, 41, 0.6);
+  --krypton-accent: #2a2529;
+  --krypton-accent-soft: rgba(42, 37, 41, 0.1);
+}
+
+/* Base Root & Body in Light Mode */
+html[data-theme="light"] body,
+html[data-theme="light"] #root,
+html.light body,
+html.light #root {
+  background-color: #f3f0e7 !important;
+  color: #2a2529 !important;
+}
+
+/* ── Light Mode Text Overrides ── */
+html[data-theme="light"] .text-\[\#f3f0e7\],
+html.light .text-\[\#f3f0e7\] {
+  color: #2a2529 !important;
+}
+
+html[data-theme="light"] .text-\[\#f3f0e7\]\/90,
+html[data-theme="light"] .text-\[\#f3f0e7\]\/85,
+html.light .text-\[\#f3f0e7\]\/90,
+html.light .text-\[\#f3f0e7\]\/85 {
+  color: rgba(42, 37, 41, 0.9) !important;
+}
+
+html[data-theme="light"] .text-\[\#f3f0e7\]\/80,
+html.light .text-\[\#f3f0e7\]\/80 {
+  color: rgba(42, 37, 41, 0.8) !important;
+}
+
+html[data-theme="light"] .text-\[\#f3f0e7\]\/75,
+html[data-theme="light"] .text-\[\#f3f0e7\]\/70,
+html.light .text-\[\#f3f0e7\]\/75,
+html.light .text-\[\#f3f0e7\]\/70 {
+  color: rgba(42, 37, 41, 0.75) !important;
+}
+
+html[data-theme="light"] .text-\[\#f3f0e7\]\/60,
+html.light .text-\[\#f3f0e7\]\/60 {
+  color: rgba(42, 37, 41, 0.65) !important;
+}
+
+html[data-theme="light"] .text-\[\#f3f0e7\]\/50,
+html.light .text-\[\#f3f0e7\]\/50 {
+  color: rgba(42, 37, 41, 0.55) !important;
+}
+
+html[data-theme="light"] .text-\[\#f3f0e7\]\/40,
+html.light .text-\[\#f3f0e7\]\/40 {
+  color: rgba(42, 37, 41, 0.5) !important;
+}
+
+html[data-theme="light"] .text-\[\#f3f0e7\]\/30,
+html[data-theme="light"] .text-\[\#f3f0e7\]\/25,
+html[data-theme="light"] .text-\[\#f3f0e7\]\/20,
+html.light .text-\[\#f3f0e7\]\/30,
+html.light .text-\[\#f3f0e7\]\/25,
+html.light .text-\[\#f3f0e7\]\/20 {
+  color: rgba(42, 37, 41, 0.4) !important;
+}
+
+html[data-theme="light"] input::placeholder,
+html[data-theme="light"] textarea::placeholder,
+html.light input::placeholder,
+html.light textarea::placeholder,
+html[data-theme="light"] .placeholder-\[\#f3f0e7\]\/30::placeholder,
+html[data-theme="light"] .placeholder-\[\#f3f0e7\]\/40::placeholder,
+html[data-theme="light"] .placeholder-\[\#f3f0e7\]\/50::placeholder,
+html.light .placeholder-\[\#f3f0e7\]\/30::placeholder,
+html.light .placeholder-\[\#f3f0e7\]\/40::placeholder,
+html.light .placeholder-\[\#f3f0e7\]\/50::placeholder {
+  color: rgba(42, 37, 41, 0.45) !important;
+}
+
+/* ── Light Mode Border Overrides ── */
+html[data-theme="light"] .border-\[\#f3f0e7\],
+html.light .border-\[\#f3f0e7\] {
+  border-color: rgba(42, 37, 41, 0.25) !important;
+}
+
+html[data-theme="light"] .border-\[\#f3f0e7\]\/5,
+html.light .border-\[\#f3f0e7\]\/5 {
+  border-color: rgba(42, 37, 41, 0.08) !important;
+}
+
+html[data-theme="light"] .border-\[\#f3f0e7\]\/10,
+html.light .border-\[\#f3f0e7\]\/10 {
+  border-color: rgba(42, 37, 41, 0.12) !important;
+}
+
+html[data-theme="light"] .border-\[\#f3f0e7\]\/15,
+html.light .border-\[\#f3f0e7\]\/15 {
+  border-color: rgba(42, 37, 41, 0.16) !important;
+}
+
+html[data-theme="light"] .border-\[\#f3f0e7\]\/20,
+html[data-theme="light"] .border-\[\#f3f0e7\]\/25,
+html.light .border-\[\#f3f0e7\]\/20,
+html.light .border-\[\#f3f0e7\]\/25 {
+  border-color: rgba(42, 37, 41, 0.22) !important;
+}
+
+html[data-theme="light"] .border-\[\#f3f0e7\]\/30,
+html[data-theme="light"] .border-\[\#f3f0e7\]\/35,
+html[data-theme="light"] .border-\[\#f3f0e7\]\/40,
+html[data-theme="light"] .border-\[\#f3f0e7\]\/50,
+html[data-theme="light"] .border-\[\#1a1a1a\],
+html.light .border-\[\#f3f0e7\]\/30,
+html.light .border-\[\#f3f0e7\]\/35,
+html.light .border-\[\#f3f0e7\]\/40,
+html.light .border-\[\#f3f0e7\]\/50,
+html.light .border-\[\#1a1a1a\] {
+  border-color: rgba(42, 37, 41, 0.14) !important;
+}
+
+/* Directional Borders */
+html[data-theme="light"] .border-t-\[\#f3f0e7\],
+html.light .border-t-\[\#f3f0e7\] {
+  border-top-color: #2a2529 !important;
+}
+
+html[data-theme="light"] .border-t-\[\#f3f0e7\]\/10,
+html[data-theme="light"] .border-t-\[\#f3f0e7\]\/15,
+html.light .border-t-\[\#f3f0e7\]\/10,
+html.light .border-t-\[\#f3f0e7\]\/15 {
+  border-top-color: rgba(42, 37, 41, 0.14) !important;
+}
+
+html[data-theme="light"] .border-b-\[\#f3f0e7\],
+html.light .border-b-\[\#f3f0e7\] {
+  border-bottom-color: #2a2529 !important;
+}
+
+html[data-theme="light"] .border-b-\[\#f3f0e7\]\/10,
+html[data-theme="light"] .border-b-\[\#f3f0e7\]\/15,
+html.light .border-b-\[\#f3f0e7\]\/10,
+html.light .border-b-\[\#f3f0e7\]\/15 {
+  border-bottom-color: rgba(42, 37, 41, 0.14) !important;
+}
+
+/* ── Light Mode Background Overrides ── */
+/* Main page/workspace backgrounds */
+html[data-theme="light"] .bg-\[\#2a2529\],
+html.light .bg-\[\#2a2529\] {
+  background-color: #f3f0e7 !important;
+  color: #2a2529 !important;
+}
+
+/* Bars, headers, bottom navigation bar */
+html[data-theme="light"] .bg-\[\#231e22\],
+html[data-theme="light"] .bg-\[\#231e22\]\/98,
+html[data-theme="light"] .bg-\[\#231e22\]\/95,
+html[data-theme="light"] .bg-\[\#282327\],
+html[data-theme="light"] .bg-\[\#262125\],
+html[data-theme="light"] .bg-\[\#252125\],
+html[data-theme="light"] .bg-\[\#252526\],
+html[data-theme="light"] .bg-\[\#1e1e1e\],
+html[data-theme="light"] .bg-\[\#252227\]\/95,
+html[data-theme="light"] .bg-\[\#252227\]\/90,
+html[data-theme="light"] .bg-\[\#252227\]\/85,
+html.light .bg-\[\#231e22\],
+html.light .bg-\[\#231e22\]\/98,
+html.light .bg-\[\#231e22\]\/95,
+html.light .bg-\[\#282327\],
+html.light .bg-\[\#262125\],
+html.light .bg-\[\#252125\],
+html.light .bg-\[\#252526\],
+html.light .bg-\[\#1e1e1e\],
+html.light .bg-\[\#252227\]\/95,
+html.light .bg-\[\#252227\]\/90,
+html.light .bg-\[\#252227\]\/85 {
+  background-color: #e8e4d9 !important;
+  color: #2a2529 !important;
+}
+
+html[data-theme="light"] .bg-\[\#1c181b\],
+html[data-theme="light"] .bg-\[\#1e1b1e\],
+html[data-theme="light"] .bg-\[\#1f1b1e\],
+html[data-theme="light"] .bg-\[\#1a1719\],
+html[data-theme="light"] .bg-\[\#181517\],
+html[data-theme="light"] .bg-\[\#161416\],
+html.light .bg-\[\#1c181b\],
+html.light .bg-\[\#1e1b1e\],
+html.light .bg-\[\#1f1b1e\],
+html.light .bg-\[\#1a1719\],
+html.light .bg-\[\#181517\],
+html.light .bg-\[\#161416\] {
+  background-color: #e5e0d3 !important;
+  color: #2a2529 !important;
+}
+
+/* Cards, elevated panels, modal bodies */
+html[data-theme="light"] .bg-\[\#342f33\],
+html[data-theme="light"] .bg-\[\#32303a\],
+html[data-theme="light"] .bg-\[\#342f33\]\/90,
+html[data-theme="light"] .bg-\[\#342f33\]\/80,
+html[data-theme="light"] .bg-\[\#342f33\]\/70,
+html[data-theme="light"] .bg-\[\#342f33\]\/60,
+html[data-theme="light"] .bg-\[\#342f33\]\/50,
+html[data-theme="light"] .bg-\[\#342f33\]\/40,
+html[data-theme="light"] .bg-\[\#32303a\]\/95,
+html[data-theme="light"] .bg-\[\#32303a\]\/90,
+html[data-theme="light"] .bg-\[\#32303a\]\/80,
+html[data-theme="light"] .bg-\[\#32303a\]\/70,
+html[data-theme="light"] .bg-\[\#32303a\]\/60,
+html[data-theme="light"] .bg-\[\#32303a\]\/50,
+html.light .bg-\[\#342f33\],
+html.light .bg-\[\#32303a\],
+html.light .bg-\[\#342f33\]\/90,
+html.light .bg-\[\#342f33\]\/80,
+html.light .bg-\[\#342f33\]\/70,
+html.light .bg-\[\#342f33\]\/60,
+html.light .bg-\[\#342f33\]\/50,
+html.light .bg-\[\#342f33\]\/40,
+html.light .bg-\[\#32303a\]\/95,
+html.light .bg-\[\#32303a\]\/90,
+html.light .bg-\[\#32303a\]\/80,
+html.light .bg-\[\#32303a\]\/70,
+html.light .bg-\[\#32303a\]\/60,
+html.light .bg-\[\#32303a\]\/50 {
+  background-color: #ffffff !important;
+  color: #2a2529 !important;
+}
+
+html[data-theme="light"] .bg-\[\#3d373c\],
+html[data-theme="light"] .bg-\[\#3e383d\],
+html[data-theme="light"] .bg-\[\#393338\],
+html[data-theme="light"] .bg-\[\#453d43\],
+html.light .bg-\[\#3d373c\],
+html.light .bg-\[\#3e383d\],
+html.light .bg-\[\#393338\],
+html.light .bg-\[\#453d43\] {
+  background-color: #ded9cd !important;
+  color: #2a2529 !important;
+}
+
+/* Chips, badges, drag handles & translucent overlays */
+html[data-theme="light"] .bg-\[\#2a2529\]\/60,
+html[data-theme="light"] .bg-\[\#2a2529\]\/40,
+html[data-theme="light"] .bg-\[\#2a2529\]\/20,
+html[data-theme="light"] .bg-\[\#1f1b1f\]\/70,
+html.light .bg-\[\#2a2529\]\/60,
+html.light .bg-\[\#2a2529\]\/40,
+html.light .bg-\[\#2a2529\]\/20,
+html.light .bg-\[\#1f1b1f\]\/70 {
+  background-color: rgba(42, 37, 41, 0.08) !important;
+  color: #2a2529 !important;
+}
+
+html[data-theme="light"] .bg-\[\#f3f0e7\]\/10,
+html[data-theme="light"] .bg-\[\#f3f0e7\]\/15,
+html[data-theme="light"] .bg-\[\#f3f0e7\]\/20,
+html.light .bg-\[\#f3f0e7\]\/10,
+html.light .bg-\[\#f3f0e7\]\/15,
+html.light .bg-\[\#f3f0e7\]\/20 {
+  background-color: rgba(42, 37, 41, 0.07) !important;
+}
+
+html[data-theme="light"] .bg-\[\#f3f0e7\]\/5,
+html.light .bg-\[\#f3f0e7\]\/5 {
+  background-color: rgba(42, 37, 41, 0.04) !important;
+}
+
+html[data-theme="light"] .bg-\[\#f3f0e7\]\/25,
+html[data-theme="light"] .bg-\[\#f3f0e7\]\/30,
+html.light .bg-\[\#f3f0e7\]\/25,
+html.light .bg-\[\#f3f0e7\]\/30 {
+  background-color: rgba(42, 37, 41, 0.25) !important;
+}
+
+/* ── Hover States in Light Mode ── */
+html[data-theme="light"] .hover\:bg-\[\#f3f0e7\]\/10:hover,
+html.light .hover\:bg-\[\#f3f0e7\]\/10:hover {
+  background-color: rgba(42, 37, 41, 0.08) !important;
+}
+
+html[data-theme="light"] .hover\:bg-\[\#f3f0e7\]\/20:hover,
+html.light .hover\:bg-\[\#f3f0e7\]\/20:hover {
+  background-color: rgba(42, 37, 41, 0.12) !important;
+}
+
+html[data-theme="light"] .hover\:bg-\[\#342f33\]:hover,
+html[data-theme="light"] .hover\:bg-\[\#32303a\]:hover,
+html.light .hover\:bg-\[\#342f33\]:hover,
+html.light .hover\:bg-\[\#32303a\]:hover {
+  background-color: #f2eee3 !important;
+}
+
+html[data-theme="light"] .hover\:bg-\[\#3d373c\]:hover,
+html[data-theme="light"] .hover\:bg-\[\#453d43\]:hover,
+html[data-theme="light"] .hover\:bg-\[\#342f33\]\/80:hover,
+html[data-theme="light"] .hover\:bg-\[\#32303a\]\/80:hover,
+html.light .hover\:bg-\[\#3d373c\]:hover,
+html.light .hover\:bg-\[\#453d43\]:hover,
+html.light .hover\:bg-\[\#342f33\]\/80:hover,
+html.light .hover\:bg-\[\#32303a\]\/80:hover {
+  background-color: #e5e0d4 !important;
+}
+
+html[data-theme="light"] .hover\:text-\[\#f3f0e7\]:hover,
+html.light .hover\:text-\[\#f3f0e7\]:hover {
+  color: #2a2529 !important;
+}
+
+/* ── Toast Notifications in Light Mode ── */
+html[data-theme="light"] .krypton-toast-item,
+html.light .krypton-toast-item {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  color: #2a2529 !important;
+  border-color: rgba(42, 37, 41, 0.12) !important;
+  box-shadow: 0 12px 32px rgba(42, 37, 41, 0.14) !important;
+}
+
+/* ── Global Markdown Content in Light Mode ── */
+html[data-theme="light"] .markdown-body,
+html.light .markdown-body {
+  color: #2a2529 !important;
+}
+html[data-theme="light"] .markdown-body h1,
+html[data-theme="light"] .markdown-body h2,
+html[data-theme="light"] .markdown-body h3,
+html[data-theme="light"] .markdown-body h4,
+html[data-theme="light"] .markdown-body strong,
+html.light .markdown-body h1,
+html.light .markdown-body h2,
+html.light .markdown-body h3,
+html.light .markdown-body h4,
+html.light .markdown-body strong {
+  color: #2a2529 !important;
+  border-color: rgba(42, 37, 41, 0.12) !important;
+}
+html[data-theme="light"] .markdown-body code,
+html.light .markdown-body code {
+  background: #e8e4d9 !important;
+  color: #0f766e !important;
+  border-color: rgba(42, 37, 41, 0.15) !important;
+}
+html[data-theme="light"] .markdown-body pre,
+html.light .markdown-body pre {
+  background: #f0ece2 !important;
+  border-color: rgba(42, 37, 41, 0.12) !important;
+}
+html[data-theme="light"] .markdown-body pre code,
+html.light .markdown-body pre code {
+  color: #2a2529 !important;
+}
+html[data-theme="light"] .markdown-body blockquote,
+html.light .markdown-body blockquote {
+  background: #f0ece2 !important;
+  color: rgba(42, 37, 41, 0.75) !important;
+}
+html[data-theme="light"] .markdown-body th,
+html.light .markdown-body th {
+  background: #ebe7dc !important;
+  color: #2a2529 !important;
+  border-color: rgba(42, 37, 41, 0.15) !important;
+}
+html[data-theme="light"] .markdown-body td,
+html.light .markdown-body td {
+  border-color: rgba(42, 37, 41, 0.1) !important;
+}
+
+/* ── Primary Inverted Buttons (bg-[#f3f0e7]) in Light Mode ── */
+html[data-theme="light"] button.bg-\[\#f3f0e7\],
+html[data-theme="light"] a.bg-\[\#f3f0e7\],
+html.light button.bg-\[\#f3f0e7\],
+html.light a.bg-\[\#f3f0e7\] {
+  background-color: #2a2529 !important;
+  color: #f3f0e7 !important;
+}
+
+html[data-theme="light"] button.bg-\[\#f3f0e7\] *,
+html[data-theme="light"] button.bg-\[\#f3f0e7\] span,
+html[data-theme="light"] button.bg-\[\#f3f0e7\] svg,
+html[data-theme="light"] a.bg-\[\#f3f0e7\] *,
+html[data-theme="light"] a.bg-\[\#f3f0e7\] span,
+html[data-theme="light"] a.bg-\[\#f3f0e7\] svg,
+html.light button.bg-\[\#f3f0e7\] *,
+html.light button.bg-\[\#f3f0e7\] span,
+html.light button.bg-\[\#f3f0e7\] svg,
+html.light a.bg-\[\#f3f0e7\] *,
+html.light a.bg-\[\#f3f0e7\] span,
+html.light a.bg-\[\#f3f0e7\] svg {
+  color: #f3f0e7 !important;
+  fill: currentColor;
+}
+
+html[data-theme="light"] button.bg-\[\#f3f0e7\]:hover,
+html[data-theme="light"] button.bg-\[\#f3f0e7\].hover\:bg-white:hover,
+html[data-theme="light"] a.bg-\[\#f3f0e7\]:hover,
+html.light button.bg-\[\#f3f0e7\]:hover,
+html.light button.bg-\[\#f3f0e7\].hover\:bg-white:hover,
+html.light a.bg-\[\#f3f0e7\]:hover {
+  background-color: #3d373c !important;
+}
+
+/* ── Hero Card & Accents in Light Mode ── */
+html[data-theme="light"] .krypton-hero-card,
+html.light .krypton-hero-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f7f5ee 50%, #ede8dc 100%) !important;
+  border-color: rgba(42, 37, 41, 0.14) !important;
+  box-shadow: 0 14px 34px rgba(42, 37, 41, 0.08) !important;
+}
+
+/* ── Floating Context Menu in Light Mode ── */
+html[data-theme="light"] .krypton-floating-context-menu,
+html.light .krypton-floating-context-menu {
+  background-color: #ffffff !important;
+  color: #2a2529 !important;
+  border-color: rgba(42, 37, 41, 0.15) !important;
+  box-shadow: 0 12px 36px rgba(42, 37, 41, 0.18) !important;
+}
+
+html[data-theme="light"] .krypton-floating-context-menu button,
+html[data-theme="light"] .krypton-floating-context-menu span,
+html[data-theme="light"] .krypton-floating-context-menu svg,
+html.light .krypton-floating-context-menu button,
+html.light .krypton-floating-context-menu span,
+html.light .krypton-floating-context-menu svg {
+  color: #2a2529 !important;
+}
+
+html[data-theme="light"] .krypton-floating-context-menu button:hover,
+html.light .krypton-floating-context-menu button:hover {
+  background-color: rgba(42, 37, 41, 0.08) !important;
+}
+
+html[data-theme="light"] .krypton-floating-context-menu .krypton-menu-divider,
+html.light .krypton-floating-context-menu .krypton-menu-divider {
+  background-color: rgba(42, 37, 41, 0.15) !important;
+}
+
+/* ── Notch Fillet SVG in Light Mode ── */
+html[data-theme="light"] .krypton-notch-fill,
+html.light .krypton-notch-fill {
+  fill: #e8e4d9 !important;
+}
+
+html[data-theme="light"] .krypton-notch-stroke,
+html.light .krypton-notch-stroke {
+  stroke: rgba(42, 37, 41, 0.15) !important;
+}
+
+/* ── Glass Components in Light Mode ── */
+html[data-theme="light"] .glass-panel,
+html.light .glass-panel {
+  background: rgba(255, 255, 255, 0.88) !important;
+  border-color: rgba(42, 37, 41, 0.12) !important;
+  color: #2a2529 !important;
+}
+
+html[data-theme="light"] .glass-card,
+html.light .glass-card {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(42, 37, 41, 0.12) !important;
+  color: #2a2529 !important;
+}
+
+html[data-theme="light"] .glass-modal,
+html.light .glass-modal {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(42, 37, 41, 0.16) !important;
+  color: #2a2529 !important;
+  box-shadow: 0 20px 60px rgba(42, 37, 41, 0.16) !important;
+}
+
+/* ── Scrollbars in Light Mode ── */
+html[data-theme="light"] ::-webkit-scrollbar-thumb,
+html.light ::-webkit-scrollbar-thumb {
+  background: rgba(42, 37, 41, 0.2) !important;
+}
+
+html[data-theme="light"] ::-webkit-scrollbar-thumb:hover,
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(42, 37, 41, 0.35) !important;
 }
 
 * {
@@ -24,18 +527,12 @@ input, textarea {
   user-select: text;
 }
 
-:root {
-  --vh: 1vh;
-  --keyboard-height: 0px;
-  --krypton-font: var(--font-sans);
-}
-
 html, body {
   margin: 0;
   padding: 0;
   font-family: var(--krypton-font);
-  background-color: #0d1117;
-  color: #c9d1d9;
+  background-color: var(--krypton-bg);
+  color: var(--krypton-text);
   overflow: hidden;
   height: 100dvh;
   height: calc(var(--vh) * 100);
@@ -51,6 +548,33 @@ html, body {
   height: 100%;
   width: 100%;
   overflow: hidden;
+  background-color: var(--krypton-bg);
+  color: var(--krypton-text);
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: rgba(50, 48, 58, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--krypton-border);
+}
+
+.glass-card {
+  background: rgba(58, 56, 68, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--krypton-border);
+  border-radius: var(--radius-card);
+}
+
+.glass-modal {
+  background: rgba(42, 37, 41, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--krypton-border);
+  border-radius: var(--radius-card);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
@@ -64,18 +588,18 @@ html, body {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
+  background: rgba(243, 240, 231, 0.15);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #484f58;
+  background: rgba(243, 240, 231, 0.25);
 }
 
 /* Safe area padding for mobile devices */
@@ -87,7 +611,7 @@ html, body {
 }
 
 /* ───────────────────────────────────────────────
-   ANIMATIONS — buttery smooth spring curves
+   ANIMATIONS — fluid spring curves
    ─────────────────────────────────────────────── */
 
 @keyframes fadeIn {
@@ -141,8 +665,8 @@ html, body {
 }
 
 @keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.15); }
-  50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.35); }
+  0%, 100% { box-shadow: 0 0 20px rgba(201, 169, 110, 0.15); }
+  50% { box-shadow: 0 0 40px rgba(201, 169, 110, 0.35); }
 }
 
 @keyframes overlaySlideUp {
@@ -155,7 +679,6 @@ html, body {
   to { opacity: 1; transform: scale(1); }
 }
 
-/* Use spring-like cubic-bezier for fluid feel */
 .animate-fade-in {
   animation: fadeIn 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -194,7 +717,7 @@ html, body {
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.05) 50%, transparent 75%);
+  background: linear-gradient(90deg, transparent 25%, rgba(243, 240, 231, 0.05) 50%, transparent 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -227,13 +750,11 @@ input, textarea {
 
 /* Selection color */
 ::selection {
-  background: #264f78;
-  color: white;
+  background: rgba(201, 169, 110, 0.3);
+  color: #f3f0e7;
 }
 
-/* ── Native Android / Capacitor Optimizations ── */
-
-/* Safe area insets for notched/curved devices */
+/* Safe area insets */
 .safe-area-top {
   padding-top: env(safe-area-inset-top, 0px);
 }
@@ -241,46 +762,58 @@ input, textarea {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Prevent overscroll bounce (Android + iOS) */
+/* Prevent overscroll bounce */
 html, body {
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
 }
 
-/* Prevent pull-to-refresh */
 body {
   overscroll-behavior-y: contain;
 }
 
-/* Disable text selection on non-editor UI */
 .no-select {
   -webkit-user-select: none;
   user-select: none;
 }
 
-/* SVG files: render properly in the editor */
 .monaco-editor .mtk1 svg,
 .monaco-editor .mtk1 img[src$=".svg"] {
   max-width: 100%;
   height: auto;
 }
 
-/* Capacitor status bar spacing */
+/* GPU hardware acceleration for animated elements */
+.animate-fade-in,
+.animate-scale-in,
+.animate-slide-up,
+.animate-slide-down,
+.animate-slide-right,
+.animate-slide-in-right,
+.animate-fade-slide-up,
+.animate-overlay-up,
+.animate-context-pop {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
 .capacitor-status-bar-padding {
   padding-top: env(safe-area-inset-top, 0px);
 }
 
-/* ── Keyboard-aware layout ── */
-/* On Android, when keyboard opens, shrink the app instead of pushing */
+/* Keyboard-aware layout */
 .keyboard-open {
   height: calc(var(--vh) * 100 - var(--keyboard-height)) !important;
-  transition: height 0.15s ease-out;
+  transition: none;
 }
 
-/* AGGRESSIVE: hide bottom nav when keyboard is open — multiple fallbacks
-   because some Android WebViews ignore `display:none` */
 .keyboard-open .bottom-nav,
-html.keyboard-open .bottom-nav {
+html.keyboard-open .bottom-nav,
+.keyboard-open .keyboard-hidden,
+html.keyboard-open .keyboard-hidden {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
@@ -293,12 +826,6 @@ html.keyboard-open .bottom-nav {
   border: none !important;
 }
 
-/* Context menu improvements */
-.context-menu-backdrop {
-  animation: fadeIn 0.1s ease-out both;
-}
-
-/* ── Premium UI Elements ── */
 @keyframes ambientDrift {
   0% { transform: translate(0px, 0px) scale(1); }
   33% { transform: translate(30px, -50px) scale(1.1); }
@@ -312,12 +839,6 @@ html.keyboard-open .bottom-nav {
   100% { transform: translateY(0px); }
 }
 
-@keyframes borderGlow {
-  0% { border-color: rgba(255, 255, 255, 0.05); box-shadow: 0 0 0 rgba(79, 70, 229, 0); }
-  50% { border-color: rgba(255, 255, 255, 0.2); box-shadow: 0 0 20px rgba(79, 70, 229, 0.3); }
-  100% { border-color: rgba(255, 255, 255, 0.05); box-shadow: 0 0 0 rgba(79, 70, 229, 0); }
-}
-
 .animate-ambient-drift {
   animation: ambientDrift 20s ease-in-out infinite;
 }
@@ -326,4 +847,58 @@ html.keyboard-open .bottom-nav {
   animation: float 6s ease-in-out infinite;
 }
 
+/* ── Monaco Ghost Text & AI Autocomplete Styling ── */
+.monaco-editor .ghost-text,
+.monaco-editor .ghost-text-decoration,
+.monaco-editor .ghost-text-decoration-preview,
+.monaco-editor .suggest-preview-text {
+  color: rgba(243, 240, 231, 0.45) !important;
+  font-style: italic !important;
+  letter-spacing: normal;
+}
+
+html[data-theme="light"] .monaco-editor .ghost-text,
+html[data-theme="light"] .monaco-editor .ghost-text-decoration,
+html[data-theme="light"] .monaco-editor .ghost-text-decoration-preview,
+html[data-theme="light"] .monaco-editor .suggest-preview-text,
+html.light .monaco-editor .ghost-text,
+html.light .monaco-editor .ghost-text-decoration,
+html.light .monaco-editor .suggest-preview-text {
+  color: rgba(42, 37, 41, 0.45) !important;
+  font-style: italic !important;
+}
+
+/* ── Pillar 5 & 6: CSS Layout & GPU Compositing Optimization ── */
+.contain-content {
+  contain: content;
+}
+
+.contain-strict {
+  contain: strict;
+}
+
+/* Off-screen and inactive views containment to isolate layout recalculation */
+[data-view-active="false"],
+.view-inactive,
+.drawer-inactive {
+  contain: strict;
+  content-visibility: auto;
+}
+
+/* Sliding drawers and modals GPU acceleration */
+.sidebar-panel,
+.drawer-panel,
+.terminal-drawer,
+.sliding-panel {
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.scroll-container {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 
