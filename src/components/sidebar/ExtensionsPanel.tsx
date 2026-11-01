@@ -34,6 +34,7 @@ import {
 } from '../../lib/marketplaceService';
 import { ExtensionDetailModal } from '../extensions/ExtensionDetailModal';
 import { useToastStore } from '../../store/useToastStore';
+import { getInstalledExtensions } from '../../lib/extensions/extensionRegistry';
 
 function ExtensionIcon({ icon, category }: { icon?: string; category?: string }) {
   const iconProps = { size: 18 };
@@ -105,6 +106,7 @@ function ExtensionsPanelContent() {
   const [marketplaceResults, setMarketplaceResults] = useState<MarketplaceExtension[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Modals
   const [selectedExtension, setSelectedExtension] = useState<MarketplaceExtension | Extension | null>(null);
@@ -159,7 +161,7 @@ function ExtensionsPanelContent() {
       .catch((err) => {
         console.warn('Failed to query Open VSX:', err);
         if (isMounted) {
-          setSearchError('Could not reach Open VSX registry. Showing curated catalog.');
+          setSearchError('Could not reach Open VSX registry.');
           setIsSearching(false);
         }
       });
@@ -167,7 +169,7 @@ function ExtensionsPanelContent() {
     return () => {
       isMounted = false;
     };
-  }, [debouncedQuery, activeCategory, sortBy, mainTab]);
+  }, [debouncedQuery, activeCategory, sortBy, mainTab, retryNonce]);
 
   // Restore active theme on mount
   useEffect(() => {
@@ -176,49 +178,21 @@ function ExtensionsPanelContent() {
     }
   }, [activeThemeExtension]);
 
-  // Combined installed extensions list
+  const installedList = useMemo(
+    () => getInstalledExtensions({ customExtensions, installedExtensions }),
+    [customExtensions, installedExtensions]
+  );
+
   const allInstalledList = useMemo(() => {
-    const combined = [...(customExtensions || [])];
-    const seen = new Set<string>();
-    const installedList: Extension[] = [];
-    const installedSet = new Set(installedExtensions || []);
-
-    for (const ext of combined) {
-      if (ext && ext.id && installedSet.has(ext.id) && !seen.has(ext.id)) {
-        seen.add(ext.id);
-        installedList.push({ ...ext, installed: true });
-      }
-    }
-
-    // Filter by search query if in installed tab
     if (!debouncedQuery.trim()) return installedList;
     const q = debouncedQuery.toLowerCase();
     return installedList.filter(
       (e) =>
-        (e.name || '').toLowerCase().includes(q) ||
-        (e.description || '').toLowerCase().includes(q) ||
-        (e.publisher || '').toLowerCase().includes(q)
+        e.name.toLowerCase().includes(q) ||
+        e.description.toLowerCase().includes(q) ||
+        e.publisher.toLowerCase().includes(q)
     );
-  }, [customExtensions, installedExtensions, debouncedQuery]);
-
-  // Filtered curated catalog fallback if offline or no results
-  const fallbackCuratedList = useMemo(() => {
-    const combined = [...(customExtensions || [])];
-    const seen = new Set<string>();
-    return combined
-      .filter((ext) => {
-        if (!ext || !ext.id || seen.has(ext.id)) return false;
-        seen.add(ext.id);
-        const matchesCategory = activeCategory === 'all' || ext.category === activeCategory;
-        const q = debouncedQuery.trim().toLowerCase();
-        const matchesSearch =
-          !q ||
-          (ext.name || '').toLowerCase().includes(q) ||
-          (ext.description || '').toLowerCase().includes(q) ||
-          (ext.publisher || '').toLowerCase().includes(q);
-        return matchesCategory && matchesSearch;
-      });
-  }, [customExtensions, debouncedQuery, activeCategory]);
+  }, [installedList, debouncedQuery]);
 
   const handleOpenDetail = (ext: MarketplaceExtension | Extension) => {
     setSelectedExtension(ext);
@@ -456,44 +430,29 @@ function ExtensionsPanelContent() {
                 <Loader2 size={26} className="animate-spin text-teal-400" />
                 <p className="text-xs">Searching Open VSX registry...</p>
               </div>
+            ) : searchError ? (
+              <div className="p-4 m-3 rounded-2xl border border-red-500/30 bg-red-500/10 text-xs text-red-300">
+                <p className="font-semibold mb-1">Open VSX is unreachable</p>
+                <p className="opacity-80">Connect to the internet or retry. Krypton no longer ships a curated fallback catalog.</p>
+                <button
+                  onClick={() => setRetryNonce((n) => n + 1)}
+                  className="mt-2 px-3 py-1.5 rounded-xl bg-red-500/20 border border-red-400/30 font-semibold"
+                >
+                  Retry
+                </button>
+              </div>
             ) : marketplaceResults.length === 0 ? (
               <div className="p-4 space-y-4">
                 <div className="text-center py-6 text-[#f3f0e7]/60">
                   <Puzzle size={32} className="mx-auto mb-2 opacity-40 text-teal-400" />
                   <p className="text-sm font-medium">No marketplace extensions found</p>
                   <p className="text-xs text-[#f3f0e7]/50 mt-1">
-                    Showing recommended curated catalog below:
+                    Try a different search or category.
                   </p>
-                </div>
-
-                {/* Curated Fallback List */}
-                <div className="space-y-2">
-                  {fallbackCuratedList.map((ext) => (
-                    <ExtensionCard
-                      key={ext.id}
-                      ext={ext}
-                      isInstalled={isInstalled(ext.id)}
-                      isActiveTheme={isThemeActive(ext)}
-                      progress={installProgress?.[ext.id]}
-                      hasLogs={(installLogs?.[ext.id]?.length || 0) > 0}
-                      onClick={() => handleOpenDetail(ext)}
-                      onInstall={(e) => handleInstallClick(e, ext)}
-                      onApplyTheme={(e) => handleApplyThemeClick(e, ext)}
-                      onViewLogs={(e) => {
-                        e.stopPropagation();
-                        setSelectedLogsId(ext.id);
-                      }}
-                    />
-                  ))}
                 </div>
               </div>
             ) : (
               <div className="space-y-2 p-3">
-                {searchError && (
-                  <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 mb-2">
-                    {searchError}
-                  </div>
-                )}
                 {marketplaceResults.map((ext) => {
                   const extId = ext.id || `${ext.namespace}.${ext.name}`;
                   const installed = isInstalled(extId);

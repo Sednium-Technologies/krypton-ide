@@ -20,6 +20,7 @@ import { useToastStore } from '../../store/useToastStore';
 import { ToolIcon } from '../ui/ToolIcon';
 import { ExtensionDetailModal } from '../extensions/ExtensionDetailModal';
 import { ExtensionWebviewHost } from '../extensions/ExtensionWebviewHost';
+import { findExtension } from '../../lib/extensions/extensionRegistry';
 
 export function ExtensionViewPanel() {
   const activeExtensionView = useIdeStore((state) => state.activeExtensionView);
@@ -28,22 +29,15 @@ export function ExtensionViewPanel() {
 
   const { setIsTerminalOpen } = useIdeStore();
   const { customExtensions, installedExtensions } = useExtensionsStore();
-  const allInstalled = [...customExtensions].filter((e) =>
-    installedExtensions.includes(e.id)
-  );
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  const targetId = activeExtensionView?.extensionId || '';
-  const extension =
-    allInstalled.find(
-      (e) => e.id === targetId || e.id.toLowerCase().includes(targetId.toLowerCase())
-    ) ||
-    customExtensions.find(
-      (e) => e.id === targetId || e.id.toLowerCase().includes(targetId.toLowerCase())
-    );
+  const extension = findExtension(
+    { customExtensions, installedExtensions },
+    activeExtensionView?.extensionId || ''
+  );
 
   const toggleSection = (id: string) => {
     setCollapsedSections((prev) => ({ ...prev, [id]: !prev[id] }));

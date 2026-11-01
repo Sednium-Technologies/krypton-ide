@@ -313,9 +313,8 @@ export const useNavbarStore = create<NavbarState>((set, get) => ({
 
   syncExtensionTools: () => {
     const extState = useExtensionsStore.getState();
-    const installed = extState.installedExtensions || [];
-    const custom = extState.customExtensions || [];
-    const allInstalled = custom.filter((e) => installed.includes(e.id));
+    const installed = new Set(extState.installedExtensions || []);
+    const allInstalled = extState.customExtensions.filter((e) => installed.has(e.id));
 
     const activeCustomToolIds = new Set<string>();
 
