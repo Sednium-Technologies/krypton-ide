@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useIdeStore } from './useIdeStore';
 import { useAiStore } from './useAiStore';
-import { useExtensionsStore, EXTENSIONS_CATALOG } from './useExtensionsStore';
+import { useExtensionsStore } from './useExtensionsStore';
 import { useToastStore } from './useToastStore';
 
 
@@ -315,7 +315,7 @@ export const useNavbarStore = create<NavbarState>((set, get) => ({
     const extState = useExtensionsStore.getState();
     const installed = extState.installedExtensions || [];
     const custom = extState.customExtensions || [];
-    const allInstalled = [...EXTENSIONS_CATALOG, ...custom].filter((e) => installed.includes(e.id));
+    const allInstalled = custom.filter((e) => installed.includes(e.id));
 
     const activeCustomToolIds = new Set<string>();
 

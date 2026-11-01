@@ -14,7 +14,7 @@ import {
   Cpu,
 } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
-import { useExtensionsStore, EXTENSIONS_CATALOG } from '../../store/useExtensionsStore';
+import { useExtensionsStore } from '../../store/useExtensionsStore';
 import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
 import { useToastStore } from '../../store/useToastStore';
 import { ToolIcon } from '../ui/ToolIcon';
@@ -28,7 +28,7 @@ export function ExtensionViewPanel() {
 
   const { setIsTerminalOpen } = useIdeStore();
   const { customExtensions, installedExtensions } = useExtensionsStore();
-  const allInstalled = [...EXTENSIONS_CATALOG, ...customExtensions].filter((e) =>
+  const allInstalled = [...customExtensions].filter((e) =>
     installedExtensions.includes(e.id)
   );
 
@@ -42,9 +42,6 @@ export function ExtensionViewPanel() {
       (e) => e.id === targetId || e.id.toLowerCase().includes(targetId.toLowerCase())
     ) ||
     customExtensions.find(
-      (e) => e.id === targetId || e.id.toLowerCase().includes(targetId.toLowerCase())
-    ) ||
-    EXTENSIONS_CATALOG.find(
       (e) => e.id === targetId || e.id.toLowerCase().includes(targetId.toLowerCase())
     );
 

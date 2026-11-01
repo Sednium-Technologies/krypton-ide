@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import {
   useExtensionsStore,
-  EXTENSIONS_CATALOG,
   MONACO_THEMES,
   applyMonacoTheme,
   type Extension,
@@ -179,7 +178,7 @@ function ExtensionsPanelContent() {
 
   // Combined installed extensions list
   const allInstalledList = useMemo(() => {
-    const combined = [...(customExtensions || []), ...EXTENSIONS_CATALOG];
+    const combined = [...(customExtensions || [])];
     const seen = new Set<string>();
     const installedList: Extension[] = [];
     const installedSet = new Set(installedExtensions || []);
@@ -204,7 +203,7 @@ function ExtensionsPanelContent() {
 
   // Filtered curated catalog fallback if offline or no results
   const fallbackCuratedList = useMemo(() => {
-    const combined = [...EXTENSIONS_CATALOG, ...(customExtensions || [])];
+    const combined = [...(customExtensions || [])];
     const seen = new Set<string>();
     return combined
       .filter((ext) => {
