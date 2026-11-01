@@ -73,5 +73,7 @@ export function resolveActiveMonacoTheme(
 ): string {
   if (storeTheme === 'light') return 'vs';
   if (storeTheme === 'hc-black') return 'hc-black';
-  return activeMonacoThemeId || 'krypton-warm';
+  return activeMonacoThemeId && MONACO_THEMES[activeMonacoThemeId]
+    ? activeMonacoThemeId
+    : 'krypton-warm';
 }
