@@ -28,7 +28,8 @@ import {
   type MarketplaceExtension,
   type ExtensionDetailMetadata,
 } from '../../lib/marketplaceService';
-import { useExtensionsStore, type Extension, applyMonacoTheme, MONACO_THEMES } from '../../store/useExtensionsStore';
+import { useExtensionsStore, type Extension, applyMonacoTheme } from '../../store/useExtensionsStore';
+import { MONACO_THEMES } from '../../lib/monacoThemes';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useToastStore } from '../../store/useToastStore';
 
@@ -51,7 +52,7 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
 
   const {
     installedExtensions,
-    activeThemeExtension,
+    activeMonacoThemeId,
     activeIconTheme,
     installProgress,
     installFromOpenVsx,
@@ -135,10 +136,8 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
   const progress = extId ? installProgress[extId] : undefined;
   const isInstalling = progress?.status === 'installing';
   const isColorThemeActive = Boolean(
-    extId && (
-      activeThemeExtension === extId ||
-      ((extension as any)?.monacoThemeId && activeThemeExtension === (extension as any)?.monacoThemeId)
-    )
+    (extension as any)?.monacoThemeId &&
+    activeMonacoThemeId === (extension as any)?.monacoThemeId
   );
   const isIconThemeActive = Boolean(
     activeIconTheme && (

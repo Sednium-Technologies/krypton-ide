@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import {
   useExtensionsStore,
-  MONACO_THEMES,
   applyMonacoTheme,
   type Extension,
 } from '../../store/useExtensionsStore';
@@ -124,7 +123,7 @@ function ExtensionsPanelContent() {
     installFromFile,
     installFromOpenVsx,
     uninstallExtension,
-    activeThemeExtension,
+    activeMonacoThemeId,
     activeIconTheme,
     setActiveThemeExtension,
     setActiveIconTheme,
@@ -173,10 +172,10 @@ function ExtensionsPanelContent() {
 
   // Restore active theme on mount
   useEffect(() => {
-    if (activeThemeExtension) {
-      applyMonacoTheme(activeThemeExtension);
+    if (activeMonacoThemeId) {
+      applyMonacoTheme(activeMonacoThemeId);
     }
-  }, [activeThemeExtension]);
+  }, [activeMonacoThemeId]);
 
   const installedList = useMemo(
     () => getInstalledExtensions({ customExtensions, installedExtensions }),
@@ -218,10 +217,7 @@ function ExtensionsPanelContent() {
     if (!ext) return false;
     const extId = ext.id || `${ext.namespace}.${ext.name}`;
     const isColorTheme = Boolean(
-      extId && (
-        activeThemeExtension === extId ||
-        (!!ext.monacoThemeId && activeThemeExtension === ext.monacoThemeId)
-      )
+      ext.monacoThemeId && activeMonacoThemeId === ext.monacoThemeId
     );
     const isIconTheme = Boolean(
       activeIconTheme && (

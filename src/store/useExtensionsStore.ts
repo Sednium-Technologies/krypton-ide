@@ -7,6 +7,11 @@ import { addDynamicSnippets, setDynamicSnippets, type CodeSnippet } from '../lib
 import { saveCustomIconTheme, loadIconTheme } from '../lib/iconThemeStorage';
 import { registerExtensionCss, unregisterExtensionCss } from '../lib/customCssManager';
 import { storeExtensionAssets, getMimeType, normalizeAssetPath } from '../lib/extensionAssetRegistry';
+import {
+  MONACO_THEMES,
+  registerMonacoTheme,
+  type MonacoThemeDefinition,
+} from '../lib/monacoThemes';
 
 export interface Extension {
   id: string;
@@ -44,6 +49,7 @@ export interface InstallProgress {
 interface ExtensionsState {
   installedExtensions: string[];
   activeThemeExtension: string | null;
+  activeMonacoThemeId: string | null;
   activeIconTheme: string | null;
   customExtensions: Extension[];
   installedSnippets: CodeSnippet[];
@@ -63,149 +69,6 @@ interface ExtensionsState {
 }
 
 
-// Theme definitions for Monaco
-export const MONACO_THEMES: Record<string, any> = {
-  'one-dark-pro': {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      { token: 'comment', foreground: '5c6370', fontStyle: 'italic' },
-      { token: 'keyword', foreground: 'c678dd' },
-      { token: 'string', foreground: '98c379' },
-      { token: 'number', foreground: 'd19a66' },
-      { token: 'type', foreground: 'e5c07b' },
-      { token: 'function', foreground: '61afef' },
-      { token: 'variable', foreground: 'e06c75' },
-      { token: 'tag', foreground: 'e06c75' },
-      { token: 'attribute.name', foreground: 'd19a66' },
-      { token: 'attribute.value', foreground: '98c379' },
-    ],
-    colors: {
-      'editor.background': '#282c34',
-      'editor.foreground': '#abb2bf',
-      'editorCursor.foreground': '#528bff',
-      'editor.lineHighlightBackground': '#2c313c',
-      'editorLineNumber.foreground': '#495162',
-      'editor.selectionBackground': '#3e4451',
-      'editorIndentGuide.background': '#3b4048',
-    },
-  },
-  'dracula': {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      { token: 'comment', foreground: '6272a4', fontStyle: 'italic' },
-      { token: 'keyword', foreground: 'ff79c6' },
-      { token: 'string', foreground: 'f1fa8c' },
-      { token: 'number', foreground: 'bd93f9' },
-      { token: 'type', foreground: '8be9fd', fontStyle: 'italic' },
-      { token: 'function', foreground: '50fa7b' },
-      { token: 'variable', foreground: 'f8f8f2' },
-      { token: 'tag', foreground: 'ff79c6' },
-      { token: 'attribute.name', foreground: '50fa7b' },
-      { token: 'attribute.value', foreground: 'f1fa8c' },
-    ],
-    colors: {
-      'editor.background': '#282a36',
-      'editor.foreground': '#f8f8f2',
-      'editorCursor.foreground': '#f8f8f0',
-      'editor.lineHighlightBackground': '#44475a',
-      'editorLineNumber.foreground': '#6272a4',
-      'editor.selectionBackground': '#44475a',
-    },
-  },
-  'github-dark': {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      { token: 'comment', foreground: '8b949e', fontStyle: 'italic' },
-      { token: 'keyword', foreground: 'ff7b72' },
-      { token: 'string', foreground: 'a5d6ff' },
-      { token: 'number', foreground: '79c0ff' },
-      { token: 'type', foreground: 'ffa657' },
-      { token: 'function', foreground: 'd2a8ff' },
-      { token: 'variable', foreground: 'ffa657' },
-      { token: 'tag', foreground: '7ee787' },
-      { token: 'attribute.name', foreground: '79c0ff' },
-      { token: 'attribute.value', foreground: 'a5d6ff' },
-    ],
-    colors: {
-      'editor.background': '#0d1117',
-      'editor.foreground': '#c9d1d9',
-      'editorCursor.foreground': '#58a6ff',
-      'editor.lineHighlightBackground': '#161b22',
-      'editorLineNumber.foreground': '#484f58',
-      'editor.selectionBackground': '#264f78',
-    },
-  },
-  'monokai': {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      { token: 'comment', foreground: '75715e', fontStyle: 'italic' },
-      { token: 'keyword', foreground: 'f92672' },
-      { token: 'string', foreground: 'e6db74' },
-      { token: 'number', foreground: 'ae81ff' },
-      { token: 'type', foreground: '66d9ef', fontStyle: 'italic' },
-      { token: 'function', foreground: 'a6e22e' },
-      { token: 'variable', foreground: 'f8f8f2' },
-      { token: 'tag', foreground: 'f92672' },
-      { token: 'attribute.name', foreground: 'a6e22e' },
-      { token: 'attribute.value', foreground: 'e6db74' },
-    ],
-    colors: {
-      'editor.background': '#272822',
-      'editor.foreground': '#f8f8f2',
-      'editorCursor.foreground': '#f8f8f0',
-      'editor.lineHighlightBackground': '#3e3d32',
-      'editorLineNumber.foreground': '#75715e',
-      'editor.selectionBackground': '#49483e',
-    },
-  },
-  'nord': {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      { token: 'comment', foreground: '616e88', fontStyle: 'italic' },
-      { token: 'keyword', foreground: '81a1c1' },
-      { token: 'string', foreground: 'a3be8c' },
-      { token: 'number', foreground: 'b48ead' },
-      { token: 'type', foreground: '8fbcbb' },
-      { token: 'function', foreground: '88c0d0' },
-      { token: 'variable', foreground: 'd8dee9' },
-    ],
-    colors: {
-      'editor.background': '#2e3440',
-      'editor.foreground': '#d8dee9',
-      'editorCursor.foreground': '#d8dee9',
-      'editor.lineHighlightBackground': '#3b4252',
-      'editorLineNumber.foreground': '#4c566a',
-      'editor.selectionBackground': '#434c5e',
-    },
-  },
-  'catppuccin': {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      { token: 'comment', foreground: '6c7086', fontStyle: 'italic' },
-      { token: 'keyword', foreground: 'cba6f7' },
-      { token: 'string', foreground: 'a6e3a1' },
-      { token: 'number', foreground: 'fab387' },
-      { token: 'type', foreground: 'f9e2af' },
-      { token: 'function', foreground: '89b4fa' },
-      { token: 'variable', foreground: 'cdd6f4' },
-    ],
-    colors: {
-      'editor.background': '#1e1e2e',
-      'editor.foreground': '#cdd6f4',
-      'editorCursor.foreground': '#f5e0dc',
-      'editor.lineHighlightBackground': '#313244',
-      'editorLineNumber.foreground': '#585b70',
-      'editor.selectionBackground': '#45475a',
-    },
-  },
-};
-
 /**
  * Strips comments (// and /* *\/) and trailing commas from JSON/JSONC text.
  */
@@ -216,16 +79,19 @@ function stripJsonComments(str: string): string {
 }
 
 /**
- * Converts VS Code theme JSON into a Monaco-compatible theme definition.
+ * Converts VS Code theme JSON into a Monaco theme definition.
  */
-function convertVsCodeThemeToMonaco(themeJson: any, defaultBase: string = 'vs-dark') {
-  let base: string = defaultBase;
+function convertVsCodeThemeToMonaco(
+  themeId: string,
+  label: string,
+  themeJson: any,
+  defaultBase: string = 'vs-dark'
+): MonacoThemeDefinition {
+  let base: MonacoThemeDefinition['base'] = 'vs-dark';
   if (themeJson.type === 'light' || defaultBase === 'vs') {
     base = 'vs';
   } else if (themeJson.type === 'hc-black' || defaultBase === 'hc-black') {
     base = 'hc-black';
-  } else {
-    base = 'vs-dark';
   }
 
   const rules: any[] = [];
@@ -256,21 +122,10 @@ function convertVsCodeThemeToMonaco(themeJson: any, defaultBase: string = 'vs-da
     }
   }
 
-  if (rules.length === 0) {
-    rules.push(
-      { token: 'comment', foreground: '6272a4', fontStyle: 'italic' },
-      { token: 'keyword', foreground: 'ff79c6' },
-      { token: 'string', foreground: 'f1fa8c' },
-      { token: 'number', foreground: 'bd93f9' },
-      { token: 'type', foreground: '8be9fd' },
-      { token: 'function', foreground: '50fa7b' },
-      { token: 'variable', foreground: 'f8f8f2' }
-    );
-  }
-
   return {
+    id: themeId,
+    name: label,
     base,
-    inherit: true,
     rules,
     colors: themeJson.colors || {},
   };
@@ -279,14 +134,22 @@ function convertVsCodeThemeToMonaco(themeJson: any, defaultBase: string = 'vs-da
 /**
  * Apply Monaco theme and sync IDE CSS variable tokens to document root.
  */
-export function applyMonacoTheme(themeId: string, themeDef?: any): void {
-  const tDef = themeDef || MONACO_THEMES[themeId];
+export function applyMonacoTheme(themeId: string, themeDef?: MonacoThemeDefinition): void {
+  if (themeDef) {
+    registerMonacoTheme(themeId, themeDef);
+  }
+  const tDef = MONACO_THEMES[themeId];
   if (!tDef) return;
 
   const monaco = (window as any).monaco;
   if (monaco?.editor) {
     try {
-      monaco.editor.defineTheme(themeId, tDef);
+      monaco.editor.defineTheme(themeId, {
+        base: tDef.base,
+        inherit: true,
+        rules: tDef.rules,
+        colors: tDef.colors,
+      });
       monaco.editor.setTheme(themeId);
     } catch (e) {
       console.warn('[Theme] Could not apply theme to Monaco:', e);
@@ -324,6 +187,7 @@ function persistExtensions(state: ExtensionsState) {
   saveExtensionsDebounced({
     installedExtensions: state.installedExtensions,
     activeThemeExtension: state.activeThemeExtension,
+    activeMonacoThemeId: state.activeMonacoThemeId,
     activeIconTheme: state.activeIconTheme,
     customExtensions: state.customExtensions,
     installedSnippets: state.installedSnippets,
@@ -679,6 +543,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
   (set, get) => ({
     installedExtensions: [],
     activeThemeExtension: null,
+    activeMonacoThemeId: null,
     activeIconTheme: null,
     customExtensions: [],
     installedSnippets: [],
@@ -691,8 +556,10 @@ export const useExtensionsStore = create<ExtensionsState>()(
       try {
         const data = await readExtensions();
         if (data) {
-          if (data.customThemes && typeof data.customThemes === 'object') {
-            Object.assign(MONACO_THEMES, data.customThemes);
+          const restoredThemes: Record<string, MonacoThemeDefinition> =
+            data.customThemes && typeof data.customThemes === 'object' ? data.customThemes : {};
+          for (const [themeId, definition] of Object.entries(restoredThemes)) {
+            registerMonacoTheme(themeId, definition);
           }
           if (Array.isArray(data.installedSnippets)) {
             setDynamicSnippets(data.installedSnippets);
@@ -702,6 +569,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
           set({
             installedExtensions: loadedInstalled,
             activeThemeExtension: data.activeThemeExtension || null,
+            activeMonacoThemeId: data.activeMonacoThemeId || null,
             activeIconTheme: (data as any).activeIconTheme || null,
             customExtensions: data.customExtensions || [],
             installedSnippets: data.installedSnippets || [],
@@ -781,11 +649,13 @@ export const useExtensionsStore = create<ExtensionsState>()(
       set((s) => {
         const ext = get().customExtensions.find((e) => e.id === id);
         let activeThemeExtension = s.activeThemeExtension;
+        let activeMonacoThemeId = s.activeMonacoThemeId;
         let activeIconTheme = s.activeIconTheme;
         if (ext?.category === 'theme') {
           if (ext.monacoThemeId) {
             applyMonacoTheme(ext.monacoThemeId);
             activeThemeExtension = ext.id;
+            activeMonacoThemeId = ext.monacoThemeId;
           }
           if (ext.iconThemeId) {
             activeIconTheme = ext.iconThemeId;
@@ -796,6 +666,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
           ...s,
           installedExtensions: [...new Set([...s.installedExtensions, id])],
           activeThemeExtension,
+          activeMonacoThemeId,
           activeIconTheme,
           installProgress: {
             ...s.installProgress,
@@ -838,12 +709,13 @@ export const useExtensionsStore = create<ExtensionsState>()(
               try {
                 const parsedTheme = JSON.parse(stripJsonComments(rawTheme));
                 themeId = `${pkg.name || 'theme'}-${(t.label || 'custom').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-                const monacoDef = convertVsCodeThemeToMonaco(parsedTheme, t.uiTheme);
-                MONACO_THEMES[themeId] = monacoDef;
+                const monacoDef = convertVsCodeThemeToMonaco(themeId, t.label || themeId, parsedTheme, t.uiTheme);
+                registerMonacoTheme(themeId, monacoDef);
                 set((s) => ({
                   customThemes: { ...s.customThemes, [themeId!]: monacoDef },
+                  activeMonacoThemeId: themeId!,
+                  activeThemeExtension: id,
                 }));
-                applyMonacoTheme(themeId, monacoDef);
                 break;
               } catch (err) {
                 console.warn('Failed to parse theme file:', err);
@@ -1143,8 +1015,8 @@ export const useExtensionsStore = create<ExtensionsState>()(
                 const rawTheme = await tFile.async('string');
                 const parsedTheme = JSON.parse(stripJsonComments(rawTheme));
                 const safeThemeId = `${ext.name}-${(t.label || 'theme').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-                const monacoThemeDef = convertVsCodeThemeToMonaco(parsedTheme, t.uiTheme);
-                MONACO_THEMES[safeThemeId] = monacoThemeDef;
+                const monacoThemeDef = convertVsCodeThemeToMonaco(safeThemeId, t.label || safeThemeId, parsedTheme, t.uiTheme);
+                registerMonacoTheme(safeThemeId, monacoThemeDef);
 
                 set((s) => ({
                   customThemes: { ...s.customThemes, [safeThemeId]: monacoThemeDef },
@@ -1153,8 +1025,6 @@ export const useExtensionsStore = create<ExtensionsState>()(
                 log(`[INFO] Registered Monaco Theme: "${t.label || safeThemeId}" (ID: ${safeThemeId})`);
                 if (!registeredThemeId) {
                   registeredThemeId = safeThemeId;
-                  // Automatically activate first theme
-                  applyMonacoTheme(safeThemeId, monacoThemeDef);
                 }
               } catch (err: any) {
                 log(`[WARN] Failed to load theme ${t.label}: ${err.message}`);
@@ -1344,6 +1214,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
             customExtensions: [...filteredCustom, newExtension],
             installedExtensions: [...new Set([...s.installedExtensions, extId])],
             activeThemeExtension: registeredThemeId ? extId : s.activeThemeExtension,
+            activeMonacoThemeId: registeredThemeId || s.activeMonacoThemeId,
             activeIconTheme: registeredIconThemeId || s.activeIconTheme,
             installProgress: {
               ...s.installProgress,
@@ -1354,6 +1225,9 @@ export const useExtensionsStore = create<ExtensionsState>()(
           return updatedState;
         });
 
+        if (registeredThemeId) {
+          applyMonacoTheme(registeredThemeId);
+        }
         window.dispatchEvent(new CustomEvent('krypton:extensions-changed'));
         if (registeredIconThemeId) {
           window.dispatchEvent(new CustomEvent('krypton:icon-theme-updated', { detail: { themeId: registeredIconThemeId } }));
@@ -1380,7 +1254,9 @@ export const useExtensionsStore = create<ExtensionsState>()(
       unregisterExtensionCss(id);
       set((state) => {
         const ext = state.customExtensions.find((e) => e.id === id);
-        const wasActiveTheme = state.activeThemeExtension === id || (ext?.monacoThemeId && state.activeThemeExtension === ext.monacoThemeId);
+        const wasActiveTheme =
+          state.activeThemeExtension === id ||
+          Boolean(ext?.monacoThemeId && state.activeMonacoThemeId === ext.monacoThemeId);
 
         // Remove dynamic snippets belonging to this extension
         const remainingSnippetsByExt = { ...state.snippetsByExtension };
@@ -1392,6 +1268,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
           ...state,
           installedExtensions: state.installedExtensions.filter((e) => e !== id),
           activeThemeExtension: wasActiveTheme ? null : state.activeThemeExtension,
+          activeMonacoThemeId: wasActiveTheme ? null : state.activeMonacoThemeId,
           installedSnippets: allRemainingSnippets,
           snippetsByExtension: remainingSnippetsByExt,
         };
@@ -1401,6 +1278,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
         return {
           installedExtensions: updated.installedExtensions,
           activeThemeExtension: updated.activeThemeExtension,
+          activeMonacoThemeId: updated.activeMonacoThemeId,
           installedSnippets: updated.installedSnippets,
           snippetsByExtension: updated.snippetsByExtension,
         };
@@ -1409,39 +1287,29 @@ export const useExtensionsStore = create<ExtensionsState>()(
     },
 
     setActiveThemeExtension: (id) => {
-      let newIconTheme = get().activeIconTheme;
-      if (id === 'material-icon-theme' || id === 'material') {
-        newIconTheme = 'material';
-      } else if (id === 'theme-dracula') {
-        newIconTheme = 'dracula';
-      } else if (id === 'theme-monokai-pro') {
-        newIconTheme = 'monokai';
-      } else if (id === 'theme-nord') {
-        newIconTheme = 'nord';
-      } else if (id === 'theme-catppuccin') {
-        newIconTheme = 'catppuccin';
-      } else if (id === 'theme-github-dark') {
-        newIconTheme = 'github';
-      } else if (id === 'theme-one-dark-pro') {
-        newIconTheme = 'one-dark';
+      if (!id) {
+        set({ activeThemeExtension: null, activeMonacoThemeId: null });
+        persistExtensions(get());
+        return;
       }
-      set({ activeThemeExtension: id, activeIconTheme: newIconTheme });
+      const ext = get().customExtensions.find((e) => e.id === id);
+      const monacoThemeId = ext?.monacoThemeId || (MONACO_THEMES[id] ? id : null);
+      set({
+        activeThemeExtension: id,
+        activeMonacoThemeId: monacoThemeId,
+        activeIconTheme: ext?.iconThemeId || get().activeIconTheme,
+      });
       persistExtensions(get());
-      window.dispatchEvent(new CustomEvent('krypton:icon-theme-updated', { detail: { themeId: newIconTheme } }));
+      if (monacoThemeId) applyMonacoTheme(monacoThemeId);
+      if (ext?.iconThemeId) loadIconTheme(ext.iconThemeId);
     },
 
     setActiveIconTheme: (id) => {
-      let resolvedId = id;
-      if (id === 'material-icon-theme' || id === 'material' || id?.toLowerCase().includes('material')) {
-        resolvedId = 'material';
-      }
-      set({ activeIconTheme: resolvedId });
+      set({ activeIconTheme: id });
       persistExtensions(get());
-      if (resolvedId) {
-        loadIconTheme(resolvedId);
-      }
+      if (id) loadIconTheme(id);
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('krypton:icon-theme-updated', { detail: { themeId: resolvedId } }));
+        window.dispatchEvent(new CustomEvent('krypton:icon-theme-updated', { detail: { themeId: id } }));
       }
     },
 

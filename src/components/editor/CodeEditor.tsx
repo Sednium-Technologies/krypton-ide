@@ -124,7 +124,7 @@ export function CodeEditor() {
   const isSidebarOpen = useIdeStore((s) => s.isSidebarOpen);
   const fileFontSizes = useIdeStore((s) => s.fileFontSizes);
   const setFileFontSize = useIdeStore((s) => s.setFileFontSize);
-  const activeThemeExtension = useExtensionsStore((state) => state.activeThemeExtension);
+  const activeMonacoThemeId = useExtensionsStore((state) => state.activeMonacoThemeId);
   const [editorInstance, setEditorInstance] = useState<any>(null);
   const [mdViewMode, setMdViewMode] = useState<'edit' | 'preview' | 'split'>('split');
   const monaco = useMonaco();
@@ -234,12 +234,12 @@ export function CodeEditor() {
     if (!monaco) return;
     try {
       registerAllMonacoThemes(monaco);
-      const currentTheme = resolveActiveMonacoTheme(theme, activeThemeExtension);
+      const currentTheme = resolveActiveMonacoTheme(theme, activeMonacoThemeId);
       monaco.editor.setTheme(currentTheme);
     } catch {
       // Ignore theme re-definition error
     }
-  }, [monaco, theme, activeThemeExtension]);
+  }, [monaco, theme, activeMonacoThemeId]);
 
   // Cross-file IntelliSense & Sync (decoupled from active typing)
   useEffect(() => {
@@ -616,7 +616,7 @@ export function CodeEditor() {
     try {
       registerAllMonacoThemes(monacoApi);
       const activeStoreTheme = useIdeStore.getState().theme;
-      const activeExtTheme = useExtensionsStore.getState().activeThemeExtension;
+      const activeExtTheme = useExtensionsStore.getState().activeMonacoThemeId;
       const targetTheme = resolveActiveMonacoTheme(activeStoreTheme, activeExtTheme);
       monacoApi.editor.setTheme(targetTheme);
     } catch {}
@@ -930,7 +930,7 @@ export function CodeEditor() {
     }
   };
 
-  const currentEditorTheme = resolveActiveMonacoTheme(theme, activeThemeExtension);
+  const currentEditorTheme = resolveActiveMonacoTheme(theme, activeMonacoThemeId);
 
   return (
     <div className="flex h-full flex-col bg-[#2a2529] text-[#f3f0e7]">
