@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { RefreshCw, AlertTriangle, Layers } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
-import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
 import { useToastStore } from '../../store/useToastStore';
 import { createBlobUrlMap, rewriteHtmlWithBlobMap } from '../../lib/extensionAssetRegistry';
+import { routeWebviewMessage } from '../../lib/extensions/webviewBridge';
 
 interface ExtensionWebviewHostProps {
   extensionId: string;
@@ -27,32 +27,6 @@ export function ExtensionWebviewHost({
   const [key, setKey] = useState(0);
   const [blobMap, setBlobMap] = useState<Record<string, string> | null>(null);
   const [swReady, setSwReady] = useState(false);
-
-  // Initial bi-directional protocol state for assistant / agent harness webviews
-  const [extensionState, setExtensionState] = useState(() => ({
-    connectionStatus: 'connected',
-    user: { email: 'developer@kryptonide', tier: 'Pro' },
-    quotas: [] as Array<{ label: string; remaining: number; resetTime: string; hasData?: boolean; themeColor?: string }>,
-    tasks: { folders: [] as any[], expanded: true, stats: '0 Tasks' },
-    contexts: { folders: [] as any[], expanded: true, stats: '0 Projects' },
-    autoAcceptEnabled: false,
-    autoAcceptStatus: { running: true, cdp: 'connected', commandCount: 0 },
-    gaugeStyle: 'semi-arc',
-    uiScale: 1,
-  }));
-
-  const extensionStateRef = useRef(extensionState);
-  extensionStateRef.current = extensionState;
-
-  const sendPayloadUpdate = (payload: any) => {
-    iframeRef.current?.contentWindow?.postMessage(
-      {
-        type: 'update',
-        payload,
-      },
-      '*'
-    );
-  };
 
   useEffect(() => {
     let mounted = true;
@@ -168,174 +142,43 @@ export function ExtensionWebviewHost({
     }
   }, [htmlContent, extensionId, viewId, themeColors, isLight, blobMap]);
 
-  const ensureKryptonFileAndOpen = (fileName: string, defaultContent: string) => {
-    const ideStore = useIdeStore.getState();
-    const toastStore = useToastStore.getState();
-
-    let kryptonFolder = Object.values(ideStore.files).find(
-      (f) => f.type === 'folder' && f.name === '.krypton'
-    );
-    let folderId = kryptonFolder?.id;
-    if (!folderId) {
-      folderId = ideStore.createFile('.krypton', 'root', 'folder');
-    }
-
-    let targetFile = Object.values(ideStore.files).find(
-      (f) => f.name === fileName && f.parentId === folderId
-    );
-    let fileId = targetFile?.id;
-    if (!fileId) {
-      fileId = ideStore.createFile(fileName, folderId, 'file', defaultContent);
-    }
-
-    ideStore.openFile(fileId);
-    toastStore.info(`Opened .krypton/${fileName}`);
-  };
-
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (!event.data || event.data.type !== 'vscode-webview-message') return;
       if (event.data.extensionId !== extensionId) return;
 
-      const { message } = event.data;
-      if (!message) return;
-
-      const ideStore = useIdeStore.getState();
-      const terminalStore = useNativeTerminalStore.getState();
-      const toastStore = useToastStore.getState();
-
-      const cmd = message.command || message.type;
-
-      switch (cmd) {
-        case 'webviewReady':
-        case 'ready':
-        case 'init':
-          sendPayloadUpdate(extensionStateRef.current);
-          break;
-
-        case 'openRules':
-        case 'vscode:openRules':
-          ensureKryptonFileAndOpen(
-            'rules',
-            '# Krypton Assistant Rules\n\n1. Be concise and precise.\n2. Write tested, production-grade code.\n'
+      for (const action of routeWebviewMessage(event.data.message)) {
+        if (action.kind === 'openUrl') window.open(action.url, '_blank');
+        else if (action.kind === 'info') useToastStore.getState().info(action.text);
+        else if (action.kind === 'error') useToastStore.getState().error(action.text);
+        else {
+          window.dispatchEvent(
+            new CustomEvent('krypton:webview-message', {
+              detail: { extensionId, viewId, message: action.message },
+            })
           );
-          break;
-
-        case 'openMcp':
-        case 'vscode:openMcp':
-          ensureKryptonFileAndOpen('mcp.json', '{\n  "mcpServers": {}\n}\n');
-          break;
-
-        case 'openBrowserAllowlist':
-        case 'vscode:openBrowserAllowlist':
-          ensureKryptonFileAndOpen('allowlist', '# Krypton Browser Allowlist\nlocalhost\n127.0.0.1\n');
-          break;
-
-        case 'restartLanguageServer':
-        case 'vscode:restartLanguageServer':
-          toastStore.success('Language server restarted');
-          break;
-
-        case 'toggleTask':
-        case 'toggleTasks':
-          setExtensionState((prev) => {
-            const next = {
-              ...prev,
-              tasks: {
-                ...prev.tasks,
-                expanded: !prev.tasks.expanded,
-              },
-            };
-            sendPayloadUpdate(next);
-            return next;
-          });
-          break;
-
-        case 'toggleContext':
-        case 'toggleProjects':
-          setExtensionState((prev) => {
-            const next = {
-              ...prev,
-              contexts: {
-                ...prev.contexts,
-                expanded: !prev.contexts.expanded,
-              },
-            };
-            sendPayloadUpdate(next);
-            return next;
-          });
-          break;
-
-        case 'toggleAutoAccept':
-          setExtensionState((prev) => {
-            const next = {
-              ...prev,
-              autoAcceptEnabled: !prev.autoAcceptEnabled,
-            };
-            sendPayloadUpdate(next);
-            return next;
-          });
-          break;
-
-        case 'openUrl':
-        case 'vscode:openUrl':
-          if (message.url) {
-            if (typeof window !== 'undefined') {
-              window.open(message.url, '_blank');
-            }
-            toastStore.info(`Opening ${message.url}`);
-          }
-          break;
-
-        case 'openFile':
-        case 'vscode:openFile':
-          if (message.fileId) ideStore.openFile(message.fileId);
-          break;
-
-        case 'updateContent':
-        case 'edit':
-        case 'vscode:edit':
-          if (message.fileId && message.content !== undefined) {
-            ideStore.updateFileContent(message.fileId, message.content);
-            toastStore.success('File updated by extension');
-          }
-          break;
-
-        case 'terminalInput':
-        case 'runCommand':
-        case 'vscode:terminal':
-          if (message.text) {
-            ideStore.setIsTerminalOpen(true);
-            terminalStore.sendInput(message.text + '\n');
-          }
-          break;
-
-        case 'toast':
-        case 'showInformationMessage':
-          if (message.text) toastStore.info(message.text);
-          break;
-
-        case 'showErrorMessage':
-          if (message.text) toastStore.error(message.text);
-          break;
-
-        default:
-          break;
+        }
       }
     };
-
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
+  }, [extensionId, viewId]);
+
+  useEffect(() => {
+    const handleHostMessage = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.extensionId !== extensionId) return;
+      iframeRef.current?.contentWindow?.postMessage(detail.message, '*');
+    };
+    window.addEventListener('krypton:webview-host-message', handleHostMessage);
+    return () => window.removeEventListener('krypton:webview-host-message', handleHostMessage);
   }, [extensionId]);
 
   const handleIframeLoad = () => {
-    setTimeout(() => {
-      sendPayloadUpdate(extensionStateRef.current);
-    }, 100);
-    setTimeout(() => {
-      sendPayloadUpdate(extensionStateRef.current);
-    }, 300);
+    window.dispatchEvent(
+      new CustomEvent('krypton:webview-ready', { detail: { extensionId, viewId } })
+    );
   };
 
   if (!htmlContent) {
