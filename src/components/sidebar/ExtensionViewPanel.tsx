@@ -1,21 +1,14 @@
 import React, { useState } from 'react';
 import {
   RefreshCw,
-  ExternalLink,
   ChevronDown,
   ChevronRight,
   Package,
   Layers,
-  Terminal,
-  Play,
-  Settings,
   Info,
-  CheckCircle2,
-  Cpu,
 } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useExtensionsStore } from '../../store/useExtensionsStore';
-import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
 import { useToastStore } from '../../store/useToastStore';
 import { ToolIcon } from '../ui/ToolIcon';
 import { ExtensionDetailModal } from '../extensions/ExtensionDetailModal';
@@ -27,7 +20,6 @@ export function ExtensionViewPanel() {
   const theme = useIdeStore((state) => state.theme);
   const isLight = theme === 'light';
 
-  const { setIsTerminalOpen } = useIdeStore();
   const { customExtensions, installedExtensions } = useExtensionsStore();
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -49,17 +41,6 @@ export function ExtensionViewPanel() {
       setIsRefreshing(false);
       useToastStore.getState().success(`${activeExtensionView?.title || 'Extension'} synchronized`);
     }, 450);
-  };
-
-  const handleLaunchInTerminal = (commandName?: string) => {
-    setIsTerminalOpen(true);
-    const cmd = commandName || (extension?.id.includes('claude') ? 'claude' : extension?.name.toLowerCase()) || 'help';
-    try {
-      useNativeTerminalStore.getState().sendInput(`${cmd}\n`);
-      useToastStore.getState().info(`Launched ${cmd} in native terminal`);
-    } catch {
-      useToastStore.getState().info('Terminal panel opened');
-    }
   };
 
   if (!activeExtensionView) {
@@ -194,67 +175,34 @@ export function ExtensionViewPanel() {
 
       {/* Main Interactive GUI Body */}
       <div className="flex-1 overflow-y-auto divide-y divide-white/5 scrollbar-thin p-3 space-y-4">
-        {/* Status & Runtime Health Card */}
-        <div className={`p-3 rounded-2xl border ${isLight ? 'bg-white/80 border-[#2a2529]/10' : 'bg-[#2a2529] border-[#f3f0e7]/10'} shadow-sm`}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#7C9B79] flex items-center gap-1.5">
-              <CheckCircle2 size={13} /> Active Service
-            </span>
-            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${isLight ? 'bg-[#7C9B79]/10 text-[#7C9B79]' : 'bg-[#7C9B79]/20 text-[#7C9B79]'}`}>
-              Ready
-            </span>
-          </div>
-          <p className={`text-xs ${isLight ? 'text-[#2a2529]/75' : 'text-[#f3f0e7]/75'}`}>
-            {extension?.description || 'Interactive background extension service.'}
-          </p>
-        </div>
-
         {/* Section 1: Contributed Views */}
-        <div className="space-y-2">
-          <button
-            onClick={() => toggleSection('views')}
-            className={`w-full flex items-center justify-between py-1 text-[11px] font-bold tracking-wider uppercase transition-colors cursor-pointer ${
-              isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'
-            }`}
-          >
-            <span className="flex items-center space-x-1.5">
-              {collapsedSections['views'] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-              <span>Contributed Views ({contribViews.length})</span>
-            </span>
-          </button>
-
-          {!collapsedSections['views'] && (
-            <div className="space-y-1.5">
-              {contribViews.length > 0 ? (
-                contribViews.map((v) => (
-                  <div
-                    key={v.id}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border text-xs transition-colors ${
-                      isLight ? 'bg-[#2a2529]/5 border-[#2a2529]/10 text-[#2a2529]' : 'bg-[#f3f0e7]/5 border-[#f3f0e7]/10 text-[#f3f0e7]'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2 truncate">
-                      <Layers size={14} className="text-[#7C9B79] shrink-0" />
-                      <span className="font-medium truncate">{v.name}</span>
-                    </div>
-                    <button
-                      onClick={() => handleLaunchInTerminal(v.id)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-bold ${isLight ? 'bg-[#2a2529] text-[#f4f0e6]' : 'bg-[#f3f0e7] text-[#2a2529]'}`}
-                    >
-                      Inspect
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <div className={`p-3 text-center rounded-xl text-xs border ${
-                  isLight ? 'bg-[#2a2529]/5 border-[#2a2529]/10 text-[#2a2529]/60' : 'bg-[#f3f0e7]/5 border-[#f3f0e7]/10 text-[#f3f0e7]/60'
-                }`}>
-                  Extension operates as an autonomous background tool service.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        {contribViews.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-wider opacity-70">Contributed Views</p>
+            {contribViews.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => setIsDetailModalOpen(true)}
+                className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-xs ${
+                  isLight ? 'bg-[#2a2529]/5 border-[#2a2529]/10' : 'bg-[#f3f0e7]/5 border-[#f3f0e7]/10'
+                }`}
+              >
+                <span className="flex items-center space-x-2 truncate">
+                  <Layers size={14} className="text-[#7C9B79]" />
+                  <span className="font-medium truncate">{v.name}</span>
+                </span>
+                <Info size={13} className="opacity-60" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className={`p-4 rounded-2xl border text-xs ${
+            isLight ? 'bg-[#2a2529]/5 border-[#2a2529]/10 text-[#2a2529]/70' : 'bg-[#f3f0e7]/5 border-[#f3f0e7]/10 text-[#f3f0e7]/70'
+          }`}>
+            This package contributes no views or webview. Its commands and language features will run
+            through the native extension host.
+          </div>
+        )}
 
         {/* Section: Contributed Commands */}
         {extension?.contributedCommands && extension.contributedCommands.length > 0 && (
@@ -273,6 +221,9 @@ export function ExtensionViewPanel() {
 
             {!collapsedSections['commands'] && (
               <div className="space-y-1.5 max-h-56 overflow-y-auto scrollbar-thin pr-1">
+                <p className="text-[11px] opacity-60">
+                  Commands run through the native extension host.
+                </p>
                 {extension.contributedCommands.map((cmd) => (
                   <div
                     key={cmd.command}
@@ -284,56 +235,12 @@ export function ExtensionViewPanel() {
                       <div className="font-medium truncate">{cmd.title}</div>
                       <div className="text-[10px] font-mono opacity-60 truncate">{cmd.command}</div>
                     </div>
-                    <button
-                      onClick={() => handleLaunchInTerminal(cmd.command)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 cursor-pointer active:scale-95 transition-transform ${isLight ? 'bg-[#2a2529] text-[#f4f0e6]' : 'bg-[#f3f0e7] text-[#2a2529]'}`}
-                    >
-                      Run
-                    </button>
                   </div>
                 ))}
               </div>
             )}
           </div>
         )}
-
-        {/* Section 2: Quick Actions & Execution */}
-        <div className="space-y-2">
-          <button
-            onClick={() => toggleSection('actions')}
-            className={`w-full flex items-center justify-between py-1 text-[11px] font-bold tracking-wider uppercase transition-colors cursor-pointer ${
-              isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'
-            }`}
-          >
-            <span className="flex items-center space-x-1.5">
-              {collapsedSections['actions'] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-              <span>Interactive Actions</span>
-            </span>
-          </button>
-
-          {!collapsedSections['actions'] && (
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => handleLaunchInTerminal()}
-                className={`flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl text-xs font-semibold active:scale-95 transition-all cursor-pointer ${
-                  isLight ? 'bg-[#2a2529] text-[#f4f0e6]' : 'bg-[#f3f0e7] text-[#2a2529]'
-                }`}
-              >
-                <Terminal size={14} />
-                <span>Launch CLI</span>
-              </button>
-              <button
-                onClick={() => handleRefresh()}
-                className={`flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl text-xs font-semibold border active:scale-95 transition-all cursor-pointer ${
-                  isLight ? 'border-[#2a2529]/20 text-[#2a2529]' : 'border-[#f3f0e7]/20 text-[#f3f0e7]'
-                }`}
-              >
-                <RefreshCw size={14} />
-                <span>Sync State</span>
-              </button>
-            </div>
-          )}
-        </div>
 
         {/* Section 3: Package Metadata */}
         {extension && (

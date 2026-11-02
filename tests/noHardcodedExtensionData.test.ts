@@ -19,3 +19,13 @@ test('no source file references EXTENSIONS_CATALOG', () => {
     assert.equal(source.includes('EXTENSIONS_CATALOG'), false, `${file} still references EXTENSIONS_CATALOG`);
   }
 });
+
+test('extension view panel has no fake service UI', () => {
+  const source = readFileSync(
+    new URL('../src/components/sidebar/ExtensionViewPanel.tsx', import.meta.url),
+    'utf8'
+  );
+  assert.equal(source.includes('Active Service'), false);
+  assert.equal(source.includes('Sync State'), false);
+  assert.equal(source.includes('handleLaunchInTerminal'), false);
+});
