@@ -18,7 +18,7 @@ const state = {
 const extensions = [
   { id: 'a.one', name: 'One', publisher: 'a', description: '', icon: 'package', category: 'productivity' as const, installed: true, monacoThemeId: 'a-one-theme' },
   { id: 'b.two', name: 'Two', publisher: 'b', description: '', icon: 'package', category: 'productivity' as const, installed: true, monacoThemeId: 'b-two-theme' },
-  { id: 'theme.three', name: 'Three', publisher: 'c', description: '', icon: 'palette', category: 'theme' as const, installed: true, monacoThemeId: 'three-theme' },
+  { id: 'theme.three', name: 'Three', publisher: 'c', description: '', icon: 'palette', category: 'theme' as const, installed: true, monacoThemeId: 'three-theme', iconThemeId: 'three-icons' },
 ];
 
 test('getInstalledExtensions returns only installed custom extensions', () => {
@@ -63,7 +63,7 @@ test('deriveActiveMonacoThemeId prefers persisted theme, then the active extensi
   assert.equal(deriveActiveMonacoThemeId(null, null, extensions), null);
 });
 
-test('loadFromDisk reconciles persisted installed ids and derives the theme', async () => {
+function stubLocalStorage() {
   const originalLocalStorage = (globalThis as any).localStorage;
   const memory = new Map<string, string>();
   (globalThis as any).localStorage = {
@@ -75,6 +75,21 @@ test('loadFromDisk reconciles persisted installed ids and derives the theme', as
       return memory.size;
     },
   };
+
+  return {
+    memory,
+    restore: () => {
+      if (originalLocalStorage === undefined) {
+        delete (globalThis as any).localStorage;
+      } else {
+        (globalThis as any).localStorage = originalLocalStorage;
+      }
+    },
+  };
+}
+
+test('loadFromDisk reconciles persisted installed ids and derives the theme', async () => {
+  const { memory, restore } = stubLocalStorage();
 
   try {
     memory.set('krypton-base-path', '/tmp/krypton');
@@ -94,10 +109,36 @@ test('loadFromDisk reconciles persisted installed ids and derives the theme', as
     assert.deepEqual(loaded.installedExtensions, ['b.two', 'a.one']);
     assert.equal(loaded.activeMonacoThemeId, 'three-theme');
   } finally {
-    if (originalLocalStorage === undefined) {
-      delete (globalThis as any).localStorage;
-    } else {
-      (globalThis as any).localStorage = originalLocalStorage;
-    }
+    restore();
+  }
+});
+
+test('uninstallExtension clears theme and icon state owned by the removed extension', async () => {
+  const { memory, restore } = stubLocalStorage();
+
+  try {
+    memory.set('krypton-base-path', '/tmp/krypton');
+    memory.set(
+      'kfs:/tmp/krypton/extensions.json',
+      JSON.stringify({
+        installedExtensions: ['b.two', 'theme.three'],
+        activeThemeExtension: 'theme.three',
+        activeMonacoThemeId: 'three-theme',
+        activeIconTheme: 'three-icons',
+        customExtensions: extensions,
+      })
+    );
+
+    const { useExtensionsStore } = await import('../src/store/useExtensionsStore');
+    await useExtensionsStore.getState().loadFromDisk();
+    useExtensionsStore.getState().uninstallExtension('theme.three');
+
+    const state = useExtensionsStore.getState();
+    assert.deepEqual(state.installedExtensions, ['b.two']);
+    assert.equal(state.activeThemeExtension, null);
+    assert.equal(state.activeMonacoThemeId, null);
+    assert.equal(state.activeIconTheme, null);
+  } finally {
+    restore();
   }
 });
