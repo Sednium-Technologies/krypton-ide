@@ -339,12 +339,6 @@ test('built-in registry contains only the Krypton default', () => {
   assert.deepEqual(Object.keys(MONACO_THEMES), ['krypton-warm']);
 });
 
-test('resolveActiveMonacoTheme returns the active installed theme id', () => {
-  assert.equal(resolveActiveMonacoTheme('vs-dark', 'acme-ocean'), 'acme-ocean');
-  assert.equal(resolveActiveMonacoTheme('light', 'acme-ocean'), 'vs');
-  assert.equal(resolveActiveMonacoTheme('vs-dark', null), 'krypton-warm');
-});
-
 test('registerMonacoTheme adds a package theme', () => {
   registerMonacoTheme('acme-ocean', {
     id: 'acme-ocean',
@@ -354,6 +348,13 @@ test('registerMonacoTheme adds a package theme', () => {
     rules: [],
   });
   assert.equal(MONACO_THEMES['acme-ocean'].name, 'Ocean');
+});
+
+test('resolveActiveMonacoTheme returns the active installed theme id', () => {
+  assert.equal(resolveActiveMonacoTheme('vs-dark', 'acme-ocean'), 'acme-ocean');
+  assert.equal(resolveActiveMonacoTheme('light', 'acme-ocean'), 'vs');
+  assert.equal(resolveActiveMonacoTheme('vs-dark', null), 'krypton-warm');
+  assert.equal(resolveActiveMonacoTheme('vs-dark', 'missing-theme'), 'krypton-warm');
 });
 ```
 
@@ -530,6 +531,15 @@ export function routeWebviewMessage(message: any): WebviewAction[] {
   if (!command) return [];
 
   if ((command === 'openUrl' || command === 'vscode:openUrl') && typeof message.url === 'string') {
+    let url: URL;
+    try {
+      url = new URL(message.url);
+    } catch {
+      return [{ kind: 'error', text: 'Blocked unsafe URL from extension webview' }];
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:' && url.protocol !== 'mailto:') {
+      return [{ kind: 'error', text: 'Blocked unsafe URL from extension webview' }];
+    }
     return [{ kind: 'openUrl', url: message.url }];
   }
   if ((command === 'showInformationMessage' || command === 'toast') && typeof message.text === 'string') {
@@ -559,7 +569,7 @@ useEffect(() => {
     if (event.data.extensionId !== extensionId) return;
 
     for (const action of routeWebviewMessage(event.data.message)) {
-      if (action.kind === 'openUrl') window.open(action.url, '_blank');
+      if (action.kind === 'openUrl') window.open(action.url, '_blank', 'noopener,noreferrer');
       else if (action.kind === 'info') useToastStore.getState().info(action.text);
       else if (action.kind === 'error') useToastStore.getState().error(action.text);
       else {
@@ -583,11 +593,12 @@ useEffect(() => {
   const handleHostMessage = (event: Event) => {
     const detail = (event as CustomEvent).detail;
     if (detail?.extensionId !== extensionId) return;
+    if (detail?.viewId && detail.viewId !== viewId) return;
     iframeRef.current?.contentWindow?.postMessage(detail.message, '*');
   };
   window.addEventListener('krypton:webview-host-message', handleHostMessage);
   return () => window.removeEventListener('krypton:webview-host-message', handleHostMessage);
-}, [extensionId]);
+}, [extensionId, viewId]);
 ```
 
 On iframe load, dispatch `krypton:webview-ready` instead of sending fake state.
