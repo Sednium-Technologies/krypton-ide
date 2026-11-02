@@ -90,11 +90,15 @@ krypton-ide/
 │   │   │   ├── modelAdapters.ts         // Streaming adapters for Gemini, Claude, OpenAI, Ollama
 │   │   │   ├── toolActions.ts           // Execution handlers for read, write, edit, terminal, tools
 │   │   │   └── toolDefinitions.ts       // OpenAI/Gemini JSON schemas (includes laya_contrastive_decision)
+│   │   ├── extensions/                  // VSIX contribution helpers & webview bridge
+│   │   │   ├── extensionRegistry.ts     // Pure installed-extension lookup helpers
+│   │   │   └── webviewBridge.ts         // Webview message routing (safe built-ins + forward)
 │   │   ├── pocket/                      // Local Pocket Server & On-Device Micro-Models
 │   │   │   ├── LayaSystem1.ts           // Laya non-autoregressive decision engine & risk evaluator
 │   │   │   └── PocketRouter.ts          // Directs requests to System 1 reflex or System 2 reasoner
 │   │   ├── terminal/                    // Native Linux PTY Bridge
-│   │   │   └── nativeTerminalBridge.ts  // PTY spawn, stdout reader, exit sentinel detector
+│   │   │   ├── nativeTerminalBridge.ts  // PTY spawn, stdout reader, exit sentinel detector
+│   │   │   └── toolScanner.ts           // Real tool availability probe
 │   │   ├── fileSystemStorage.ts         // Capacitor Filesystem + IndexedDB storage layer
 │   │   ├── nativePlugins.ts             // Capacitor plugin interfaces (SAF, FastSearch, KryptonCore)
 │   │   └── storagePermission.ts         // Android MANAGE_EXTERNAL_STORAGE permission probe

@@ -1,6 +1,6 @@
 # Krypton Native Extension Host (QuickJS + Rust + Kotlin)
 
-**Status:** Design accepted — implementation not started
+**Status:** Design accepted — Phase 0 complete (dynamic UI); Phase 1 not started
 **Scope:** Hybrid Krypton IDE (Capacitor + React + Rust + Kotlin)
 **Primary target:** Android (Termux userland available)
 **Secondary target:** Web dev preview (declarative fallback only)
@@ -209,13 +209,22 @@ IDE features, not extension mocks.
 
 | Phase | Deliverable | Exit criteria |
 |---|---|---|
-| 0 | Remove hardcoded catalog/themes/mock UI; declarative path is VSIX-driven | No fake data in extension surfaces; web fallback labeled |
+| 0 | Remove hardcoded catalog/themes/mock UI; declarative path is VSIX-driven ✅ Complete | No fake data in extension surfaces; web fallback labeled |
 | 1 | Rust `ext_host` skeleton, JNI, Kotlin plugin, install/list/activate, manifest parse | A VSIX installs and its manifest appears in the UI on device |
 | 2 | QuickJS runtime + core `vscode` shim + lifecycle | A sample extension activates and runs a command |
 | 3 | Dynamic activity bar, views, commands, status bar, settings | Contributions render in Krypton UI |
 | 4 | LSP manager + `lspClient` + terminal install UX | TypeScript/Python diagnostics and completion on device |
 | 5 | Node compat + `child_process` + trust gates | Trusted extension can spawn a process; untrusted is blocked |
 | 6 | Tests, fixtures, docs, hardening | Rust/TS unit tests + device E2E on sample VSIXs |
+
+### Phase 0 outcome
+
+- Hardcoded `EXTENSIONS_CATALOG` removed; installed extensions are the only source.
+- Single dynamic theme registry (`extensionRegistry.ts`) drives Monaco plus editor/file/folder icons.
+- Generic webview bridge (`webviewBridge.ts`) routes safe built-ins and forwards the rest.
+- Extension panel is honest: no fake built-in service entries or mock install state.
+- Terminal reports real tool availability (`toolScanner.ts`); web preview never claims tools are installed.
+- New tests cover the registry, bridge routing, absence of the catalog, and tool detection.
 
 ---
 
