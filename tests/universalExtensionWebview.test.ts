@@ -92,6 +92,11 @@ test('extractExtensionWebviewPackage: extracts assets and synthesizes universal 
     name: 'antigravity-panel',
     version: '2.8.1',
     displayName: 'Antigravity Panel',
+    contributes: {
+      views: {
+        antigravity: [{ id: 'antigravity.panel', name: 'Antigravity', type: 'webview' }],
+      },
+    },
   };
 
   const { webviewAssets, webviewHtml } = await extractExtensionWebviewPackage(zip, pkg, 'n2ns.antigravity-panel');
