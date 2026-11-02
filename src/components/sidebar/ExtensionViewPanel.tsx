@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useExtensionsStore } from '../../store/useExtensionsStore';
-import { useToastStore } from '../../store/useToastStore';
 import { ToolIcon } from '../ui/ToolIcon';
 import { ExtensionDetailModal } from '../extensions/ExtensionDetailModal';
 import { ExtensionWebviewHost } from '../extensions/ExtensionWebviewHost';
@@ -20,10 +19,10 @@ export function ExtensionViewPanel() {
   const theme = useIdeStore((state) => state.theme);
   const isLight = theme === 'light';
 
-  const { customExtensions, installedExtensions } = useExtensionsStore();
+  const { customExtensions, installedExtensions, loadFromDisk } = useExtensionsStore();
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [webviewKey, setWebviewKey] = useState(0);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const extension = findExtension(
@@ -36,11 +35,11 @@ export function ExtensionViewPanel() {
   };
 
   const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-      useToastStore.getState().success(`${activeExtensionView?.title || 'Extension'} synchronized`);
-    }, 450);
+    if (extension?.webviewHtml) {
+      setWebviewKey((key) => key + 1);
+    } else {
+      void loadFromDisk();
+    }
   };
 
   if (!activeExtensionView) {
@@ -85,7 +84,7 @@ export function ExtensionViewPanel() {
               }`}
               title="Refresh Webview"
             >
-              <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+              <RefreshCw size={13} />
             </button>
             <button
               onClick={() => setIsDetailModalOpen(true)}
@@ -102,6 +101,7 @@ export function ExtensionViewPanel() {
         {/* Dynamic Sandboxed Webview */}
         <div className="flex-1 min-h-0 relative">
           <ExtensionWebviewHost
+            key={webviewKey}
             extensionId={extension?.id || activeExtensionView.extensionId}
             viewId={activeExtensionView.viewContainerId}
             htmlContent={webviewHtml}
@@ -159,7 +159,7 @@ export function ExtensionViewPanel() {
             }`}
             title="Refresh"
           >
-            <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={13} />
           </button>
           <button
             onClick={() => setIsDetailModalOpen(true)}
@@ -222,7 +222,7 @@ export function ExtensionViewPanel() {
             {!collapsedSections['commands'] && (
               <div className="space-y-1.5 max-h-56 overflow-y-auto scrollbar-thin pr-1">
                 <p className="text-[11px] opacity-60">
-                  Commands run through the native extension host.
+                  Command metadata from this extension. Execution ships with the native extension host.
                 </p>
                 {extension.contributedCommands.map((cmd) => (
                   <div

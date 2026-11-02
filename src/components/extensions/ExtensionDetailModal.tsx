@@ -31,6 +31,7 @@ import {
 import { useExtensionsStore, type Extension } from '../../store/useExtensionsStore';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useToastStore } from '../../store/useToastStore';
+import { getInstalledExtensions } from '../../lib/extensions/extensionRegistry';
 
 interface ExtensionDetailModalProps {
   extension: MarketplaceExtension | Extension | null;
@@ -134,7 +135,10 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
 
   const installedExt = customExtensions.find((e) => e.id === extId);
   const effectiveMonacoThemeId = (extension as any)?.monacoThemeId || installedExt?.monacoThemeId;
-  const isInstalled = Boolean(extId && installedExtensions.includes(extId));
+  const isInstalled = Boolean(
+    extId &&
+    getInstalledExtensions({ customExtensions, installedExtensions }).some((ext) => ext.id === extId)
+  );
   const progress = extId ? installProgress[extId] : undefined;
   const isInstalling = progress?.status === 'installing';
   const isColorThemeActive = Boolean(

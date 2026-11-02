@@ -61,6 +61,7 @@ export function registerAllMonacoThemes(monaco: any) {
 
 /** Register a theme contributed by an installed extension package. */
 export function registerMonacoTheme(themeId: string, definition: MonacoThemeDefinition): void {
+  if (themeId === 'krypton-warm') return;
   MONACO_THEMES[themeId] = definition;
 }
 

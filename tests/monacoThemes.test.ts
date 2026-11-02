@@ -17,6 +17,19 @@ test('registerMonacoTheme adds a package theme', () => {
   assert.equal(MONACO_THEMES['acme-ocean'].name, 'Ocean');
 });
 
+test('registerMonacoTheme refuses to overwrite the built-in Krypton theme', () => {
+  const original = MONACO_THEMES['krypton-warm'];
+  registerMonacoTheme('krypton-warm', {
+    id: 'krypton-warm',
+    name: 'Hijacked',
+    base: 'vs',
+    colors: {},
+    rules: [],
+  });
+  assert.equal(MONACO_THEMES['krypton-warm'], original);
+  assert.equal(MONACO_THEMES['krypton-warm'].name, 'Krypton Warm');
+});
+
 test('resolveActiveMonacoTheme returns the active installed theme id', () => {
   assert.equal(resolveActiveMonacoTheme('vs-dark', 'acme-ocean'), 'acme-ocean');
   assert.equal(resolveActiveMonacoTheme('vs-dark', 'missing-theme'), 'krypton-warm');

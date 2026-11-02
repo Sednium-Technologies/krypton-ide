@@ -220,7 +220,7 @@ IDE features, not extension mocks.
 ### Phase 0 outcome
 
 - Hardcoded `EXTENSIONS_CATALOG` removed; installed extensions are the only source.
-- Single dynamic theme registry (`extensionRegistry.ts`) drives Monaco plus editor/file/folder icons.
+- `extensionRegistry.ts` provides extension lookup helpers only; the Monaco theme registry lives in `src/lib/monacoThemes.ts`, and editor/file/folder icons flow through the dynamic icon engine and icon-theme storage.
 - Generic webview bridge (`webviewBridge.ts`) routes safe built-ins and forwards the rest.
 - Extension panel is honest: no fake built-in service entries or mock install state.
 - Terminal reports real tool availability (`toolScanner.ts`); web preview never claims tools are installed.

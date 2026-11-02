@@ -8,6 +8,10 @@ import { saveCustomIconTheme, loadIconTheme } from '../lib/iconThemeStorage';
 import { registerExtensionCss, unregisterExtensionCss } from '../lib/customCssManager';
 import { storeExtensionAssets, getMimeType, normalizeAssetPath } from '../lib/extensionAssetRegistry';
 import {
+  reconcileInstalledExtensions,
+  deriveActiveMonacoThemeId,
+} from '../lib/extensions/extensionRegistry';
+import {
   MONACO_THEMES,
   registerMonacoTheme,
   type MonacoThemeDefinition,
@@ -564,20 +568,21 @@ export const useExtensionsStore = create<ExtensionsState>()(
           if (Array.isArray(data.installedSnippets)) {
             setDynamicSnippets(data.installedSnippets);
           }
-          const loadedInstalled = Array.isArray(data.installedExtensions) ? data.installedExtensions : [];
           const restoredExtensions: Extension[] = Array.isArray(data.customExtensions) ? data.customExtensions : [];
+          const loadedInstalled = reconcileInstalledExtensions(data.installedExtensions, restoredExtensions);
           const restoredActiveThemeExtension = data.activeThemeExtension || null;
-          const restoredMonacoThemeId =
-            data.activeMonacoThemeId ||
-            restoredExtensions.find((e) => e.id === restoredActiveThemeExtension)?.monacoThemeId ||
-            null;
+          const restoredMonacoThemeId = deriveActiveMonacoThemeId(
+            data.activeMonacoThemeId,
+            restoredActiveThemeExtension,
+            restoredExtensions
+          );
 
           set({
             installedExtensions: loadedInstalled,
             activeThemeExtension: restoredActiveThemeExtension,
             activeMonacoThemeId: restoredMonacoThemeId,
             activeIconTheme: (data as any).activeIconTheme || null,
-            customExtensions: data.customExtensions || [],
+            customExtensions: restoredExtensions,
             installedSnippets: data.installedSnippets || [],
             snippetsByExtension: data.snippetsByExtension || {},
             customThemes: data.customThemes || {},
@@ -1258,11 +1263,16 @@ export const useExtensionsStore = create<ExtensionsState>()(
 
     uninstallExtension: (id) => {
       unregisterExtensionCss(id);
+      let wasActiveTheme = false;
       set((state) => {
         const ext = state.customExtensions.find((e) => e.id === id);
-        const wasActiveTheme =
+        wasActiveTheme =
           state.activeThemeExtension === id ||
           Boolean(ext?.monacoThemeId && state.activeMonacoThemeId === ext.monacoThemeId);
+        const ownsActiveIconTheme = Boolean(
+          state.activeIconTheme &&
+          (state.activeIconTheme === id || state.activeIconTheme === ext?.iconThemeId)
+        );
 
         // Remove dynamic snippets belonging to this extension
         const remainingSnippetsByExt = { ...state.snippetsByExtension };
@@ -1275,20 +1285,30 @@ export const useExtensionsStore = create<ExtensionsState>()(
           installedExtensions: state.installedExtensions.filter((e) => e !== id),
           activeThemeExtension: wasActiveTheme ? null : state.activeThemeExtension,
           activeMonacoThemeId: wasActiveTheme ? null : state.activeMonacoThemeId,
+          activeIconTheme: ownsActiveIconTheme ? null : state.activeIconTheme,
           installedSnippets: allRemainingSnippets,
           snippetsByExtension: remainingSnippetsByExt,
         };
 
         persistExtensions(updated);
-        window.dispatchEvent(new CustomEvent('krypton:extensions-changed'));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('krypton:extensions-changed'));
+          if (ownsActiveIconTheme) {
+            window.dispatchEvent(new CustomEvent('krypton:icon-theme-updated', { detail: { themeId: null } }));
+          }
+        }
         return {
           installedExtensions: updated.installedExtensions,
           activeThemeExtension: updated.activeThemeExtension,
           activeMonacoThemeId: updated.activeMonacoThemeId,
+          activeIconTheme: updated.activeIconTheme,
           installedSnippets: updated.installedSnippets,
           snippetsByExtension: updated.snippetsByExtension,
         };
       });
+      if (wasActiveTheme && typeof document !== 'undefined' && typeof window !== 'undefined') {
+        applyMonacoTheme('krypton-warm');
+      }
       useToastStore.getState().info(`Uninstalled extension`);
     },
 

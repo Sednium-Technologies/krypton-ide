@@ -264,7 +264,7 @@ function ExtensionsPanelContent() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const isInstalled = (id: string) => installedExtensions.includes(id);
+  const isInstalled = (id: string) => installedList.some((ext) => ext.id === id);
 
   const currentSortObj = SORT_OPTIONS.find((s) => s.id === sortBy) || SORT_OPTIONS[0];
   const CurrentSortIcon = currentSortObj.icon;
@@ -335,7 +335,7 @@ function ExtensionsPanelContent() {
             }`}
           >
             <Check size={12} />
-            <span>Installed ({installedExtensions.length})</span>
+            <span>Installed ({installedList.length})</span>
           </button>
         </div>
       </div>
@@ -630,7 +630,7 @@ function ExtensionsPanelContent() {
       {/* Footer Status */}
       <div className="border-t border-[#f3f0e7]/10 px-3 py-2 bg-[#231e22] flex items-center justify-between">
         <p className="text-[10px] text-[#f3f0e7]/70 font-medium">
-          {installedExtensions.length} installed • Open VSX live catalog
+          {installedList.length} installed • Open VSX live catalog
         </p>
         <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" title="Connected to Open VSX" />
       </div>

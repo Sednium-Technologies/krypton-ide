@@ -34,7 +34,7 @@
   - `getInstalledExtensions(state: ExtensionLookupState): Extension[]`
   - `findExtension(state: ExtensionLookupState, id: string): Extension | undefined`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import test from 'node:test';
@@ -56,18 +56,18 @@ test('getInstalledExtensions returns only installed custom extensions', () => {
   assert.equal(result[0].installed, true);
 });
 
-test('findExtension resolves only from installed packages', () => {
+test('findExtension resolves any custom extension', () => {
   assert.equal(findExtension(state, 'b.two')?.name, 'Two');
   assert.equal(findExtension(state, 'theme-dracula'), undefined);
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx tsx --test tests/extensionRegistry.test.ts`
 Expected: FAIL with `Cannot find module '../src/lib/extensions/extensionRegistry'`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```ts
 import type { Extension } from '../../store/useExtensionsStore';
@@ -89,12 +89,12 @@ export function findExtension(state: ExtensionLookupState, id: string): Extensio
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx tsx --test tests/extensionRegistry.test.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/extensions/extensionRegistry.ts tests/extensionRegistry.test.ts
@@ -117,7 +117,7 @@ git commit -m "feat(extensions): add pure extension lookup helpers"
 - Consumes: `findExtension` from Task 1.
 - Produces: the store no longer exports `EXTENSIONS_CATALOG`; installed lookups use `customExtensions`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import test from 'node:test';
@@ -143,12 +143,12 @@ test('no source file references EXTENSIONS_CATALOG', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx tsx --test tests/noHardcodedExtensionData.test.ts`
 Expected: FAIL on both tests.
 
-- [ ] **Step 3: Delete the catalog and rewire store lookups**
+- [x] **Step 3: Delete the catalog and rewire store lookups**
 
 Delete the entire `export const EXTENSIONS_CATALOG: Extension[] = [ ... ];` block.
 
@@ -202,12 +202,12 @@ const allInstalled = custom.filter((e) => installed.includes(e.id));
 
 Then remove every `EXTENSIONS_CATALOG` import from those three files. Task 3 replaces these minimal substitutions with the pure helpers and removes the curated fallback UI.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx tsx --test tests/noHardcodedExtensionData.test.ts`
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/store/useExtensionsStore.ts src/store/useNavbarStore.ts src/components/sidebar/ExtensionsPanel.tsx src/components/sidebar/ExtensionViewPanel.tsx tests/noHardcodedExtensionData.test.ts
@@ -227,7 +227,7 @@ git commit -m "refactor(extensions): remove hardcoded extension catalog"
 - Consumes: `getInstalledExtensions`, `findExtension` from Task 1.
 - Produces: no offline curated fallback; an explicit error card with retry.
 
-- [ ] **Step 1: Replace installed list derivation**
+- [x] **Step 1: Replace installed list derivation**
 
 ```ts
 const installedList = useMemo(
@@ -247,7 +247,7 @@ const allInstalledList = useMemo(() => {
 }, [installedList, debouncedQuery]);
 ```
 
-- [ ] **Step 2: Remove the curated fallback**
+- [x] **Step 2: Remove the curated fallback**
 
 Delete `fallbackCuratedList`. Add a retry nonce:
 
@@ -272,7 +272,7 @@ Include `retryNonce` in the Open VSX search effect dependency array. In the mark
 
 Render `marketplaceResults` directly; never render `fallbackCuratedList`.
 
-- [ ] **Step 3: Replace local extension lookup in the detail/apply path**
+- [x] **Step 3: Replace local extension lookup in the detail/apply path**
 
 In `ExtensionViewPanel`, replace the `allInstalled` + triple `.find` chain with:
 
@@ -285,7 +285,7 @@ const extension = findExtension(
 
 Remove the `EXTENSIONS_CATALOG` import and the `customExtensions.find` fallback.
 
-- [ ] **Step 4: Replace catalog lookups in `useNavbarStore`**
+- [x] **Step 4: Replace catalog lookups in `useNavbarStore`**
 
 ```ts
 const extState = useExtensionsStore.getState();
@@ -295,12 +295,12 @@ const allInstalled = extState.customExtensions.filter((e) => installed.has(e.id)
 
 Remove the `EXTENSIONS_CATALOG` import.
 
-- [ ] **Step 5: Run type-check**
+- [x] **Step 5: Run type-check**
 
 Run: `npm run type-check`
 Expected: PASS with no `EXTENSIONS_CATALOG` references.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/sidebar/ExtensionsPanel.tsx src/components/sidebar/ExtensionViewPanel.tsx src/store/useNavbarStore.ts
@@ -328,7 +328,7 @@ git commit -m "refactor(extensions): drive installed UI from VSIX metadata"
   - Store field `activeMonacoThemeId: string | null`
   - Store action `setActiveThemeExtension(id: string | null)` resolves the extension's `monacoThemeId`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import test from 'node:test';
@@ -358,12 +358,12 @@ test('resolveActiveMonacoTheme returns the active installed theme id', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx tsx --test tests/monacoThemes.test.ts`
 Expected: FAIL (registry has more keys; resolver returns hardcoded id; `registerMonacoTheme` missing).
 
-- [ ] **Step 3: Trim `src/lib/monacoThemes.ts` to Krypton built-ins**
+- [x] **Step 3: Trim `src/lib/monacoThemes.ts` to Krypton built-ins**
 
 Keep only the `krypton-warm` entry in `MONACO_THEMES`. Delete `one-dark-pro`, `dracula`, `github-dark`, `monokai`, `nord`, and `catppuccin` definitions. Replace the resolver:
 
@@ -384,7 +384,7 @@ export function resolveActiveMonacoTheme(
 }
 ```
 
-- [ ] **Step 4: Delete the duplicate store theme table and add the id field**
+- [x] **Step 4: Delete the duplicate store theme table and add the id field**
 
 In `src/store/useExtensionsStore.ts`:
 - Delete `export const MONACO_THEMES: Record<string, any> = { ... };` (the block starting at line 418).
@@ -403,7 +403,7 @@ export function applyMonacoTheme(themeId: string, themeDef?: any): void {
 
 to use `registerMonacoTheme` when `themeDef` is supplied, then apply.
 
-- [ ] **Step 5: Resolve themes dynamically on install and apply**
+- [x] **Step 5: Resolve themes dynamically on install and apply**
 
 In `installFromFile` and `installFromOpenVsx`, when a theme is parsed:
 
@@ -453,18 +453,18 @@ setActiveIconTheme: (id) => {
 },
 ```
 
-- [ ] **Step 6: Update consumers to use `activeMonacoThemeId`**
+- [x] **Step 6: Update consumers to use `activeMonacoThemeId`**
 
 `CodeEditor.tsx`: destructure `activeMonacoThemeId` instead of `activeThemeExtension`, and pass it to `resolveActiveMonacoTheme` in all three call sites.
 
 `ExtensionsPanel.tsx` and `ExtensionDetailModal.tsx`: compare themes using `activeMonacoThemeId === ext.monacoThemeId`; import `MONACO_THEMES` from `src/lib/monacoThemes`, not from the store.
 
-- [ ] **Step 7: Run tests and type-check**
+- [x] **Step 7: Run tests and type-check**
 
 Run: `npx tsx --test tests/monacoThemes.test.ts && npm run type-check`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/lib/monacoThemes.ts src/store/useExtensionsStore.ts src/components/editor/CodeEditor.tsx src/components/sidebar/ExtensionsPanel.tsx src/components/extensions/ExtensionDetailModal.tsx tests/monacoThemes.test.ts
@@ -486,7 +486,7 @@ git commit -m "refactor(themes): drive Monaco themes from installed VSIX package
   - `interface WebviewAction { kind: 'openUrl'; url: string } | { kind: 'info'; text: string } | { kind: 'error'; text: string } | { kind: 'forward'; message: unknown }`
   - `routeWebviewMessage(message: any): WebviewAction[]`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import test from 'node:test';
@@ -511,12 +511,12 @@ test('ignores empty messages', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx tsx --test tests/webviewBridge.test.ts`
 Expected: FAIL with module not found.
 
-- [ ] **Step 3: Implement the bridge**
+- [x] **Step 3: Implement the bridge**
 
 ```ts
 export type WebviewAction =
@@ -552,7 +552,7 @@ export function routeWebviewMessage(message: any): WebviewAction[] {
 }
 ```
 
-- [ ] **Step 4: Rewrite `ExtensionWebviewHost`**
+- [x] **Step 4: Rewrite `ExtensionWebviewHost`**
 
 Delete:
 - `extensionState`, `extensionStateRef`, `sendPayloadUpdate`.
@@ -603,12 +603,12 @@ useEffect(() => {
 
 On iframe load, dispatch `krypton:webview-ready` instead of sending fake state.
 
-- [ ] **Step 5: Run tests and type-check**
+- [x] **Step 5: Run tests and type-check**
 
 Run: `npx tsx --test tests/webviewBridge.test.ts && npm run type-check`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/lib/extensions/webviewBridge.ts src/components/extensions/ExtensionWebviewHost.tsx tests/webviewBridge.test.ts
@@ -627,7 +627,7 @@ git commit -m "refactor(webviews): replace fake assistant state with generic bri
 - Consumes: `findExtension` (Task 1), `activityBarContributions`, `webviewHtml`.
 - Produces: a view panel with no fabricated service status or fake CLI launch.
 
-- [ ] **Step 1: Extend the failing test**
+- [x] **Step 1: Extend the failing test**
 
 ```ts
 test('extension view panel has no fake service UI', () => {
@@ -641,12 +641,12 @@ test('extension view panel has no fake service UI', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx tsx --test tests/noHardcodedExtensionData.test.ts`
 Expected: FAIL on the new test.
 
-- [ ] **Step 3: Rewrite the fallback**
+- [x] **Step 3: Rewrite the fallback**
 
 Keep the header and the metadata section. Delete:
 - The `Active Service` status card.
@@ -687,12 +687,12 @@ Render instead:
 
 Remove the `Terminal`, `Play`, `Cpu`, `CheckCircle2`, `useNativeTerminalStore`, and `useToastStore` imports if unused.
 
-- [ ] **Step 4: Run tests and type-check**
+- [x] **Step 4: Run tests and type-check**
 
 Run: `npx tsx --test tests/noHardcodedExtensionData.test.ts && npm run type-check`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/sidebar/ExtensionViewPanel.tsx tests/noHardcodedExtensionData.test.ts
@@ -715,7 +715,7 @@ git commit -m "refactor(extensions): remove fake extension service panel"
   - `KNOWN_TOOLS: Array<Omit<ScannedTool, 'isInstalled' | 'version' | 'path' | 'reason'>>`
   - `scanToolsForEnvironment(options: { isNative: boolean; exists: (absolutePath: string) => boolean }): ScannedTool[]`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import test from 'node:test';
@@ -738,12 +738,12 @@ test('native reports only tools whose binary exists', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx tsx --test tests/terminalScanner.test.ts`
 Expected: FAIL with module not found.
 
-- [ ] **Step 3: Extract the pure scanner**
+- [x] **Step 3: Extract the pure scanner**
 
 Create `src/lib/terminal/toolScanner.ts`. Move the `ScannedTool` interface and `KNOWN_TOOLS` array out of the hook, add `reason`, and implement:
 
@@ -772,7 +772,7 @@ const existingPaths = new Set<string>();
 for (const tool of KNOWN_TOOLS) {
   const path = `${prefix}/bin/${tool.binary}`;
   try {
-    await Filesystem.stat({ path, directory: Directory.Absolute });
+    await Filesystem.stat({ path, directory: Directory.Data });
     existingPaths.add(path);
   } catch {
     // Binary is genuinely absent.
@@ -786,7 +786,7 @@ const scanned = scanToolsForEnvironment({
 
 Add `import { Filesystem, Directory } from '@capacitor/filesystem';` to the hook. Remove the `hasNode`/`hasPython`/`hasRust`/`hasClang` shortcuts; `Filesystem.stat` is the source of truth.
 
-- [ ] **Step 4: Show the web-preview reason**
+- [x] **Step 4: Show the web-preview reason**
 
 In `SettingsPanel.tsx`, replace the "Not Installed" label when `tool.reason === 'web-preview'`:
 
@@ -796,12 +796,12 @@ In `SettingsPanel.tsx`, replace the "Not Installed" label when `tool.reason === 
 </span>
 ```
 
-- [ ] **Step 5: Run tests and type-check**
+- [x] **Step 5: Run tests and type-check**
 
 Run: `npx tsx --test tests/terminalScanner.test.ts && npm run type-check`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/hooks/useTerminalScanner.ts src/lib/terminal/toolScanner.ts src/components/sidebar/SettingsPanel.tsx tests/terminalScanner.test.ts
@@ -816,26 +816,26 @@ git commit -m "fix(terminal): report real tool availability"
 - Modify: `docs/design/krypton-native-extension-host.md` (mark Phase 0 done)
 - Modify: `projectstructure.md` (add `src/lib/extensions/`)
 
-- [ ] **Step 1: Run the full test suite**
+- [x] **Step 1: Run the full test suite**
 
 Run: `npm test`
 Expected: all suites PASS.
 
-- [ ] **Step 2: Run type-check**
+- [x] **Step 2: Run type-check**
 
 Run: `npm run type-check`
 Expected: PASS.
 
-- [ ] **Step 3: Run production build**
+- [x] **Step 3: Run production build**
 
 Run: `npm run build`
 Expected: build completes; inspect output for accidental imports of deleted files.
 
-- [ ] **Step 4: Update docs**
+- [x] **Step 4: Update docs**
 
 Mark Phase 0 complete in the design doc and add the new `src/lib/extensions/` files to `projectstructure.md`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/design/krypton-native-extension-host.md projectstructure.md
