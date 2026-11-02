@@ -28,8 +28,7 @@ import {
   type MarketplaceExtension,
   type ExtensionDetailMetadata,
 } from '../../lib/marketplaceService';
-import { useExtensionsStore, type Extension, applyMonacoTheme } from '../../store/useExtensionsStore';
-import { MONACO_THEMES } from '../../lib/monacoThemes';
+import { useExtensionsStore, type Extension } from '../../store/useExtensionsStore';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useToastStore } from '../../store/useToastStore';
 
@@ -52,6 +51,7 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
 
   const {
     installedExtensions,
+    customExtensions,
     activeMonacoThemeId,
     activeIconTheme,
     installProgress,
@@ -132,12 +132,14 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
     }
   };
 
+  const installedExt = customExtensions.find((e) => e.id === extId);
+  const effectiveMonacoThemeId = (extension as any)?.monacoThemeId || installedExt?.monacoThemeId;
   const isInstalled = Boolean(extId && installedExtensions.includes(extId));
   const progress = extId ? installProgress[extId] : undefined;
   const isInstalling = progress?.status === 'installing';
   const isColorThemeActive = Boolean(
-    (extension as any)?.monacoThemeId &&
-    activeMonacoThemeId === (extension as any)?.monacoThemeId
+    effectiveMonacoThemeId &&
+    activeMonacoThemeId === effectiveMonacoThemeId
   );
   const isIconThemeActive = Boolean(
     activeIconTheme && (
@@ -236,9 +238,7 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
       return;
     }
 
-    const themeId = ext?.monacoThemeId || `${name}-theme`;
-    if (MONACO_THEMES[themeId]) {
-      applyMonacoTheme(themeId);
+    if (effectiveMonacoThemeId) {
       setActiveThemeExtension(extId);
       const title = displayName?.toLowerCase().endsWith('theme') ? displayName : `${displayName} Theme`;
       useToastStore.getState().success(`Applied ${title}`);

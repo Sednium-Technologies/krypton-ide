@@ -565,11 +565,17 @@ export const useExtensionsStore = create<ExtensionsState>()(
             setDynamicSnippets(data.installedSnippets);
           }
           const loadedInstalled = Array.isArray(data.installedExtensions) ? data.installedExtensions : [];
+          const restoredExtensions: Extension[] = Array.isArray(data.customExtensions) ? data.customExtensions : [];
+          const restoredActiveThemeExtension = data.activeThemeExtension || null;
+          const restoredMonacoThemeId =
+            data.activeMonacoThemeId ||
+            restoredExtensions.find((e) => e.id === restoredActiveThemeExtension)?.monacoThemeId ||
+            null;
 
           set({
             installedExtensions: loadedInstalled,
-            activeThemeExtension: data.activeThemeExtension || null,
-            activeMonacoThemeId: data.activeMonacoThemeId || null,
+            activeThemeExtension: restoredActiveThemeExtension,
+            activeMonacoThemeId: restoredMonacoThemeId,
             activeIconTheme: (data as any).activeIconTheme || null,
             customExtensions: data.customExtensions || [],
             installedSnippets: data.installedSnippets || [],
