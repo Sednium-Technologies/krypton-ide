@@ -812,6 +812,10 @@ export function SettingsPanel() {
                           <Check size={10} />
                           <span>Installed</span>
                         </span>
+                      ) : tool.reason === 'web-preview' ? (
+                        <span className="px-2 py-0.5 text-[10px] rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                          Native only
+                        </span>
                       ) : (
                         <span className="px-2 py-0.5 text-[10px] rounded-md bg-white/5 text-[#f3f0e7]/40 border border-white/10">
                           Not Installed

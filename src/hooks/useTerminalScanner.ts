@@ -1,35 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { nativeTerminalBridge } from '../lib/terminal/nativeTerminalBridge';
 import { useHarnessStore } from '../store/useHarnessStore';
+import {
+  KNOWN_TOOLS,
+  scanToolsForEnvironment,
+  type ScannedTool,
+} from '../lib/terminal/toolScanner';
 
-export interface ScannedTool {
-  id: string;
-  name: string;
-  category: 'Agent Harness' | 'Runtime' | 'Compiler' | 'Utility';
-  binary: string;
-  isInstalled: boolean;
-  version?: string;
-  path?: string;
-}
-
-const KNOWN_TOOLS: Omit<ScannedTool, 'isInstalled' | 'version' | 'path'>[] = [
-  // Agent Harnesses
-  { id: 'claude-code', name: 'Claude Code', category: 'Agent Harness', binary: 'claude' },
-  { id: 'antigravity', name: 'Antigravity CLI', category: 'Agent Harness', binary: 'antigravity' },
-  { id: 'gemini-cli', name: 'Gemini CLI', category: 'Agent Harness', binary: 'gemini' },
-  { id: 'aider', name: 'Aider', category: 'Agent Harness', binary: 'aider' },
-  { id: 'roo-cline', name: 'Roo Code', category: 'Agent Harness', binary: 'roo' },
-  // Developer Runtimes
-  { id: 'node', name: 'Node.js', category: 'Runtime', binary: 'node' },
-  { id: 'npm', name: 'NPM Package Manager', category: 'Runtime', binary: 'npm' },
-  { id: 'python3', name: 'Python 3', category: 'Runtime', binary: 'python3' },
-  { id: 'git', name: 'Git Version Control', category: 'Utility', binary: 'git' },
-  { id: 'cargo', name: 'Rust Cargo', category: 'Compiler', binary: 'cargo' },
-  { id: 'clang', name: 'Clang / C++', category: 'Compiler', binary: 'clang' },
-  { id: 'make', name: 'GNU Make', category: 'Utility', binary: 'make' },
-  { id: 'curl', name: 'cURL Network Utility', category: 'Utility', binary: 'curl' },
-];
+export type { ScannedTool } from '../lib/terminal/toolScanner';
 
 export function useTerminalScanner() {
   const [tools, setTools] = useState<ScannedTool[]>([]);
@@ -38,46 +18,33 @@ export function useTerminalScanner() {
 
   const scanTools = useCallback(async () => {
     setIsScanning(true);
-    const scanned: ScannedTool[] = [];
-    const isNative = Capacitor.isNativePlatform();
 
     try {
+      const isNative = Capacitor.isNativePlatform();
+      let scanned: ScannedTool[];
+
       if (isNative) {
-        // 1. Probe native bootstrap status
         const bootstrap = await nativeTerminalBridge.getBootstrapStatus();
         const prefix = bootstrap?.prefixPath || '/data/data/com.sednium.kryptonide/files/usr';
+        const canonicalPrefix = '/data/data/com.sednium.kryptonide/files/usr';
+        const existingPaths = new Set<string>();
 
-        // Check each binary in the Termux prefix
-        for (const t of KNOWN_TOOLS) {
-          const binPath = `${prefix}/bin/${t.binary}`;
-          let installed = false;
-          let version = '';
-
-          // Known status shortcuts from bootstrap check
-          if (t.binary === 'python3' && bootstrap?.hasPython) installed = true;
-          if (t.binary === 'node' && bootstrap?.hasNode) installed = true;
-          if (t.binary === 'cargo' && bootstrap?.hasRust) installed = true;
-          if (t.binary === 'clang' && bootstrap?.hasClang) installed = true;
-
-          // Fallback / standard tool check
-          scanned.push({
-            ...t,
-            isInstalled: installed,
-            path: binPath,
-            version: version || (installed ? 'installed' : undefined),
-          });
+        for (const tool of KNOWN_TOOLS) {
+          try {
+            await Filesystem.stat({ path: `usr/bin/${tool.binary}`, directory: Directory.Data });
+            existingPaths.add(`${prefix}/bin/${tool.binary}`);
+            existingPaths.add(`${canonicalPrefix}/bin/${tool.binary}`);
+          } catch {
+            // Binary is genuinely absent.
+          }
         }
+
+        scanned = scanToolsForEnvironment({
+          isNative: true,
+          exists: (path) => existingPaths.has(path),
+        });
       } else {
-        // Web simulation fallback: simulate common developer tools as installed
-        for (const t of KNOWN_TOOLS) {
-          const isCommon = ['git', 'node', 'npm', 'python3'].includes(t.binary);
-          scanned.push({
-            ...t,
-            isInstalled: isCommon,
-            version: isCommon ? 'simulated' : undefined,
-            path: `/usr/bin/${t.binary}`,
-          });
-        }
+        scanned = scanToolsForEnvironment({ isNative: false, exists: () => false });
       }
 
       setTools(scanned);
