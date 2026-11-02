@@ -149,7 +149,7 @@ export function ExtensionWebviewHost({
       if (event.data.extensionId !== extensionId) return;
 
       for (const action of routeWebviewMessage(event.data.message)) {
-        if (action.kind === 'openUrl') window.open(action.url, '_blank');
+        if (action.kind === 'openUrl') window.open(action.url, '_blank', 'noopener,noreferrer');
         else if (action.kind === 'info') useToastStore.getState().info(action.text);
         else if (action.kind === 'error') useToastStore.getState().error(action.text);
         else {
@@ -169,11 +169,12 @@ export function ExtensionWebviewHost({
     const handleHostMessage = (event: Event) => {
       const detail = (event as CustomEvent).detail;
       if (detail?.extensionId !== extensionId) return;
+      if (detail?.viewId !== undefined && detail.viewId !== viewId) return;
       iframeRef.current?.contentWindow?.postMessage(detail.message, '*');
     };
     window.addEventListener('krypton:webview-host-message', handleHostMessage);
     return () => window.removeEventListener('krypton:webview-host-message', handleHostMessage);
-  }, [extensionId]);
+  }, [extensionId, viewId]);
 
   const handleIframeLoad = () => {
     window.dispatchEvent(

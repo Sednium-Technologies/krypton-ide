@@ -14,6 +14,18 @@ test('routes only safe built-ins and forwards the rest', () => {
   ]);
 });
 
+test('blocks unsafe URL schemes', () => {
+  assert.deepEqual(routeWebviewMessage({ command: 'openUrl', url: 'javascript:alert(1)' }), [
+    { kind: 'error', text: 'Blocked unsafe URL from extension webview' },
+  ]);
+  assert.deepEqual(routeWebviewMessage({ command: 'openUrl', url: 'https://example.com' }), [
+    { kind: 'openUrl', url: 'https://example.com' },
+  ]);
+  assert.deepEqual(routeWebviewMessage({ command: 'showErrorMessage', text: 'nope' }), [
+    { kind: 'error', text: 'nope' },
+  ]);
+});
+
 test('ignores empty messages', () => {
   assert.deepEqual(routeWebviewMessage(null), []);
   assert.deepEqual(routeWebviewMessage({}), []);
