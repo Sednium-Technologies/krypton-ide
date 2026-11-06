@@ -4,5 +4,11 @@ pub mod manifest;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod jni_bridge;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod runtime;
+
 pub use installer::*;
 pub use manifest::*;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use runtime::*;
