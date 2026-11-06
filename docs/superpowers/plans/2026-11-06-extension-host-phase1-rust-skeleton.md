@@ -84,11 +84,11 @@
 - Create: `src/store/useExtensionHostStore.ts`
 - Test: `tests/nativeExtensionHost.test.ts`
 
-- [ ] **Step 1: Write unit tests for TypeScript bridge & store**
-- [ ] **Step 2: Run `npx tsx --test tests/nativeExtensionHost.test.ts` to verify failure**
-- [ ] **Step 3: Implement `nativeExtensionHost.ts` and `useExtensionHostStore.ts`**
-- [ ] **Step 4: Verify test passes**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write unit tests for TypeScript bridge & store**
+- [x] **Step 2: Run `npx tsx --test tests/nativeExtensionHost.test.ts` to verify failure**
+- [x] **Step 3: Implement `nativeExtensionHost.ts` and `useExtensionHostStore.ts`**
+- [x] **Step 4: Verify test passes**
+- [x] **Step 5: Commit task**
 
 ---
 
