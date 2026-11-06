@@ -31,4 +31,16 @@ object ExtensionHostNative {
 
     @JvmStatic
     external fun nativeGetManifest(extensionId: String, extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeActivateExtension(extensionId: String, extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeExecuteExtensionCommand(commandId: String, argsJson: String, extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeListRegisteredCommands(extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeDrainNotifications(extensionsDir: String): String
 }

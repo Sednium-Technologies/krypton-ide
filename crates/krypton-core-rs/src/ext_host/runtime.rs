@@ -160,3 +160,6 @@ pub mod runtime_impl {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use runtime_impl::*;
+
+#[cfg(not(target_arch = "wasm32"))]
+unsafe impl Send for runtime_impl::ExtensionRuntime {}

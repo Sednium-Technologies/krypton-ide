@@ -160,4 +160,148 @@ class ExtensionHostPlugin : Plugin() {
             }
         }
     }
+
+    @PluginMethod
+    fun activate(call: PluginCall) {
+        val extensionId = call.getString("id")
+        if (extensionId.isNullOrEmpty()) {
+            call.reject("Missing required parameter 'id'")
+            return
+        }
+
+        if (!ExtensionHostNative.isAvailable()) {
+            call.reject("Native krypton-core extension host is not loaded")
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeActivateExtension(extensionId, getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false)) {
+                    val ret = JSObject()
+                    ret.put("success", true)
+                    ret.put("id", extensionId)
+                    ret.put("state", "active")
+                    call.resolve(ret)
+                } else {
+                    val err = parsed.optString("error", "Failed to activate extension")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Extension activation error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun executeCommand(call: PluginCall) {
+        val commandId = call.getString("command")
+        if (commandId.isNullOrEmpty()) {
+            call.reject("Missing required parameter 'command'")
+            return
+        }
+
+        val argsObj = call.getArray("arguments")
+        val argsJson = argsObj?.toString() ?: "[]"
+
+        if (!ExtensionHostNative.isAvailable()) {
+            call.reject("Native krypton-core extension host is not loaded")
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeExecuteExtensionCommand(commandId, argsJson, getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false)) {
+                    val ret = JSObject()
+                    ret.put("success", true)
+                    if (parsed.has("data")) {
+                        ret.put("result", parsed.get("data"))
+                    } else {
+                        ret.put("result", null)
+                    }
+                    call.resolve(ret)
+                } else {
+                    val err = parsed.optString("error", "Command execution failed")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Command execution error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun listCommands(call: PluginCall) {
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("commands", JSArray())
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeListRegisteredCommands(getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false)) {
+                    val ret = JSObject()
+                    if (parsed.has("data")) {
+                        val arr = parsed.getJSONArray("data")
+                        val jsArray = JSArray()
+                        for (i in 0 until arr.length()) {
+                            jsArray.put(arr.getString(i))
+                        }
+                        ret.put("commands", jsArray)
+                    } else {
+                        ret.put("commands", JSArray())
+                    }
+                    call.resolve(ret)
+                } else {
+                    val err = parsed.optString("error", "Failed to list commands")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Command listing error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun drainNotifications(call: PluginCall) {
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("notifications", JSArray())
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeDrainNotifications(getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false)) {
+                    val ret = JSObject()
+                    if (parsed.has("data")) {
+                        val arr = parsed.getJSONArray("data")
+                        val jsArray = JSArray()
+                        for (i in 0 until arr.length()) {
+                            jsArray.put(JSObject(arr.getJSONObject(i).toString()))
+                        }
+                        ret.put("notifications", jsArray)
+                    } else {
+                        ret.put("notifications", JSArray())
+                    }
+                    call.resolve(ret)
+                } else {
+                    val err = parsed.optString("error", "Failed to drain notifications")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Notification drain error: ${e.message}", e)
+            }
+        }
+    }
 }
