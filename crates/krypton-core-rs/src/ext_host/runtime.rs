@@ -79,10 +79,22 @@ pub mod runtime_impl {
         }
 
         pub fn eval_string(&self, code: &str) -> Result<String, String> {
-            let res = self.context.with(|ctx| -> Result<String, rquickjs::Error> {
-                let val: Value = ctx.eval(code)?;
+            let res = self.context.with(|ctx| -> Result<String, String> {
+                let val: Value = match ctx.eval(code) {
+                    Ok(v) => v,
+                    Err(rquickjs::Error::Exception) => {
+                        let exc = ctx.catch();
+                        let msg = if let Some(e) = exc.as_exception() {
+                            e.message().unwrap_or_else(|| "Unknown JS exception".to_string())
+                        } else {
+                            format!("{:?}", exc)
+                        };
+                        return Err(format!("JS Exception: {}", msg));
+                    }
+                    Err(e) => return Err(format!("Evaluation error: {e}")),
+                };
                 if let Some(s) = val.as_string() {
-                    s.to_string()
+                    s.to_string().map_err(|e| format!("String conversion error: {e}"))
                 } else if val.is_null() {
                     Ok("null".to_string())
                 } else if val.is_undefined() {
@@ -94,27 +106,39 @@ pub mod runtime_impl {
                 } else {
                     // Fallback to JSON.stringify
                     let globals = ctx.globals();
-                    let json_obj: rquickjs::Object = globals.get("JSON")?;
-                    let stringify_fn: Function = json_obj.get("stringify")?;
-                    let json_str: String = stringify_fn.call((val,))?;
+                    let json_obj: rquickjs::Object = globals.get("JSON").map_err(|e| e.to_string())?;
+                    let stringify_fn: Function = json_obj.get("stringify").map_err(|e| e.to_string())?;
+                    let json_str: String = stringify_fn.call((val,)).map_err(|e| e.to_string())?;
                     Ok(json_str)
                 }
-            }).map_err(|e| format!("Evaluation error: {e}"))?;
+            })?;
 
             self.pump_jobs()?;
             Ok(res)
         }
 
         pub fn eval_json(&self, code: &str) -> Result<serde_json::Value, String> {
-            let json_str = self.context.with(|ctx| -> Result<String, rquickjs::Error> {
+            let json_str = self.context.with(|ctx| -> Result<String, String> {
                 let wrapped = format!("JSON.stringify((function() {{ return ({}); }})())", code);
-                let res: Value = ctx.eval(wrapped)?;
+                let res: Value = match ctx.eval(wrapped) {
+                    Ok(v) => v,
+                    Err(rquickjs::Error::Exception) => {
+                        let exc = ctx.catch();
+                        let msg = if let Some(e) = exc.as_exception() {
+                            e.message().unwrap_or_else(|| "Unknown JS exception".to_string())
+                        } else {
+                            format!("{:?}", exc)
+                        };
+                        return Err(format!("JS Exception: {}", msg));
+                    }
+                    Err(e) => return Err(format!("Eval JSON error: {e}")),
+                };
                 if let Some(s) = res.as_string() {
-                    s.to_string()
+                    s.to_string().map_err(|e| format!("String conversion error: {e}"))
                 } else {
                     Ok("null".to_string())
                 }
-            }).map_err(|e| format!("Eval JSON error: {e}"))?;
+            })?;
 
             self.pump_jobs()?;
             serde_json::from_str(&json_str).map_err(|e| format!("Failed to parse JSON result: {e}"))
