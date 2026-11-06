@@ -43,11 +43,11 @@
 - Modify: `crates/krypton-core-rs/src/ext_host/mod.rs`
 - Test: `crates/krypton-core-rs/tests/ext_installer_test.rs`
 
-- [ ] **Step 1: Write failing unpacker test with mock VSIX**
-- [ ] **Step 2: Run `cargo test --test ext_installer_test` to verify failure**
-- [ ] **Step 3: Implement zip-safe extraction and catalog indexing**
-- [ ] **Step 4: Run `cargo test --test ext_installer_test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing unpacker test with mock VSIX**
+- [x] **Step 2: Run `cargo test --test ext_installer_test` to verify failure**
+- [x] **Step 3: Implement zip-safe extraction and catalog indexing**
+- [x] **Step 4: Run `cargo test --test ext_installer_test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 

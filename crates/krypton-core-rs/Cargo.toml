@@ -17,6 +17,7 @@ sha2 = "0.10"
 byteorder = "1.5"
 flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
 crc32fast = "1.4"
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 libc = "0.2"
