@@ -6,6 +6,33 @@
  * 3. Krypton Signature Aesthetic (Charcoal #2A2529, Matcha #7C9B79, Pale Ivory #F3F0E7)
  */
 
+import DOMPurify from 'dompurify';
+
+/**
+ * Sanitize SVG markup before it is injected with dangerouslySetInnerHTML.
+ * Custom icon themes are third-party input, so strip scripts, event handlers,
+ * and javascript: URLs. Falls back to a conservative regex pass in environments
+ * without a DOM (e.g. unit tests).
+ */
+export function sanitizeSvg(svg: string): string {
+  if (!svg) return '';
+
+  const purifier: any = DOMPurify as any;
+  if (purifier && typeof purifier.sanitize === 'function') {
+    return purifier.sanitize(svg, {
+      USE_PROFILES: { svg: true, svgFilters: true },
+      FORBID_TAGS: ['script', 'foreignObject'],
+      FORBID_ATTR: ['onload', 'onerror', 'onclick', 'onmouseover', 'onfocus'],
+    }) as string;
+  }
+
+  return svg
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/\s(?:xlink:href|href)\s*=\s*("|')\s*javascript:[^"']*\1/gi, '');
+}
+
 export interface IconThemeDefinition {
   id: string;
   label?: string;
@@ -32,9 +59,10 @@ const customSvgRegistry = new Map<string, string>();
  */
 export function registerCustomSvg(themeId: string, iconKey: string, svgContent: string): void {
   if (!themeId || !iconKey || !svgContent) return;
-  customSvgRegistry.set(`${themeId}:${iconKey}`, svgContent);
+  const safeSvg = sanitizeSvg(svgContent);
+  customSvgRegistry.set(`${themeId}:${iconKey}`, safeSvg);
   // Also register with normalized raw key
-  customSvgRegistry.set(iconKey, svgContent);
+  customSvgRegistry.set(iconKey, safeSvg);
 }
 
 /**

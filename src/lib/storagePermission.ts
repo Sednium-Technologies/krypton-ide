@@ -88,7 +88,7 @@ export async function requestStoragePermission(): Promise<boolean> {
       // This works on Android 11+ — Capacitor's App plugin can open URLs
       const { App } = await import('@capacitor/app');
       // Use android-app:// scheme to launch the all-files-access settings screen
-      await (App as any).openUrl?.({ url: 'package:com.sednium.kryptonide' });
+      await (App as any).openUrl?.({ url: 'package:com.sednium.kryptonide.legacy' });
     } catch {
       // If App.openUrl isn't available, try window.open as last resort
       try {

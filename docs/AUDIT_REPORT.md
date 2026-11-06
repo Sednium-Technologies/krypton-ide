@@ -3,7 +3,7 @@
 **Date:** October 26, 2026  
 **Auditors:** Coordinator & Specialist Agents (Web Security, Android/Tool Security, Performance Profiling, Rust Architecture, QA/Readiness)  
 **Target Codebases:**
-- Primary App: `/run/media/bhoid/StorageVault/WEbs/krypton-ide` (`com.sednium.kryptonide`, Capacitor 8, React 19, Vite 6)
+- Primary App: `/run/media/bhoid/StorageVault/WEbs/krypton-ide` (`com.sednium.kryptonide.legacy`, Capacitor 8, React 19, Vite 6)
 - Companion Web: `/run/media/bhoid/StorageVault/WEbs/KryptonideWeb`  
 **Status:** Read-Only Audit Complete — Findings and proposed diffs synthesized below. No code modifications applied pending user approval.
 

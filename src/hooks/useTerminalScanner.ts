@@ -25,8 +25,8 @@ export function useTerminalScanner() {
 
       if (isNative) {
         const bootstrap = await nativeTerminalBridge.getBootstrapStatus();
-        const prefix = bootstrap?.prefixPath || '/data/data/com.sednium.kryptonide/files/usr';
-        const canonicalPrefix = '/data/data/com.sednium.kryptonide/files/usr';
+        const prefix = bootstrap?.prefixPath || '/data/data/com.sednium.kryptonide.legacy/files/usr';
+        const canonicalPrefix = '/data/data/com.sednium.kryptonide.legacy/files/usr';
         const existingPaths = new Set<string>();
 
         for (const tool of KNOWN_TOOLS) {

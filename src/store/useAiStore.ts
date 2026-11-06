@@ -550,6 +550,36 @@ export const useAiStore = create<AiState>()((set, get) => ({
 
     if (!reader) throw new Error('Stream reader not available');
 
+    // Coalesce token updates to one state write per animation frame. Setting
+    // state for every token re-rendered the whole chat many times per second.
+    let streamingRaf: number | null = null;
+    let streamingTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushStreaming = () => {
+      if (streamingRaf !== null) {
+        cancelAnimationFrame(streamingRaf);
+        streamingRaf = null;
+      }
+      if (streamingTimer !== null) {
+        clearTimeout(streamingTimer);
+        streamingTimer = null;
+      }
+      set({ streamingText: accumulatedContent });
+    };
+    const scheduleStreaming = () => {
+      if (streamingRaf !== null || streamingTimer !== null) return;
+      if (typeof requestAnimationFrame === 'function') {
+        streamingRaf = requestAnimationFrame(() => {
+          streamingRaf = null;
+          set({ streamingText: accumulatedContent });
+        });
+      } else {
+        streamingTimer = setTimeout(() => {
+          streamingTimer = null;
+          set({ streamingText: accumulatedContent });
+        }, 16);
+      }
+    };
+
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -567,7 +597,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
           if (partialMessage) {
             if (partialMessage.content) {
               accumulatedContent += partialMessage.content;
-              set({ streamingText: accumulatedContent });
+              scheduleStreaming();
             }
             if (partialMessage.tool_calls) {
               partialMessage.tool_calls.forEach((tc: any, index: number) => {
@@ -601,6 +631,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
         }
       }
     } finally {
+      flushStreaming();
       reader.releaseLock();
     }
 

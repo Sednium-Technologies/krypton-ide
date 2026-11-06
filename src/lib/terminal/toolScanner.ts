@@ -31,7 +31,7 @@ export function scanToolsForEnvironment(options: {
   isNative: boolean;
   exists: (absolutePath: string) => boolean;
 }): ScannedTool[] {
-  const prefix = '/data/data/com.sednium.kryptonide/files/usr';
+  const prefix = '/data/data/com.sednium.kryptonide.legacy/files/usr';
   return KNOWN_TOOLS.map((tool) => {
     if (!options.isNative) {
       return { ...tool, isInstalled: false, reason: 'web-preview' as const };

@@ -61,7 +61,7 @@ graph TD
 ### 4.2. Terminal & Agent Tools Scanner (`useTerminalScanner.ts`)
 - **Location**: Settings → *Terminal & Agent Tools*.
 - **Scan Targets**:
-  - `/data/data/com.sednium.kryptonide/files/usr/bin/` (Termux internal prefix)
+  - `/data/data/com.sednium.kryptonide.legacy/files/usr/bin/` (Termux internal prefix)
   - `/system/bin/` and active `$PATH`
 - **Cataloged Tools**:
   - **Agents**: `claude`, `antigravity`, `agy`, `gemini`, `aider`, `roo`
@@ -118,6 +118,6 @@ graph TD
 ## 6. Verification Plan
 
 1. **Command Palette**: Verify `>` shows commands, `:` jumps lines in Monaco, `@` lists functions/symbols, and arrow key navigation works smoothly.
-2. **Scanner Accuracy**: Verify detection of installed binaries in `/data/data/com.sednium.kryptonide/files/usr/bin/`.
+2. **Scanner Accuracy**: Verify detection of installed binaries in `/data/data/com.sednium.kryptonide.legacy/files/usr/bin/`.
 3. **Harness Routing**: Verify triggering an AI command routes to the selected installed harness.
 4. **Oorty Lite Execution Tiers**: Test Supervised (approval card), Autonomous (safe commands run automatically), and Unbound (runs unrestricted).

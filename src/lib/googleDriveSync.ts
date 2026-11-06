@@ -304,7 +304,9 @@ async function unzipToLocal(blob: Blob): Promise<number> {
       const raw = await webBackup.async('string');
       const data = JSON.parse(raw);
       for (const [k, v] of Object.entries(data)) {
-        localStorage.setItem(k, v as string);
+        // Only restore Krypton's own keys, never arbitrary localStorage entries.
+        if (typeof k !== 'string' || !k.startsWith('kfs:') || typeof v !== 'string') continue;
+        localStorage.setItem(k, v);
         count++;
       }
     }
@@ -314,17 +316,28 @@ async function unzipToLocal(blob: Blob): Promise<number> {
   // Native: write files to disk
   const targetDir = defaultDir();
   for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+    // Zip-slip protection: never write outside the backup root.
+    const normalizedPath = relativePath.replace(/\\/g, '/');
+    if (
+      normalizedPath.startsWith('/') ||
+      /^[a-zA-Z]:/.test(normalizedPath) ||
+      normalizedPath.split('/').some(seg => seg === '..')
+    ) {
+      console.warn('[DriveSync] Skipping unsafe zip entry:', relativePath);
+      continue;
+    }
+
     if (zipEntry.dir) {
       try {
         await Filesystem.mkdir({
-          path: `${base}/${relativePath}`,
+          path: `${base}/${normalizedPath}`,
           directory: targetDir,
           recursive: true,
         });
       } catch { /* exists */ }
     } else {
       const content = await zipEntry.async('string');
-      const fullPath = `${base}/${relativePath}`;
+      const fullPath = `${base}/${normalizedPath}`;
       
       // Ensure parent directory exists
       const parentDir = fullPath.substring(0, fullPath.lastIndexOf('/'));

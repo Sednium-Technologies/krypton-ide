@@ -16,7 +16,9 @@ export interface TerminalSessionState {
   pid: number | null;
   running: boolean;
   cwd: string;
-  buffer: string[];
+  // Recent terminal output. A single string avoids copying a growing chunk
+  // array on every output event.
+  buffer: string;
 }
 
 export interface NativeTerminalState {
@@ -95,7 +97,7 @@ export function getSystemHomeDirectory(bootstrapStatus?: BootstrapStatus | null)
   if (!Capacitor.isNativePlatform()) {
     return '/home';
   }
-  return bootstrapStatus?.homePath || '/data/data/com.sednium.kryptonide/files/home';
+  return bootstrapStatus?.homePath || '/data/data/com.sednium.kryptonide.legacy/files/home';
 }
 
 // ─── Singleton Listener Lifecycle ────────────────────────────────────────────
@@ -126,11 +128,15 @@ function ensureListenersInitialized(
       targetTab = state.activeTab;
     }
 
-    // Append output chunk to session buffer (capped to latest 10,000 chunks)
+    // Append output to the session buffer, keeping the latest ~200k chars.
+    // Trim only after 400k so the slice is amortized instead of per-chunk.
+    const MAX_BUFFER_CHARS = 200_000;
     set((prev) => {
       const currentSession = prev.sessions[targetTab];
-      const newBuffer = [...currentSession.buffer, data];
-      const trimmed = newBuffer.length > 10000 ? newBuffer.slice(newBuffer.length - 10000) : newBuffer;
+      const combined = currentSession.buffer + data;
+      const trimmed = combined.length > MAX_BUFFER_CHARS * 2
+        ? combined.slice(-MAX_BUFFER_CHARS)
+        : combined;
       return {
         sessions: {
           ...prev.sessions,
@@ -209,14 +215,14 @@ export const useNativeTerminalStore = create<NativeTerminalState>((set, get) => 
       pid: null,
       running: false,
       cwd: '',
-      buffer: [],
+      buffer: '',
     },
     system: {
       id: '',
       pid: null,
       running: false,
       cwd: '',
-      buffer: [],
+      buffer: '',
     },
   },
   bootstrapStatus: null,
@@ -361,7 +367,7 @@ export const useNativeTerminalStore = create<NativeTerminalState>((set, get) => 
         ...prev.sessions,
         [tab]: {
           ...prev.sessions[tab],
-          buffer: [],
+          buffer: '',
         },
       },
     }));
@@ -422,6 +428,6 @@ export const useNativeTerminalStore = create<NativeTerminalState>((set, get) => 
 
   getBufferText: (tab?: 'project' | 'system') => {
     const targetTab = tab || get().activeTab;
-    return (get().sessions[targetTab]?.buffer || []).join('');
+    return get().sessions[targetTab]?.buffer || '';
   },
 }));

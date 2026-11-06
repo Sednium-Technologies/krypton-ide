@@ -1,6 +1,7 @@
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Filesystem, Encoding } from '@capacitor/filesystem';
 import { useIdeStore } from '../../store/useIdeStore';
-import { getBasePath } from '../fileSystemStorage';
+import { useProjectsStore } from '../../store/useProjectsStore';
+import { getBasePath, getProjectPath, defaultDir } from '../fileSystemStorage';
 import { Capacitor } from '@capacitor/core';
 import { LayaSystem1 } from '../pocket/LayaSystem1';
 
@@ -8,21 +9,14 @@ import { LayaSystem1 } from '../pocket/LayaSystem1';
 
 /**
  * Get the filesystem base path for the current project.
- * On native, files live under: KryptonIDE/projects/project_<id>/
+ * On native, files live under: KryptonIDE/projects/<projectId>/
  * On web, we operate purely against the IDE store (in-memory).
  */
 function getProjectBasePath(): string {
-  // Try to get the current project ID from the projects store
   try {
-    // Dynamic import would create a circular dep, so we read from the DOM-level store
-    const projectsStoreModule = require('../../store/useProjectsStore');
-    const projectsState = projectsStoreModule.useProjectsStore.getState();
-    const projectId = projectsState.currentProjectId;
-    if (projectId) {
-      const base = getBasePath();
-      if (base) {
-        return `${base}/projects/project_${projectId}`;
-      }
+    const projectId = useProjectsStore.getState().currentProjectId;
+    if (projectId && getBasePath()) {
+      return getProjectPath(projectId);
     }
   } catch (e) {
     console.warn('[ToolActions] Could not resolve project base path:', e);
@@ -32,7 +26,7 @@ function getProjectBasePath(): string {
 
 /**
  * Resolve the full filesystem path from a project-relative path.
- * AI provides paths like "src/App.tsx", we need "KryptonIDE/projects/project_abc/src/App.tsx"
+ * AI provides paths like "src/App.tsx", we need "KryptonIDE/projects/<projectId>/src/App.tsx"
  */
 export function resolveFullPath(relativePath: string): string {
   // Strip leading ./ or / and normalize separators
@@ -175,7 +169,7 @@ export async function CapacitorFilesystemRead(
     // Strategy 2: Read from disk (filesystem)
     const result = await Filesystem.readFile({
       path: fullPath,
-      directory: Directory.Documents,
+      directory: defaultDir(),
       encoding: Encoding.UTF8,
     });
     const content = typeof result.data === 'string' ? result.data : '';
@@ -238,7 +232,7 @@ async function readRawContent(path: string): Promise<string> {
   // Fallback to disk
   const result = await Filesystem.readFile({
     path: fullPath,
-    directory: Directory.Documents,
+    directory: defaultDir(),
     encoding: Encoding.UTF8,
   });
   return typeof result.data === 'string' ? result.data : '';
@@ -255,7 +249,7 @@ async function writeContent(path: string, content: string): Promise<void> {
     try {
       await Filesystem.mkdir({
         path: parentDir,
-        directory: Directory.Documents,
+        directory: defaultDir(),
         recursive: true,
       });
     } catch (e: any) {
@@ -268,7 +262,7 @@ async function writeContent(path: string, content: string): Promise<void> {
   await Filesystem.writeFile({
     path: fullPath,
     data: content,
-    directory: Directory.Documents,
+    directory: defaultDir(),
     encoding: Encoding.UTF8,
   });
 }
@@ -386,7 +380,7 @@ export async function CapacitorFilesystemMkdir(path: string, options: { recursiv
     const fullPath = resolveFullPath(path);
     await Filesystem.mkdir({
       path: fullPath,
-      directory: Directory.Documents,
+      directory: defaultDir(),
       recursive: options.recursive,
     });
   } catch (error: any) {

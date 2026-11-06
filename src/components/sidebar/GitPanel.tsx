@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GitCommit, GitPullRequest, GitMerge, Check, RefreshCw, Loader, Github, CloudUpload, CloudDownload, Plus, Link, Unlink, ExternalLink, Search, Lock, Globe, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useAuthStore, type GitHubUser } from '../../store/useAuthStore';
@@ -178,6 +178,13 @@ function GitHubTab() {
   const [newRepoPrivate, setNewRepoPrivate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
+  const autoPushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (autoPushTimer.current) clearTimeout(autoPushTimer.current);
+    };
+  }, []);
 
   // ── Sync githubRepoLink with current project's githubRepo ──
   const currentProjectId = useProjectsStore(s => s.currentProjectId);
@@ -329,7 +336,8 @@ function GitHubTab() {
       setNewRepoDesc('');
       setStatusMessage({ text: `Created & linked to ${repo.full_name}`, type: 'success' });
       // Auto-push after create — use 3s delay to ensure GitHub has initialized the repo
-      setTimeout(handlePush, 3000);
+      if (autoPushTimer.current) clearTimeout(autoPushTimer.current);
+      autoPushTimer.current = setTimeout(handlePush, 3000);
     } catch (e: any) {
       setStatusMessage({ text: e.message, type: 'error' });
     }

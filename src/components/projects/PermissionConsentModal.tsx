@@ -136,7 +136,7 @@ export function PermissionConsentModal({ isOpen, onConsent }: PermissionConsentM
       // This opens ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
       try {
         window.open(
-          `intent:#Intent;action=android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION;data=package:com.sednium.kryptonide;end`,
+          `intent:#Intent;action=android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION;data=package:com.sednium.kryptonide.legacy;end`,
           '_system'
         );
       } catch {

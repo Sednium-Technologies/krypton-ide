@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:868874217528:android:b2c8b4137688b6b39adecd",
         "android_client_info": {
-          "package_name": "com.sednium.kryptonide"
+          "package_name": "com.sednium.kryptonide.legacy"
         }
       },
       "oauth_client": [
@@ -25,7 +25,7 @@
           "client_id": "228869160750-android.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.sednium.kryptonide",
+            "package_name": "com.sednium.kryptonide.legacy",
             "certificate_hash": "f9dec6ba158532d24c5f2c9ee21ebc552da05700"
           }
         }

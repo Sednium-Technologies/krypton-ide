@@ -1,4 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
 import { X, RefreshCw, ExternalLink, Loader2, CheckCircle2, XCircle, Terminal as TerminalIcon, Package, Wifi, WifiOff, AlertTriangle, TerminalSquare, ChevronDown, ChevronUp } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useProjectsStore } from '../../store/useProjectsStore';
@@ -8,6 +10,27 @@ import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
 
 interface LivePreviewProps {
   onClose: () => void;
+}
+
+/**
+ * Create an object URL for an HTML document and revoke it when the document
+ * changes or the component unmounts. Creating URLs inside useMemo leaked one
+ * blob URL per keystroke.
+ */
+function useObjectUrl(html: string | null): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!html) {
+      setUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [html]);
+
+  return url;
 }
 
 export function LivePreview({ onClose }: LivePreviewProps) {
@@ -26,12 +49,15 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   // Listen for console messages from iframe
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'krypton-console') {
-        setConsoleLogs(prev => [...prev.slice(-200), { type: e.data.level, args: e.data.args }]);
-        setUnreadLogs(prev => prev + 1);
-        // Also dispatch to bottom panel terminal
-        window.dispatchEvent(new CustomEvent('krypton-console-log', { detail: e.data }));
-      }
+      if (e.source === window) return;
+      if (e.data?.type !== 'krypton-console') return;
+      if (typeof e.data.args !== 'string') return;
+      const level = ['log', 'warn', 'error', 'info'].includes(e.data.level) ? e.data.level : 'log';
+      const log = { type: level, args: e.data.args.slice(0, 4000) };
+      setConsoleLogs(prev => [...prev.slice(-200), log]);
+      setUnreadLogs(prev => prev + 1);
+      // Also dispatch to bottom panel terminal
+      window.dispatchEvent(new CustomEvent('krypton-console-log', { detail: log }));
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
@@ -89,12 +115,18 @@ export function LivePreview({ onClose }: LivePreviewProps) {
     try {
       const pkg = JSON.parse(pkgFile.content);
       const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-      // Filter out non-CDN-resolvable deps (local paths, workspaces)
+      // Only allow valid package names/versions; values are interpolated into
+      // HTML and importmap script tags, so untrusted input could break out.
+      const SAFE_PKG = /^(@[a-z0-9._~-]+\/)?[a-z0-9._~-]+$/i;
+      const SAFE_VER = /^[0-9a-z.+_-]+$/i;
       const filtered: Record<string, string> = {};
       for (const [name, version] of Object.entries(deps)) {
-        if (typeof version === 'string' && !version.startsWith('file:') && !version.startsWith('link:') && !version.startsWith('workspace:')) {
-          filtered[name] = version as string;
-        }
+        if (!SAFE_PKG.test(name)) continue;
+        if (typeof version !== 'string') continue;
+        if (version.startsWith('file:') || version.startsWith('link:') || version.startsWith('workspace:')) continue;
+        const cleanVersion = version.replace(/^[\^~>=<]+/, '');
+        if (!SAFE_VER.test(cleanVersion)) continue;
+        filtered[name] = cleanVersion;
       }
       return Object.keys(filtered).length > 0 ? filtered : null;
     } catch {
@@ -134,7 +166,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   const isCodeExecution = !hasHtmlFile && !hasReactProject && !isNextProject && !isMarkdownPreview && !isSvgPreview && activeFile?.type === 'file' && activeFile.language && activeFile.language !== 'html' && activeFile.language !== 'xml' && !isAndroidCode;
 
   // For HTML projects, build the preview
-  const previewSrc = useMemo(() => {
+  const previewHtml = useMemo(() => {
     if (!hasHtmlFile) return null;
 
     const htmlFile = Object.values(files).find(
@@ -200,9 +232,9 @@ export function LivePreview({ onClose }: LivePreviewProps) {
       html = html.replace('<head>', '<head>\n' + importMapScript);
     }
 
-    const blob = new Blob([html], { type: 'text/html' });
-    return URL.createObjectURL(blob);
+    return html;
   }, [files, hasHtmlFile, importMapScript]);
+  const previewSrc = useObjectUrl(previewHtml);
 
   // For code execution, run on mount
   useEffect(() => {
@@ -255,7 +287,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   };
 
   // Build React project preview
-  const reactPreviewSrc = useMemo(() => {
+  const reactPreviewHtml = useMemo(() => {
     if (!hasReactProject) return null;
 
     // Gather all CSS files
@@ -322,8 +354,11 @@ export function LivePreview({ onClose }: LivePreviewProps) {
     }).join('\n');
 
     // If we have package.json deps, use specific React versions from esm.sh
-    const reactVersion = packageJsonDeps?.['react']?.replace(/^[\^~>=<]+/, '') || '18';
-    const reactDomVersion = packageJsonDeps?.['react-dom']?.replace(/^[\^~>=<]+/, '') || reactVersion;
+    const SAFE_VER = /^[0-9a-z.+_-]+$/i;
+    const requestedReact = packageJsonDeps?.['react'] || '';
+    const requestedReactDom = packageJsonDeps?.['react-dom'] || '';
+    const reactVersion = SAFE_VER.test(requestedReact) ? requestedReact : '18';
+    const reactDomVersion = SAFE_VER.test(requestedReactDom) ? requestedReactDom : reactVersion;
 
     const html = '<!DOCTYPE html>\n<html>\n<head>\n' +
       '  <meta charset="UTF-8">\n' +
@@ -364,21 +399,24 @@ export function LivePreview({ onClose }: LivePreviewProps) {
       '  <\/script>\n' +
       '</body>\n</html>';
 
-    const blob = new Blob([html], { type: 'text/html' });
-    return URL.createObjectURL(blob);
+    return html;
   }, [files, hasReactProject, refreshKey, importMapScript, packageJsonDeps]);
+  const reactPreviewSrc = useObjectUrl(reactPreviewHtml);
 
   // Build Markdown preview 
-  const markdownPreviewSrc = useMemo(() => {
+  const markdownPreviewHtml = useMemo(() => {
     if (!isMarkdownPreview || !activeFile?.content) return null;
     
+    // Sanitize before embedding: markdown is untrusted project content.
+    const safeMarkdownHtml = DOMPurify.sanitize(marked.parse(activeFile.content) as string);
+    const serializedHtml = JSON.stringify(safeMarkdownHtml).replace(/</g, '\\u003c');
+
     // Use a simple inline HTML renderer for md
     const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     body { margin:0; padding:24px; background:#0d1117; color:#c9d1d9; font-family:'Inter',system-ui,sans-serif; font-size:15px; line-height:1.7; }
     h1,h2,h3,h4,h5,h6 { color:#f0f6fc; margin:1.2em 0 0.5em; }
@@ -403,13 +441,19 @@ export function LivePreview({ onClose }: LivePreviewProps) {
 <body>
   <div id="content"></div>
   <script>
-    document.getElementById('content').innerHTML = marked.parse(${JSON.stringify(activeFile.content)});
+    document.getElementById('content').innerHTML = ${serializedHtml};
   </script>
 </body>
 </html>`;
-    const blob = new Blob([html], { type: 'text/html' });
-    return URL.createObjectURL(blob);
+    return html;
   }, [isMarkdownPreview, activeFile?.content, refreshKey]);
+  const markdownPreviewSrc = useObjectUrl(markdownPreviewHtml);
+
+  const svgPreviewHtml = useMemo(() => {
+    if (!isSvgPreview || !activeFile?.content) return null;
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0d1117;} svg{max-width:90vw;max-height:90vh;}</style></head><body>${DOMPurify.sanitize(activeFile.content, { USE_PROFILES: { svg: true, svgFilters: true } })}</body></html>`;
+  }, [isSvgPreview, activeFile?.content]);
+  const svgPreviewUrl = useObjectUrl(svgPreviewHtml);
 
   // ─── Internet Warning Dialog ───
   if (hasCdnDependencies && !internetWarningAccepted && (hasReactProject || hasHtmlFile)) {
@@ -508,16 +552,13 @@ export function LivePreview({ onClose }: LivePreviewProps) {
 
   // ─── SVG Preview ───
   if (isSvgPreview && activeFile?.content) {
-    const svgHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0d1117;} svg{max-width:90vw;max-height:90vh;}</style></head><body>${activeFile.content}</body></html>`;
-    const svgBlob = new Blob([svgHtml], { type: 'text/html' });
-    const svgUrl = URL.createObjectURL(svgBlob);
     return (
       <div className="fixed inset-0 z-50 bg-[#0d1117] flex flex-col animate-fade-in">
-        <PreviewHeader onClose={onClose} onRefresh={handleRefresh} isCodeMode={false} fileName={activeFile.name} previewUrl={svgUrl} />
+        <PreviewHeader onClose={onClose} onRefresh={handleRefresh} isCodeMode={false} fileName={activeFile.name} previewUrl={svgPreviewUrl} />
         <div className="flex-1 relative">
           <iframe
             key={refreshKey}
-            src={svgUrl}
+            src={svgPreviewUrl || undefined}
             title="SVG Preview"
             sandbox="allow-scripts"
             className="w-full h-full border-none"

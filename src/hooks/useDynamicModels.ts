@@ -25,8 +25,9 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
 
   const getCacheKey = useCallback(() => {
     const urlKey = customBaseUrl ? `_${encodeURIComponent(customBaseUrl)}` : '';
-    return `krypton_dynamic_models_v2_${provider}${urlKey}`;
-  }, [provider, customBaseUrl]);
+    const keyFingerprint = apiKey ? `_${apiKey.trim().slice(-8)}` : '_nokey';
+    return `krypton_dynamic_models_v3_${provider}${urlKey}${keyFingerprint}`;
+  }, [provider, apiKey, customBaseUrl]);
 
   const loadFallbackModels = useCallback(() => {
     const p = getProviderById(provider);
@@ -58,9 +59,10 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
   const fetchModelsFromApi = useCallback(async (isManual: boolean = false) => {
     const p = getProviderById(provider);
     const requiresKey = p?.requiresKey ?? true;
+    const cleanKey = (apiKey || '').trim();
 
     // Check if key is needed
-    if (requiresKey && !apiKey && provider !== 'openrouter' && provider !== 'ollama' && provider !== 'custom') {
+    if (requiresKey && !cleanKey && provider !== 'openrouter' && provider !== 'ollama' && provider !== 'custom') {
       const fallback = loadFallbackModels();
       setModels(fallback);
       setIsLive(false);
@@ -83,64 +85,64 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
       switch (provider) {
         case 'google':
         case 'gemini':
-          url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+          url = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`;
           break;
 
         case 'openai':
           url = `${cleanBase || 'https://api.openai.com/v1'}/models`;
-          headers['Authorization'] = `Bearer ${apiKey}`;
+          headers['Authorization'] = `Bearer ${cleanKey}`;
           break;
 
         case 'nvidia':
           url = `${cleanBase || 'https://integrate.api.nvidia.com/v1'}/models`;
-          headers['Authorization'] = `Bearer ${apiKey}`;
+          headers['Authorization'] = `Bearer ${cleanKey}`;
           break;
 
         case 'deepseek':
           url = `${cleanBase || 'https://api.deepseek.com'}/models`;
-          headers['Authorization'] = `Bearer ${apiKey}`;
+          headers['Authorization'] = `Bearer ${cleanKey}`;
           break;
 
         case 'moonshot':
           url = `${cleanBase || 'https://api.moonshot.cn/v1'}/models`;
-          headers['Authorization'] = `Bearer ${apiKey}`;
+          headers['Authorization'] = `Bearer ${cleanKey}`;
           break;
 
         case 'groq':
           url = `${cleanBase || 'https://api.groq.com/openai/v1'}/models`;
-          headers['Authorization'] = `Bearer ${apiKey}`;
+          headers['Authorization'] = `Bearer ${cleanKey}`;
           break;
 
         case 'ollama':
           url = `${cleanBase || 'http://localhost:11434/v1'}/models`;
-          if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+          if (cleanKey) headers['Authorization'] = `Bearer ${cleanKey}`;
           break;
 
         case 'custom':
           url = `${cleanBase || 'http://localhost:8080/v1'}/models`;
-          if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+          if (cleanKey) headers['Authorization'] = `Bearer ${cleanKey}`;
           break;
 
         case 'openrouter':
           url = 'https://openrouter.ai/api/v1/models';
-          if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+          if (cleanKey) headers['Authorization'] = `Bearer ${cleanKey}`;
           break;
 
         case 'mistral':
           url = `${cleanBase || 'https://api.mistral.ai/v1'}/models`;
-          headers['Authorization'] = `Bearer ${apiKey}`;
+          headers['Authorization'] = `Bearer ${cleanKey}`;
           break;
 
         case 'anthropic':
           url = `${cleanBase || 'https://api.anthropic.com/v1'}/models`;
-          headers['x-api-key'] = apiKey || '';
+          headers['x-api-key'] = cleanKey || '';
           headers['anthropic-version'] = '2023-06-01';
           headers['anthropic-dangerous-direct-browser-access'] = 'true';
           break;
 
         default:
           url = `${cleanBase}/models`;
-          if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+          if (cleanKey) headers['Authorization'] = `Bearer ${cleanKey}`;
           break;
       }
 
@@ -187,33 +189,24 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
         })
         .filter((m) => Boolean(m.id && m.id.trim()));
 
-      // Prioritize and sort models
+      // Prioritize and sort models: popular chat/agent models at top
       formattedModels.sort((a, b) => {
-        const aIsChat = a.id.startsWith('gpt') || a.id.startsWith('o') || a.id.startsWith('claude') || a.id.startsWith('gemini');
-        const bIsChat = b.id.startsWith('gpt') || b.id.startsWith('o') || b.id.startsWith('claude') || b.id.startsWith('gemini');
+        const aIsChat = /^(gpt|o\d|claude|gemini|deepseek|llama|qwen|mistral)/i.test(a.id);
+        const bIsChat = /^(gpt|o\d|claude|gemini|deepseek|llama|qwen|mistral)/i.test(b.id);
         if (aIsChat && !bIsChat) return -1;
         if (!aIsChat && bIsChat) return 1;
         return a.id.localeCompare(b.id);
       });
 
-      // Merge fallback frontier models if not already present
-      const fallback = loadFallbackModels();
-      const existingIds = new Set(formattedModels.map((m) => m.id));
-      const mergedModels = [...formattedModels];
-      for (const fb of fallback) {
-        if (!existingIds.has(fb.id)) {
-          mergedModels.push(fb);
-        }
-      }
-
-      const finalModels = mergedModels.length > 0 ? mergedModels : fallback;
+      // Use strictly live models if successfully returned from the endpoint; only fall back if empty
+      const finalModels = formattedModels.length > 0 ? formattedModels : loadFallbackModels();
       const now = Date.now();
 
       setModels(finalModels);
-      setIsLive(true);
+      setIsLive(formattedModels.length > 0);
       setLastUpdated(now);
 
-      // Save to localStorage cache
+      // Save to localStorage cache with key fingerprint
       try {
         const cacheEntry: CachedModelsData = {
           models: finalModels,
@@ -254,24 +247,27 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
     }
   }, [provider, apiKey, customBaseUrl, getCacheKey, loadFallbackModels]);
 
-  // Initial & Dependency Triggered Fetch
+  // Instant trigger when apiKey, provider, or customBaseUrl changes
   useEffect(() => {
-    const cacheKey = getCacheKey();
-    let isStale = true;
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const parsed: CachedModelsData = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < CACHE_TTL_MS) {
-          isStale = false;
-        }
-      }
-    } catch {}
+    const p = getProviderById(provider);
+    const requiresKey = p?.requiresKey ?? true;
+    const cleanKey = (apiKey || '').trim();
 
-    if (isStale || refreshTrigger > 0) {
-      fetchModelsFromApi(refreshTrigger > 0);
+    // If key required and not present, load fallback and don't query
+    if (requiresKey && !cleanKey && provider !== 'openrouter' && provider !== 'ollama' && provider !== 'custom') {
+      const fallback = loadFallbackModels();
+      setModels(fallback);
+      setIsLive(false);
+      return;
     }
-  }, [fetchModelsFromApi, getCacheKey, refreshTrigger]);
+
+    // Debounce by 350ms to allow smooth typing while immediately pulling upon pause/paste
+    const timer = setTimeout(() => {
+      fetchModelsFromApi(true);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [provider, apiKey, customBaseUrl, fetchModelsFromApi, loadFallbackModels]);
 
   // Periodic Auto-Update Over Time (checks every 30 minutes in background)
   useEffect(() => {

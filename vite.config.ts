@@ -43,9 +43,6 @@ export default defineConfig({
           if (id.includes('src/lib/languageSnippets.ts')) {
             return 'snippets';
           }
-          if (id.includes('src/lib/shellEngine.ts')) {
-            return 'shell';
-          }
           if (id.includes('src/lib/ai/')) {
             return 'ai';
           }

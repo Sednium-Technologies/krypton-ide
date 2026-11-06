@@ -22,9 +22,9 @@ class TermuxBootstrapInstaller(private val context: Context) {
 
     companion object {
         private const val TAG = "TermuxInstaller"
-        const val PREFIX_PATH = "/data/data/com.sednium.kryptonide/files/usr"
-        const val HOME_PATH = "/data/data/com.sednium.kryptonide/files/home"
-        const val TMP_PATH = "/data/data/com.sednium.kryptonide/files/usr/tmp"
+        const val PREFIX_PATH = "/data/data/com.sednium.kryptonide.legacy/files/usr"
+        const val HOME_PATH = "/data/data/com.sednium.kryptonide.legacy/files/home"
+        const val TMP_PATH = "/data/data/com.sednium.kryptonide.legacy/files/usr/tmp"
 
         // Official Termux packages releases
         private const val BASE_URL_GITHUB = "https://github.com/termux/termux-packages/releases/download/bootstrap-2024.11.18-r1%2Bapt-android-7"

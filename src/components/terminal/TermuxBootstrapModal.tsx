@@ -178,7 +178,7 @@ export function TermuxBootstrapModal({ isOpen, onClose }: TermuxBootstrapModalPr
                       </div>
                       <div className="flex items-center space-x-1.5 text-[11px] text-[#f3f0e7]/60 font-mono break-all">
                         <Folder size={12} className="shrink-0 text-[#f3f0e7]/40" />
-                        <span>{bootstrapStatus?.prefixPath || '/data/data/com.sednium.kryptonide/files/usr'}</span>
+                        <span>{bootstrapStatus?.prefixPath || '/data/data/com.sednium.kryptonide.legacy/files/usr'}</span>
                       </div>
                     </div>
 

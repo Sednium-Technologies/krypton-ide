@@ -752,7 +752,7 @@ export function scanToolsForEnvironment(options: {
   isNative: boolean;
   exists: (absolutePath: string) => boolean;
 }): ScannedTool[] {
-  const prefix = '/data/data/com.sednium.kryptonide/files/usr';
+  const prefix = '/data/data/com.sednium.kryptonide.legacy/files/usr';
   return KNOWN_TOOLS.map((tool) => {
     if (!options.isNative) {
       return { ...tool, isInstalled: false, reason: 'web-preview' as const };
@@ -767,7 +767,7 @@ Update `src/hooks/useTerminalScanner.ts` to import the type and helper, then bui
 
 ```ts
 const bootstrap = await nativeTerminalBridge.getBootstrapStatus();
-const prefix = bootstrap?.prefixPath || '/data/data/com.sednium.kryptonide/files/usr';
+const prefix = bootstrap?.prefixPath || '/data/data/com.sednium.kryptonide.legacy/files/usr';
 const existingPaths = new Set<string>();
 for (const tool of KNOWN_TOOLS) {
   const path = `${prefix}/bin/${tool.binary}`;

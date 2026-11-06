@@ -312,21 +312,43 @@ export async function pullRepo(owner: string, repo: string): Promise<number> {
     return folderId;
   };
 
-  // Fetch each file's content
-  let fileCount = 0;
-  for (const blob of blobs) {
-    try {
-      const contentRes = await fetch(`${API}/repos/${owner}/${repo}/git/blobs/${blob.sha}`, { headers: headers() });
-      if (!contentRes.ok) continue;
-      const contentData = await contentRes.json();
-
-      let content = '';
-      if (contentData.encoding === 'base64') {
-        content = decodeURIComponent(escape(atob(contentData.content.replace(/\n/g, ''))));
-      } else {
-        content = contentData.content;
+  // Fetch blob contents in parallel (bounded) — sequential fetches made large
+  // repositories painfully slow and hit secondary rate limits.
+  const blobContents: (string | null)[] = new Array(blobs.length).fill(null);
+  let nextBlobIndex = 0;
+  const fetchBlob = async () => {
+    while (nextBlobIndex < blobs.length) {
+      const index = nextBlobIndex++;
+      const blob = blobs[index];
+      try {
+        const contentRes = await fetch(`${API}/repos/${owner}/${repo}/git/blobs/${blob.sha}`, { headers: headers() });
+        if (!contentRes.ok) continue;
+        const contentData = await contentRes.json();
+        if (typeof contentData.content !== 'string') continue;
+        if (contentData.encoding === 'base64') {
+          const binary = atob(contentData.content.replace(/\s/g, ''));
+          const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+          blobContents[index] = new TextDecoder().decode(bytes);
+        } else {
+          blobContents[index] = contentData.content;
+        }
+      } catch {
+        // Skip unreadable blobs
       }
+    }
+  };
+  const workers = Array.from(
+    { length: Math.min(6, blobs.length) },
+    () => fetchBlob()
+  );
+  await Promise.all(workers);
 
+  let fileCount = 0;
+  for (let index = 0; index < blobs.length; index++) {
+    const blob = blobs[index];
+    const content = blobContents[index];
+    if (content === null) continue;
+    try {
       const pathParts = blob.path.split('/');
       const fileName = pathParts.pop()!;
       const folderPath = pathParts.join('/');

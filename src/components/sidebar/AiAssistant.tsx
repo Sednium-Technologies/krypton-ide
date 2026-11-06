@@ -158,6 +158,11 @@ export function AiAssistant() {
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showQuickModelPicker, setShowQuickModelPicker] = useState(false);
   const [modelSearchQuery, setModelSearchQuery] = useState('');
+  const [customModelText, setCustomModelText] = useState(aiStore.model || currentProvider.defaultModel);
+
+  useEffect(() => {
+    setCustomModelText(aiStore.model || currentProvider.defaultModel);
+  }, [aiStore.model, activeProvider, currentProvider.defaultModel]);
   const [mentionQuery, setMentionQuery] = useState({ active: false, text: '', startIdx: 0 });
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   
@@ -346,7 +351,12 @@ export function AiAssistant() {
     setMentionQuery({ active: false, text: '', startIdx: 0 });
 
     const prov = getProviderById(aiStore.provider || DEFAULT_AI_PROVIDER);
-    aiStore.setBaseUrl(prov.baseUrl || '');
+    // Preserve a user-configured base URL, but still switch to the new
+    // provider's default when the stored value is another known default.
+    const knownDefaultUrls = AI_PROVIDERS.map(p => p.baseUrl).filter(Boolean);
+    if (!aiStore.baseUrl || knownDefaultUrls.includes(aiStore.baseUrl)) {
+      aiStore.setBaseUrl(prov.baseUrl || '');
+    }
 
     let sessionId = activeSession?.id;
     if (!sessionId) {
@@ -616,35 +626,44 @@ export function AiAssistant() {
               {dynamicModels.length > 0 && (
                 <div className="mb-2">
                   <select
-                    value={dynamicModels.some(m => m.id === selectedModel) ? selectedModel : ''}
+                    value={dynamicModels.some(m => m.id === customModelText) ? customModelText : '__custom__'}
                     onChange={(e) => {
-                      if (e.target.value) aiStore.setModel(e.target.value);
+                      const val = e.target.value;
+                      if (val && val !== '__custom__') {
+                        setCustomModelText(val);
+                        aiStore.setModel(val);
+                      }
                     }}
                     className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-3 py-2.5 text-xs text-[#f3f0e7] focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
                   >
-                    <option value="" disabled>Select from available models ({dynamicModels.length})...</option>
+                    <option value="" disabled>Select from endpoint models ({dynamicModels.length})...</option>
                     {dynamicModels.map(m => (
                       <option key={m.id} value={m.id}>
                         {m.name || m.id}
                       </option>
                     ))}
+                    {!dynamicModels.some(m => m.id === customModelText) && customModelText && (
+                      <option value="__custom__">
+                        Custom Model: {customModelText}
+                      </option>
+                    )}
                   </select>
                 </div>
               )}
 
               <input
                 type="text"
-                list={`models-${activeProvider}`}
-                value={selectedModel}
-                onChange={(e) => aiStore.setModel(e.target.value)}
+                value={customModelText}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomModelText(val);
+                  aiStore.setModel(val);
+                }}
                 className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-4 py-3 text-sm text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
-                placeholder="Or enter custom model ID..."
+                placeholder="Or type any custom model ID..."
+                autoComplete="off"
+                spellCheck={false}
               />
-              <datalist id={`models-${activeProvider}`}>
-                {dynamicModels.map(m => (
-                  <option key={m.id} value={m.id}>{m.id}</option>
-                ))}
-              </datalist>
             </div>
           </div>
         </div>
@@ -876,9 +895,28 @@ export function AiAssistant() {
                   );
                 })}
               {dynamicModels.filter(m => !modelSearchQuery.trim() || m.id.toLowerCase().includes(modelSearchQuery.toLowerCase())).length === 0 && (
-                <div className="text-center py-6 text-[11px] text-[#f3f0e7]/70">
-                  No models found matching "{modelSearchQuery}"
+                <div className="text-center py-4 text-[11px] text-[#f3f0e7]/70">
+                  No matching models found.
                 </div>
+              )}
+              {modelSearchQuery.trim() && !dynamicModels.some(m => m.id.toLowerCase() === modelSearchQuery.trim().toLowerCase()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const customName = modelSearchQuery.trim();
+                    setCustomModelText(customName);
+                    aiStore.setModel(customName);
+                    setShowQuickModelPicker(false);
+                    setModelSearchQuery('');
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl text-xs flex items-center justify-between transition-colors bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 mt-1"
+                >
+                  <div className="flex flex-col min-w-0 pr-2">
+                    <span className="font-semibold text-xs text-white">Use Custom Model</span>
+                    <span className="truncate text-[10px] font-mono text-emerald-300">{modelSearchQuery.trim()}</span>
+                  </div>
+                  <Check size={13} className="text-emerald-400 shrink-0" />
+                </button>
               )}
             </div>
 

@@ -1,6 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { ChevronRight, ChevronDown, File, Folder, FileJson, FileCode2, FileText, Plus, FolderPlus, Trash2, Edit2, Search, FolderUp, X, Copy, Share2, Save, Clipboard, FolderDown, MoreVertical, ChevronsDownUp, ChevronsUpDown, Info, FolderOpen, FileUp, FilePlus } from 'lucide-react';
 import { useIdeStore, FileNode } from '../../store/useIdeStore';
+import { useProjectsStore } from '../../store/useProjectsStore';
+import { writeProjectFiles } from '../../lib/fileSystemStorage';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '../../lib/utils';
 import { Share } from '@capacitor/share';
@@ -71,6 +73,16 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, nodeId: '' });
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
+
+  // Cancel a pending long-press when the explorer unmounts.
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    };
+  }, []);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -459,6 +471,17 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
       deleteFile(id);
       toast.success(`${isFolder ? 'Folder' : 'File'} "${name}" deleted`);
       setDeleteTarget(null);
+
+      // Apply the deletion to disk immediately instead of waiting for the
+      // debounced autosave, so a closed app can't resurrect the file.
+      const projectId = useProjectsStore.getState().currentProjectId;
+      if (projectId) {
+        const files = useIdeStore.getState().files;
+        useProjectsStore.getState().updateProjectFiles(projectId, files);
+        void writeProjectFiles(projectId, files).catch((err) => {
+          console.warn('[FileExplorer] Failed to persist deletion:', err);
+        });
+      }
     }
   };
 

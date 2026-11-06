@@ -199,6 +199,7 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
       };
       vv.addEventListener('resize', onViewportResize);
       return () => {
+        vv.removeEventListener('resize', onViewportResize);
         window.removeEventListener('resize', setVH);
         window.removeEventListener('orientationchange', handleOrientation);
       };

@@ -24,6 +24,13 @@ import { useExtensionsStore } from '../../store/useExtensionsStore';
 import { registerAllMonacoThemes, resolveActiveMonacoTheme } from '../../lib/monacoThemes';
 import { useIsLandscape } from '../../hooks/useIsLandscape';
 
+// Monaco identifies models by URI. Using only the file name made two files
+// such as src/index.js and test/index.js share one buffer. The node id makes
+// each model stable and unique.
+function fileModelUri(file: { id: string; name: string }): string {
+  return `file:///${encodeURIComponent(file.id)}/${encodeURIComponent(file.name)}`;
+}
+
 // Helper: read from clipboard using Capacitor (native) or fallback to browser API
 async function readClipboard(): Promise<string> {
   if (Capacitor.isNativePlatform()) {
@@ -260,7 +267,7 @@ export function CodeEditor() {
           const f = fileList[index++];
           if (f.id === currentActiveId) continue;
           try {
-            const uri = monaco.Uri.parse(`file:///${f.name}`);
+            const uri = monaco.Uri.parse(fileModelUri(f));
             const model = monaco.editor.getModel(uri);
             if (!model) {
               monaco.editor.createModel(f.content!, f.language, uri);
@@ -457,7 +464,11 @@ export function CodeEditor() {
         disposeInlineCompletions: (_completions: any, _reason: any) => {},
       });
 
-      return () => disposable.dispose();
+      return () => {
+        if (timer) clearTimeout(timer);
+        abortController?.abort();
+        disposable.dispose();
+      };
     } catch {
       // Ignore if provider registration fails
     }
@@ -586,26 +597,41 @@ export function CodeEditor() {
 
   const editorChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestValue = useRef<string | undefined>(undefined);
+  const pendingFileId = useRef<string | null>(null);
+
+  // Flush any pending debounced write so switching/closing a file never drops
+  // the last keystrokes.
+  const flushPendingEdit = useCallback(() => {
+    if (editorChangeTimer.current) {
+      clearTimeout(editorChangeTimer.current);
+      editorChangeTimer.current = null;
+    }
+    if (pendingFileId.current && latestValue.current !== undefined) {
+      updateFileContent(pendingFileId.current, latestValue.current);
+    }
+    pendingFileId.current = null;
+    latestValue.current = undefined;
+  }, [updateFileContent]);
 
   useEffect(() => {
-    return () => {
-      if (editorChangeTimer.current) {
-        clearTimeout(editorChangeTimer.current);
-      }
-    };
-  }, []);
+    return flushPendingEdit;
+  }, [activeFileId, flushPendingEdit]);
 
   const handleEditorChange = useCallback((value: string | undefined) => {
     if (!activeFileId || value === undefined) return;
     latestValue.current = value;
+    pendingFileId.current = activeFileId;
 
     if (editorChangeTimer.current) {
       clearTimeout(editorChangeTimer.current);
     }
     editorChangeTimer.current = setTimeout(() => {
-      if (latestValue.current !== undefined) {
-        updateFileContent(activeFileId, latestValue.current);
+      if (pendingFileId.current && latestValue.current !== undefined) {
+        updateFileContent(pendingFileId.current, latestValue.current);
       }
+      pendingFileId.current = null;
+      latestValue.current = undefined;
+      editorChangeTimer.current = null;
     }, 300);
   }, [activeFileId, updateFileContent]);
 
@@ -1071,7 +1097,7 @@ export function CodeEditor() {
                       value={activeFile.content || ''}
                       onChange={handleEditorChange}
                       onMount={handleEditorMount}
-                      path={`file:///${activeFile.name}`}
+                      path={fileModelUri(activeFile)}
                       options={{
                         minimap: { enabled: false },
                         fontSize: currentFontSize,
@@ -1129,7 +1155,7 @@ export function CodeEditor() {
                   value={activeFile.content || ''}
                   onChange={handleEditorChange}
                   onMount={handleEditorMount}
-                  path={`file:///${activeFile.name}`}
+                  path={fileModelUri(activeFile)}
                   options={{
                     minimap: { enabled: false },
                     lineNumbers: 'on',

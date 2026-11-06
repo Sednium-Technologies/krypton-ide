@@ -994,7 +994,7 @@ export async function migrateFromLocalStorage(): Promise<void> {
 // ─── Get project base path for AI tool actions ───────────────
 
 export function getProjectPath(projectId: string): string {
-  return `${getBasePath()}/projects/project_${projectId}`;
+  return `${getBasePath()}/projects/${projectId}`;
 }
 
 // ─── MCP Storage ──────────────────────────────────────────────

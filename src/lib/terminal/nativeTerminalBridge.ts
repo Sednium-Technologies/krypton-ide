@@ -297,7 +297,7 @@ export class NativeTerminalBridge {
    */
   async createSession(options?: CreateSessionOptions): Promise<CreateSessionResult> {
     const sessionId = options?.sessionId || `term-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-    const cwd = options?.cwd || '/data/data/com.sednium.kryptonide/files/home';
+    const cwd = options?.cwd || '/data/data/com.sednium.kryptonide.legacy/files/home';
 
     if (this.isNativePlatform()) {
       try {
@@ -434,8 +434,8 @@ export class NativeTerminalBridge {
 
     return {
       installed: simulatedBootstrapInstalled,
-      prefixPath: '/data/data/com.sednium.kryptonide/files/usr',
-      homePath: '/data/data/com.sednium.kryptonide/files/home',
+      prefixPath: '/data/data/com.sednium.kryptonide.legacy/files/usr',
+      homePath: '/data/data/com.sednium.kryptonide.legacy/files/home',
       hasBash: simulatedBootstrapInstalled,
       hasPython: simulatedBootstrapInstalled,
       hasRust: simulatedBootstrapInstalled,

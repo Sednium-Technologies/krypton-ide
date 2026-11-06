@@ -132,13 +132,13 @@ Java_com_sednium_kryptonide_terminal_PtyBridge_createSubprocess(
         // Set default environment variables
         setenv("TERM", "xterm-256color", 1);
         setenv("LANG", "en_US.UTF-8", 1);
-        setenv("PREFIX", "/data/data/com.sednium.kryptonide/files/usr", 1);
-        setenv("HOME", "/data/data/com.sednium.kryptonide/files/home", 1);
-        setenv("TMPDIR", "/data/data/com.sednium.kryptonide/files/usr/tmp", 1);
-        setenv("LD_LIBRARY_PATH", "/data/data/com.sednium.kryptonide/files/usr/lib", 1);
+        setenv("PREFIX", "/data/data/com.sednium.kryptonide.legacy/files/usr", 1);
+        setenv("HOME", "/data/data/com.sednium.kryptonide.legacy/files/home", 1);
+        setenv("TMPDIR", "/data/data/com.sednium.kryptonide.legacy/files/usr/tmp", 1);
+        setenv("LD_LIBRARY_PATH", "/data/data/com.sednium.kryptonide.legacy/files/usr/lib", 1);
 
-        // Prepend /data/data/com.sednium.kryptonide/files/usr/bin to PATH
-        const char *termux_bin = "/data/data/com.sednium.kryptonide/files/usr/bin";
+        // Prepend /data/data/com.sednium.kryptonide.legacy/files/usr/bin to PATH
+        const char *termux_bin = "/data/data/com.sednium.kryptonide.legacy/files/usr/bin";
         const char *curr_path = getenv("PATH");
         char new_path[4096];
         if (curr_path != NULL && strlen(curr_path) > 0) {
@@ -167,13 +167,13 @@ Java_com_sednium_kryptonide_terminal_PtyBridge_createSubprocess(
         if (cwd_str != NULL && strlen(cwd_str) > 0) {
             if (chdir(cwd_str) != 0) {
                 LOGE("chdir(%s) failed: %s; falling back to HOME", cwd_str, strerror(errno));
-                if (chdir("/data/data/com.sednium.kryptonide/files/home") != 0) {
-                    chdir("/data/data/com.sednium.kryptonide/files");
+                if (chdir("/data/data/com.sednium.kryptonide.legacy/files/home") != 0) {
+                    chdir("/data/data/com.sednium.kryptonide.legacy/files");
                 }
             }
         } else {
-            if (chdir("/data/data/com.sednium.kryptonide/files/home") != 0) {
-                chdir("/data/data/com.sednium.kryptonide/files");
+            if (chdir("/data/data/com.sednium.kryptonide.legacy/files/home") != 0) {
+                chdir("/data/data/com.sednium.kryptonide.legacy/files");
             }
         }
 
@@ -182,7 +182,7 @@ Java_com_sednium_kryptonide_terminal_PtyBridge_createSubprocess(
             execl(cmd_str, cmd_str, "-l", (char *)NULL);
             execl(cmd_str, cmd_str, (char *)NULL);
         }
-        execl("/data/data/com.sednium.kryptonide/files/usr/bin/bash", "bash", "-l", (char *)NULL);
+        execl("/data/data/com.sednium.kryptonide.legacy/files/usr/bin/bash", "bash", "-l", (char *)NULL);
         execl("/system/bin/sh", "sh", (char *)NULL);
 
         LOGE("execl failed: %s", strerror(errno));

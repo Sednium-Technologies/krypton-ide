@@ -652,7 +652,7 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
                       <span className={`block text-[10px] ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'}`}>License</span>
                       <span className={`font-medium ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>{license}</span>
                     </div>
-                    {details?.repository && (
+                    {details?.repository && /^https?:\/\//i.test(details.repository) && (
                       <div className={`p-2.5 rounded-xl border col-span-full ${isLight ? 'bg-[#f4f0e6] border-[#2a2529]/8' : 'bg-[#342f33]/60 border-[#f3f0e7]/5'}`}>
                         <span className={`block text-[10px] ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'}`}>Source Repository</span>
                         <a

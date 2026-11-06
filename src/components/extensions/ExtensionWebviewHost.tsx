@@ -230,7 +230,7 @@ export function ExtensionWebviewHost({
         ref={iframeRef}
         src={iframeSrc}
         srcDoc={!iframeSrc ? synthesizedDoc || '' : undefined}
-        sandbox="allow-scripts allow-forms allow-modals allow-same-origin"
+        sandbox="allow-scripts allow-forms allow-modals"
         className="w-full h-full flex-1 border-none bg-transparent"
         title={title}
         onLoad={handleIframeLoad}

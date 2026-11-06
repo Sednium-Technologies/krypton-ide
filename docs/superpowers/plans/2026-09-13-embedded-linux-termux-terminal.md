@@ -14,7 +14,7 @@
 
 - **Platform Target:** Android 8.0+ (API 26+) through Android 15, primary ABI `arm64-v8a` with `armeabi-v7a` and `x86_64` support.
 - **Rootless Execution:** Must run 100% in userland without root privileges or SELinux bypasses.
-- **Android W^X Compliance:** Linux executable binaries (`bash`, `python3`, `rustc`) must reside inside internal executable app storage (`/data/data/com.sednium.kryptonide/files/usr/bin`), never on FAT/fuse `/sdcard`.
+- **Android W^X Compliance:** Linux executable binaries (`bash`, `python3`, `rustc`) must reside inside internal executable app storage (`/data/data/com.sednium.kryptonide.legacy/files/usr/bin`), never on FAT/fuse `/sdcard`.
 - **UI & Aesthetic Integrity:** Adhere strictly to Krypton's design system: deep warm charcoal backgrounds (`#231e22`, `#2a2529`), elevated cards (`#342f33`), cream text (`#f3f0e7`), emerald live badges (`#34d399`), 44px+ mobile touch targets, tactile haptics.
 - **Webview Fallback:** Must cleanly fall back to simulated `ShellEngine` when running in web browser development mode.
 
@@ -42,7 +42,7 @@ Create `android/app/src/main/cpp/pty_bridge.h` and `android/app/src/main/cpp/pty
 - `openpty()` creation with termios raw mode configuration.
 - `fork()` and child process setup using `login_tty()`.
 - Child environment population (`HOME`, `PREFIX`, `PATH`, `LD_LIBRARY_PATH`, `TERM=xterm-256color`, `LANG=en_US.UTF-8`, `TMPDIR`).
-- Executing `/data/data/com.sednium.kryptonide/files/usr/bin/bash` or fallback `/system/bin/sh`.
+- Executing `/data/data/com.sednium.kryptonide.legacy/files/usr/bin/bash` or fallback `/system/bin/sh`.
 - Window size resizing using `ioctl(fd, TIOCSWINSZ, &ws)`.
 - Non-blocking I/O configuration for parent master descriptor.
 
@@ -136,7 +136,7 @@ Implement `TerminalSession`:
 Implement bootstrap extraction and verification:
 - Computes device architecture (`aarch64`, `arm`, `x86_64`).
 - Downloads official Termux bootstrap archive into app cache directory using streaming HTTP via `Dispatchers.IO`.
-- Extracts archive into `/data/data/com.sednium.kryptonide/files/usr/`.
+- Extracts archive into `/data/data/com.sednium.kryptonide.legacy/files/usr/`.
 - Sets executable permissions (`chmod 755`) on `/usr/bin/*`.
 - Creates standard symlinks (`/bin/sh -> /usr/bin/bash`).
 - Emits real-time percentage progress.

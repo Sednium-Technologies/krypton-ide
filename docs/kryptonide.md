@@ -159,7 +159,7 @@ Most mobile coding solutions on Android fall into one of two traps: they are eit
 ### 4.2. Embedded Linux & Native POSIX Terminal
 - **Dual-Session Architecture:**
   - **Project Shell:** Automatically sets working directory to the active project folder. Run `npm test`, `python script.py`, or `cargo run` instantly.
-  - **System Shell:** Rooted in Termux `$HOME` (`/data/data/com.sednium.kryptonide/files/home`). Install packages via `pkg install`, configure dotfiles, or manage runtimes.
+  - **System Shell:** Rooted in Termux `$HOME` (`/data/data/com.sednium.kryptonide.legacy/files/home`). Install packages via `pkg install`, configure dotfiles, or manage runtimes.
 - **Termux Rootfs Bootstrap:** On-demand downloader and extractor that sets up a full Linux CLI environment in internal app storage.
 - **Mobile Terminal Accessory Bar:** Dedicated touch row floating above the virtual keyboard providing quick access to:
   - `Ctrl`, `Alt`, `Tab`, `Esc`, `|` (pipe), `~` (tilde), `-` (dash), `/` (slash), and directional arrow keys.

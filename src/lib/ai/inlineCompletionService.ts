@@ -242,10 +242,14 @@ RULES:
       }
     } else if (provider === 'google' || provider === 'gemini' || apiKey.startsWith('AIzaSy')) {
       const model = 'gemini-2.5-flash';
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Keep the key out of URLs/logs/referrers.
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify({
           contents: [
             {

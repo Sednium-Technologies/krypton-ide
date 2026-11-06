@@ -89,6 +89,17 @@ interface IdeState {
   getFilePath: (id: string) => string[];
 }
 
+// File names are used directly as on-disk paths, so never allow separators or
+// traversal segments (e.g. "../../token").
+export const sanitizeFileName = (name: string): string => {
+  const cleaned = name
+    .trim()
+    .replace(/[\\/]/g, '_')
+    .replace(/\.\.+/g, '.')
+    .replace(/^\.+$/, '_');
+  return cleaned || 'untitled';
+};
+
 export const getLanguageFromFilename = (name: string): string => {
   const ext = name.split('.').pop()?.toLowerCase();
   // Handle special filenames first
@@ -165,11 +176,12 @@ export const useIdeStore = create<IdeState>()(
 
     createFile: (name, parentId, type, content = '') => {
       const id = generateId();
-      const language = getLanguageFromFilename(name);
+      const safeName = sanitizeFileName(name);
+      const language = getLanguageFromFilename(safeName);
 
       const newNode: FileNode = {
         id,
-        name,
+        name: safeName,
         type,
         content: type === 'file' ? content : undefined,
         parentId,
@@ -228,7 +240,8 @@ export const useIdeStore = create<IdeState>()(
         deleteRecursively(id);
 
         const newOpenFiles = state.openFiles.filter(openId => newFiles[openId]);
-        const newActiveFileId = state.activeFileId === id ? (newOpenFiles[0] || null) : state.activeFileId;
+        const activeStillExists = !!state.activeFileId && !!newFiles[state.activeFileId];
+        const newActiveFileId = activeStillExists ? state.activeFileId : (newOpenFiles[0] || null);
 
         return {
           files: newFiles,
@@ -239,11 +252,12 @@ export const useIdeStore = create<IdeState>()(
     },
 
     renameFile: (id, newName) => {
-      const language = getLanguageFromFilename(newName);
+      const safeName = sanitizeFileName(newName);
+      const language = getLanguageFromFilename(safeName);
       set((state) => ({
         files: {
           ...state.files,
-          [id]: { ...state.files[id], name: newName, language },
+          [id]: { ...state.files[id], name: safeName, language },
         },
       }));
     },

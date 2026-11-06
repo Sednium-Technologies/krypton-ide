@@ -1,5 +1,5 @@
 {
-  "appId": "com.sednium.kryptonide",
+  "appId": "com.sednium.kryptonide.legacy",
   "appName": "Kryptonide",
   "webDir": "dist",
   "android": {
