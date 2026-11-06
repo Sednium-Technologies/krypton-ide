@@ -70,10 +70,10 @@
 - Create: `android/app/src/main/java/com/sednium/kryptonide/extensions/ExtensionHostPlugin.kt`
 - Modify: `android/app/src/main/java/com/sednium/kryptonide/MainActivity.java`
 
-- [ ] **Step 1: Define Kotlin external bindings in `ExtensionHostNative.kt`**
-- [ ] **Step 2: Implement `@CapacitorPlugin(name = "ExtensionHost")`**
-- [ ] **Step 3: Register in `MainActivity.java`**
-- [ ] **Step 4: Commit task**
+- [x] **Step 1: Define Kotlin external bindings in `ExtensionHostNative.kt`**
+- [x] **Step 2: Implement `@CapacitorPlugin(name = "ExtensionHost")`**
+- [x] **Step 3: Register in `MainActivity.java`**
+- [x] **Step 4: Commit task**
 
 ---
 

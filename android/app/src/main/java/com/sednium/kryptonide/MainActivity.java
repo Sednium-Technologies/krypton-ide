@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import com.sednium.kryptonide.extensions.ExtensionHostPlugin;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -18,6 +19,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(StoragePermissionPlugin.class);
         registerPlugin(NativeTerminalPlugin.class);
         registerPlugin(KryptonCorePlugin.class);
+        registerPlugin(ExtensionHostPlugin.class);
         super.onCreate(savedInstanceState);
 
         WebView webView = getBridge() != null ? getBridge().getWebView() : null;
