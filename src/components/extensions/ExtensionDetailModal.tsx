@@ -29,6 +29,7 @@ import {
   type ExtensionDetailMetadata,
 } from '../../lib/marketplaceService';
 import { useExtensionsStore, type Extension } from '../../store/useExtensionsStore';
+import { useExtensionHostStore } from '../../store/useExtensionHostStore';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useToastStore } from '../../store/useToastStore';
 import { getInstalledExtensions } from '../../lib/extensions/extensionRegistry';
@@ -154,6 +155,9 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
     )
   );
   const isActiveTheme = isColorThemeActive || isIconThemeActive;
+  const isNativeInstalled = useExtensionHostStore((s) =>
+    s.installedExtensions.some((e) => e.id === extId)
+  );
 
   // Available versions list
   const availableVersions = useMemo(() => {
@@ -338,6 +342,12 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
                     <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-300 text-[10px] font-medium border border-teal-500/30">
                       <CheckCircle2 size={10} />
                       <span>Verified</span>
+                    </span>
+                  )}
+                  {isNativeInstalled && (
+                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-medium border border-emerald-500/30">
+                      <CheckCircle2 size={10} />
+                      <span>Native Host</span>
                     </span>
                   )}
                 </div>

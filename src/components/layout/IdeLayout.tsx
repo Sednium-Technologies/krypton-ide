@@ -24,6 +24,7 @@ import { LanguageIcon } from '../sidebar/LanguageIcon';
 import { hapticLight, hapticMedium } from '../../lib/haptics';
 import { toast } from '../../store/useToastStore';
 import { useNavbarStore } from '../../store/useNavbarStore';
+import { useExtensionHostStore } from '../../store/useExtensionHostStore';
 import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
 import { NavbarOverflowDrawer } from './NavbarOverflowDrawer';
 import { NavbarSettingsPanel } from '../settings/NavbarSettingsPanel';
@@ -146,6 +147,10 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
   // Sync extension tools on mount
   useEffect(() => {
     useNavbarStore.getState().syncExtensionTools();
+    const hostStore = useExtensionHostStore.getState();
+    void hostStore.loadInstalled();
+    const cleanup = hostStore.initListeners();
+    return cleanup;
   }, []);
 
   // Load & sync workspace custom CSS (.krypton/custom.css)

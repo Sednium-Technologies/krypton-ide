@@ -99,7 +99,7 @@
 - Modify: `src/components/layout/IdeLayout.tsx`
 - Test: `tests/extensionHostPhase1E2e.test.ts`
 
-- [ ] **Step 1: Initialize host store on IDE layout mount**
-- [ ] **Step 2: Surface native manifest metadata in detail modal**
-- [ ] **Step 3: Run full verification: `cargo test`, `npm test`, `npx tsc --noEmit`**
-- [ ] **Step 4: Commit task**
+- [x] **Step 1: Initialize host store on IDE layout mount**
+- [x] **Step 2: Surface native manifest metadata in detail modal**
+- [x] **Step 3: Run full verification: `cargo test`, `npm test`, `npx tsc --noEmit`**
+- [x] **Step 4: Commit task**
