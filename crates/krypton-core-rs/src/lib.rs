@@ -7,6 +7,7 @@ use std::collections::HashMap;
 pub mod aif;
 pub mod cancel;
 pub mod diff;
+pub mod ext_host;
 pub mod fs_walk;
 pub mod git;
 pub mod hardware_topology;
