@@ -57,9 +57,9 @@
 - Create: `crates/krypton-core-rs/src/ext_host/jni_bridge.rs`
 - Modify: `crates/krypton-core-rs/src/jni_bridge.rs`
 
-- [ ] **Step 1: Write JNI extern C methods with catch_unwind**
-- [ ] **Step 2: Run `cargo check` to verify compilation on desktop and Android target**
-- [ ] **Step 3: Commit task**
+- [x] **Step 1: Write JNI extern C methods with catch_unwind**
+- [x] **Step 2: Run `cargo check` to verify compilation on desktop and Android target**
+- [x] **Step 3: Commit task**
 
 ---
 
