@@ -74,6 +74,13 @@ export interface ExtensionManifest {
   activationEvents?: string[];
   contributes?: ExtensionContributions;
   engines?: Record<string, string>;
+  capabilities?: {
+    untrustedWorkspaces?: {
+      supported?: boolean | 'limited';
+      description?: string;
+    };
+    virtualWorkspaces?: boolean;
+  };
 }
 
 export interface InstalledExtension {
@@ -196,6 +203,34 @@ export const BUILTIN_LSP_SERVERS: BuiltinLspServer[] = [
   },
 ];
 
+export type WorkspaceTrustState = 'trusted' | 'restricted' | 'untrusted';
+
+export type ExtensionCapability =
+  | 'spawnProcess'
+  | 'fsOutsideWorkspace'
+  | 'fsWrite'
+  | 'network'
+  | 'terminalWrite';
+
+export interface WorkspaceTrustInfo {
+  state: WorkspaceTrustState;
+  workspaceRoot?: string;
+  isTrusted: boolean;
+}
+
+export interface CapabilityCheckResult {
+  capability: ExtensionCapability | string;
+  allowed: boolean;
+  error?: string;
+}
+
+export interface ExtensionPermissionRequirement {
+  capability: ExtensionCapability;
+  title: string;
+  description: string;
+  risk: 'low' | 'medium' | 'high';
+}
+
 export interface ExtensionHostPlugin {
   installVsix(options: { path: string }): Promise<{ success: boolean; extension: InstalledExtension }>;
   listInstalled(): Promise<{ extensions: InstalledExtension[] }>;
@@ -212,6 +247,9 @@ export interface ExtensionHostPlugin {
   stopLspServer(options: { sessionId: string }): Promise<{ success: boolean }>;
   checkLspBinary(options: { binary: string; prefix?: string }): Promise<LspBinaryCheck>;
   getBuiltinLspServers(): Promise<{ servers: BuiltinLspServer[] }>;
+  setWorkspaceTrust(options: { state: WorkspaceTrustState; workspaceRoot?: string }): Promise<WorkspaceTrustInfo>;
+  getWorkspaceTrust(): Promise<WorkspaceTrustInfo>;
+  checkCapability(options: { capability: ExtensionCapability | string }): Promise<CapabilityCheckResult>;
   addListener(
     eventName: 'contributionsChanged',
     listenerFunc: (info: any) => void
@@ -226,6 +264,8 @@ export class ExtensionHostWeb implements ExtensionHostPlugin {
   private mockStatusBarItems: Map<string, ExtensionStatusBarItem> = new Map();
   private mockLspSessions: Map<string, { config: LspServerConfig; queuedMessages: string[] }> = new Map();
   private mockBinaryOverrides: Map<string, Partial<LspBinaryCheck>> = new Map();
+  private trustState: WorkspaceTrustState = 'restricted';
+  private workspaceRoot: string = '';
 
   constructor() {
     this.mockCommands.set('krypton.ping', () => 'pong');
@@ -475,6 +515,48 @@ export class ExtensionHostWeb implements ExtensionHostPlugin {
     return { servers: BUILTIN_LSP_SERVERS };
   }
 
+  async setWorkspaceTrust(options: { state: WorkspaceTrustState; workspaceRoot?: string }): Promise<WorkspaceTrustInfo> {
+    this.trustState = options.state;
+    if (options.workspaceRoot !== undefined) {
+      this.workspaceRoot = options.workspaceRoot;
+    }
+    return {
+      state: this.trustState,
+      workspaceRoot: this.workspaceRoot,
+      isTrusted: this.trustState === 'trusted',
+    };
+  }
+
+  async getWorkspaceTrust(): Promise<WorkspaceTrustInfo> {
+    return {
+      state: this.trustState,
+      workspaceRoot: this.workspaceRoot,
+      isTrusted: this.trustState === 'trusted',
+    };
+  }
+
+  async checkCapability(options: { capability: ExtensionCapability | string }): Promise<CapabilityCheckResult> {
+    const cap = options.capability;
+    if (this.trustState === 'trusted') {
+      return { capability: cap, allowed: true };
+    }
+    if (this.trustState === 'restricted') {
+      if (cap === 'fsWrite') {
+        return { capability: cap, allowed: true };
+      }
+      return {
+        capability: cap,
+        allowed: false,
+        error: `SecurityError: Capability '${cap}' is not permitted in Restricted workspace`,
+      };
+    }
+    return {
+      capability: cap,
+      allowed: false,
+      error: `SecurityError: Capability '${cap}' is not permitted in Untrusted workspace`,
+    };
+  }
+
   async addListener(
     _eventName: 'contributionsChanged',
     _listenerFunc: (info: any) => void
@@ -483,6 +565,47 @@ export class ExtensionHostWeb implements ExtensionHostPlugin {
       remove: async () => {},
     };
   }
+}
+
+export function inspectExtensionPermissions(manifest: ExtensionManifest): ExtensionPermissionRequirement[] {
+  const permissions: ExtensionPermissionRequirement[] = [];
+
+  // Check untrusted workspaces declaration
+  if (manifest.capabilities?.untrustedWorkspaces) {
+    const untrusted = manifest.capabilities.untrustedWorkspaces;
+    if (untrusted.supported === false || untrusted.supported === 'limited') {
+      permissions.push({
+        capability: 'spawnProcess',
+        title: 'Full Workspace Trust Required',
+        description: untrusted.description || 'This extension requires complete workspace trust to execute.',
+        risk: 'high',
+      });
+    }
+  }
+
+  // Check contributions for process execution / debuggers
+  if (manifest.contributes?.debuggers && manifest.contributes.debuggers.length > 0) {
+    permissions.push({
+      capability: 'spawnProcess',
+      title: 'Debugger Process Execution',
+      description: 'Spawns local debugging adapters and processes.',
+      risk: 'high',
+    });
+  }
+
+  // Check main script execution
+  if (manifest.main) {
+    if (manifest.activationEvents?.includes('*') || manifest.activationEvents?.includes('onStartupFinished')) {
+      permissions.push({
+        capability: 'fsWrite',
+        title: 'Background Automation',
+        description: 'Runs code at startup with filesystem and state access.',
+        risk: 'medium',
+      });
+    }
+  }
+
+  return permissions;
 }
 
 const webFallbackInstance = new ExtensionHostWeb();
