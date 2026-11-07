@@ -296,11 +296,13 @@ export class ExtensionHostWeb implements ExtensionHostPlugin {
       },
     };
 
-    if (typeof process !== 'undefined' && options.path) {
+    if (typeof window === 'undefined' && typeof process !== 'undefined' && options.path) {
       try {
-        const fs = await import('node:fs');
+        const fsModule = 'node:fs';
+        const admZipModule = 'adm-zip';
+        const fs = await import(/* @vite-ignore */ fsModule);
         if (fs.existsSync(options.path)) {
-          const admZipMod: any = await import('adm-zip');
+          const admZipMod: any = await import(/* @vite-ignore */ admZipModule);
           const AdmZipClass = admZipMod?.default || admZipMod;
           const AdmZip = AdmZipClass?.default || AdmZipClass;
           const zip = new AdmZip(options.path);

@@ -23,7 +23,7 @@ zip = { version = "2.2", default-features = false, features = ["deflate"] }
 libc = "0.2"
 memmap2 = "0.9"
 jni = { version = "0.21", default-features = false }
-rquickjs = { version = "0.14", features = ["classes", "properties", "macro"] }
+rquickjs = { version = "0.14", features = ["classes", "properties", "macro", "bindgen"] }
 
 [profile.release]
 opt-level = 3
