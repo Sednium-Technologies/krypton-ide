@@ -4,6 +4,7 @@ import { useExtensionHostStore } from '../../store/useExtensionHostStore';
 import { useLspStore } from '../../store/useLspStore';
 import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
 import { useToastStore } from '../../store/useToastStore';
+import { useTrustStore } from '../../store/useTrustStore';
 import { cn } from '../../lib/utils';
 import type { ExtensionStatusBarItem } from '../../lib/extensions/nativeExtensionHost';
 
@@ -160,6 +161,35 @@ export function StatusBar() {
             )}
           </>
         )}
+        <span
+          onClick={async () => {
+            const isCurrentlyTrusted = useTrustStore.getState().isTrusted;
+            if (isCurrentlyTrusted) {
+              await useTrustStore.getState().restrictCurrentWorkspace();
+              useToastStore.getState().show({
+                message: "Workspace set to Restricted Mode. Privileged capabilities disabled.",
+                type: 'info',
+              });
+            } else {
+              await useTrustStore.getState().trustCurrentWorkspace();
+              useToastStore.getState().show({
+                message: "Workspace is now Trusted. All features and tools enabled.",
+                type: 'success',
+              });
+            }
+          }}
+          title={
+            useTrustStore.getState().isTrusted
+              ? "Workspace is Trusted. Click to restrict."
+              : "Workspace is in Restricted Mode. Click to trust."
+          }
+          className={cn(
+            "cursor-pointer hover:bg-white/20 px-1.5 py-0.5 rounded flex items-center space-x-1 transition-colors font-medium ml-1",
+            useTrustStore.getState().isTrusted ? "text-emerald-300" : "text-amber-300"
+          )}
+        >
+          <span>{useTrustStore.getState().isTrusted ? "🛡️ Trusted" : "🔒 Restricted"}</span>
+        </span>
       </div>
     </div>
   );

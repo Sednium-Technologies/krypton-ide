@@ -25,6 +25,7 @@ import { registerAllMonacoThemes, resolveActiveMonacoTheme } from '../../lib/mon
 import { useIsLandscape } from '../../hooks/useIsLandscape';
 import { registerMonacoLspProviders } from '../../lib/lsp/monacoLspAdapter';
 import { useLspStore } from '../../store/useLspStore';
+import { WorkspaceTrustBanner } from '../trust/WorkspaceTrustBanner';
 
 // Monaco identifies models by URI. Using only the file name made two files
 // such as src/index.js and test/index.js share one buffer. The node id makes
@@ -1088,6 +1089,9 @@ export function CodeEditor() {
           </div>
         </div>
       )}
+
+      {/* Workspace Trust Restricted Mode Banner */}
+      <WorkspaceTrustBanner />
 
       {/* Editor / Preview Area */}
       <div 

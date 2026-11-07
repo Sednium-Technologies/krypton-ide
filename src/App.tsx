@@ -5,6 +5,7 @@ import { IdeLayout } from './components/layout/IdeLayout';
 import { KryptonLoader } from './components/ui/KryptonLoader';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { ToastContainer } from './components/ui/ToastContainer';
+import { ExtensionConsentModal } from './components/trust/ExtensionConsentModal';
 import { useProjectsStore } from './store/useProjectsStore';
 import { useIdeStore } from './store/useIdeStore';
 import { useAiStore } from './store/useAiStore';
@@ -439,6 +440,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ToastContainer />
+      <ExtensionConsentModal />
       {!currentProjectId ? (
         <ProjectsDashboard />
       ) : (
