@@ -46,4 +46,22 @@ object ExtensionHostNative {
 
     @JvmStatic
     external fun nativeListStatusBarItems(extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeStartLspServer(configJson: String, extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeSendLspMessage(sessionId: String, messageJson: String, extensionsDir: String): Boolean
+
+    @JvmStatic
+    external fun nativeDrainLspMessages(sessionId: String, extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeStopLspServer(sessionId: String, extensionsDir: String): Boolean
+
+    @JvmStatic
+    external fun nativeCheckLspBinary(binaryName: String, customPrefix: String, extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeGetBuiltinLspServers(extensionsDir: String): String
 }

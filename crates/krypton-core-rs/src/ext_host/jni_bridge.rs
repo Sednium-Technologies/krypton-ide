@@ -334,4 +334,218 @@ pub mod ext_jni_impl {
 
         result.unwrap_or(std::ptr::null_mut())
     }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeStartLspServer(
+        mut env: JNIEnv,
+        _class: JClass,
+        config_json: JString,
+        extensions_dir: JString,
+    ) -> jstring {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let conf_str: String = match env.get_string(&config_json) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid config_json JString: {}", e)),
+                    )
+                }
+            };
+
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extensions_dir JString: {}", e)),
+                    )
+                }
+            };
+
+            let config: crate::ext_host::lsp::LspServerConfig = match serde_json::from_str(&conf_str) {
+                Ok(c) => c,
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Malformed LspServerConfig JSON: {}", e)),
+                    )
+                }
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            let res = mgr.lsp.start_server(config);
+            to_json_jstring(&mut env, res)
+        }));
+
+        result.unwrap_or(std::ptr::null_mut())
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeSendLspMessage(
+        mut env: JNIEnv,
+        _class: JClass,
+        session_id: JString,
+        message_json: JString,
+        extensions_dir: JString,
+    ) -> jboolean {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let session_str: String = match env.get_string(&session_id) {
+                Ok(s) => s.into(),
+                Err(_) => return 0,
+            };
+
+            let msg_str: String = match env.get_string(&message_json) {
+                Ok(s) => s.into(),
+                Err(_) => return 0,
+            };
+
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(_) => return 0,
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            if mgr.lsp.send_message(&session_str, &msg_str).is_ok() {
+                1
+            } else {
+                0
+            }
+        }));
+
+        result.unwrap_or(0)
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeDrainLspMessages(
+        mut env: JNIEnv,
+        _class: JClass,
+        session_id: JString,
+        extensions_dir: JString,
+    ) -> jstring {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let session_str: String = match env.get_string(&session_id) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid session_id JString: {}", e)),
+                    )
+                }
+            };
+
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extensions_dir JString: {}", e)),
+                    )
+                }
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            let res = mgr.lsp.drain_messages(&session_str);
+            to_json_jstring(&mut env, res)
+        }));
+
+        result.unwrap_or(std::ptr::null_mut())
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeStopLspServer(
+        mut env: JNIEnv,
+        _class: JClass,
+        session_id: JString,
+        extensions_dir: JString,
+    ) -> jboolean {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let session_str: String = match env.get_string(&session_id) {
+                Ok(s) => s.into(),
+                Err(_) => return 0,
+            };
+
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(_) => return 0,
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            if mgr.lsp.stop_server(&session_str).is_ok() {
+                1
+            } else {
+                0
+            }
+        }));
+
+        result.unwrap_or(0)
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeCheckLspBinary(
+        mut env: JNIEnv,
+        _class: JClass,
+        binary_name: JString,
+        custom_prefix: JString,
+        extensions_dir: JString,
+    ) -> jstring {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let name_str: String = match env.get_string(&binary_name) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid binary_name JString: {}", e)),
+                    )
+                }
+            };
+
+            let prefix_opt: Option<String> = env
+                .get_string(&custom_prefix)
+                .ok()
+                .map(|s| s.into())
+                .filter(|s: &String| !s.is_empty());
+
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extensions_dir JString: {}", e)),
+                    )
+                }
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            let check = mgr.lsp.check_binary(&name_str, prefix_opt.as_deref());
+            to_json_jstring(&mut env, Ok(check))
+        }));
+
+        result.unwrap_or(std::ptr::null_mut())
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeGetBuiltinLspServers(
+        mut env: JNIEnv,
+        _class: JClass,
+        extensions_dir: JString,
+    ) -> jstring {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extensions_dir JString: {}", e)),
+                    )
+                }
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            let servers = mgr.lsp.get_builtin_servers();
+            to_json_jstring(&mut env, Ok(servers))
+        }));
+
+        result.unwrap_or(std::ptr::null_mut())
+    }
 }

@@ -340,4 +340,194 @@ class ExtensionHostPlugin : Plugin() {
             }
         }
     }
+
+    @PluginMethod
+    fun startLspServer(call: PluginCall) {
+        val configObj = call.getObject("config")
+        val configJson = configObj?.toString() ?: JSONObject().apply {
+            put("id", call.getString("id") ?: "")
+            put("languageId", call.getString("languageId") ?: "")
+            put("command", call.getString("command") ?: "")
+            put("args", call.getArray("args") ?: JSONArray())
+            put("cwd", call.getString("cwd"))
+        }.toString()
+
+        if (!ExtensionHostNative.isAvailable()) {
+            call.reject("Native extension host is not loaded")
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeStartLspServer(configJson, getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false)) {
+                    val ret = JSObject()
+                    ret.put("success", true)
+                    ret.put("sessionId", parsed.optString("data"))
+                    call.resolve(ret)
+                } else {
+                    val err = parsed.optString("error", "Failed to start LSP server")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Start LSP error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun sendLspMessage(call: PluginCall) {
+        val sessionId = call.getString("sessionId")
+        val message = call.getString("message")
+
+        if (sessionId.isNullOrEmpty() || message.isNullOrEmpty()) {
+            call.reject("Missing required parameters 'sessionId' or 'message'")
+            return
+        }
+
+        if (!ExtensionHostNative.isAvailable()) {
+            call.reject("Native extension host is not loaded")
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val ok = ExtensionHostNative.nativeSendLspMessage(sessionId, message, getExtensionsDir())
+                val ret = JSObject()
+                ret.put("success", ok)
+                call.resolve(ret)
+            } catch (e: Exception) {
+                call.reject("Send LSP message error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun drainLspMessages(call: PluginCall) {
+        val sessionId = call.getString("sessionId")
+        if (sessionId.isNullOrEmpty()) {
+            call.reject("Missing required parameter 'sessionId'")
+            return
+        }
+
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("messages", JSArray())
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeDrainLspMessages(sessionId, getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false)) {
+                    val ret = JSObject()
+                    val arr = parsed.optJSONArray("data") ?: JSONArray()
+                    val jsArr = JSArray()
+                    for (i in 0 until arr.length()) {
+                        jsArr.put(arr.getString(i))
+                    }
+                    ret.put("messages", jsArr)
+                    call.resolve(ret)
+                } else {
+                    val err = parsed.optString("error", "Failed to drain LSP messages")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Drain LSP messages error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun stopLspServer(call: PluginCall) {
+        val sessionId = call.getString("sessionId")
+        if (sessionId.isNullOrEmpty()) {
+            call.reject("Missing required parameter 'sessionId'")
+            return
+        }
+
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("success", true)
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val ok = ExtensionHostNative.nativeStopLspServer(sessionId, getExtensionsDir())
+                val ret = JSObject()
+                ret.put("success", ok)
+                call.resolve(ret)
+            } catch (e: Exception) {
+                call.reject("Stop LSP server error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun checkLspBinary(call: PluginCall) {
+        val binary = call.getString("binary") ?: ""
+        val prefix = call.getString("prefix") ?: ""
+
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("exists", false)
+            ret.put("name", binary)
+            ret.put("installCommand", "pkg install -y $binary")
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeCheckLspBinary(binary, prefix, getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false) && parsed.has("data")) {
+                    val data = parsed.getJSONObject("data")
+                    call.resolve(JSObject(data.toString()))
+                } else {
+                    val err = parsed.optString("error", "Failed to check LSP binary")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Check LSP binary error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun getBuiltinLspServers(call: PluginCall) {
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("servers", JSArray())
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeGetBuiltinLspServers(getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false) && parsed.has("data")) {
+                    val arr = parsed.getJSONArray("data")
+                    val jsArr = JSArray()
+                    for (i in 0 until arr.length()) {
+                        jsArr.put(JSObject(arr.getJSONObject(i).toString()))
+                    }
+                    val ret = JSObject()
+                    ret.put("servers", jsArr)
+                    call.resolve(ret)
+                } else {
+                    val err = parsed.optString("error", "Failed to get builtin LSP servers")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Get builtin LSP servers error: ${e.message}", e)
+            }
+        }
+    }
 }

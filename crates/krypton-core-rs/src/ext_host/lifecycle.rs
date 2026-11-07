@@ -31,6 +31,7 @@ pub mod lifecycle_impl {
         registry: Arc<Mutex<HashMap<String, InstalledExtension>>>,
         active: Arc<Mutex<HashMap<String, ActiveExtensionInstance>>>,
         states: Arc<Mutex<HashMap<String, ExtensionState>>>,
+        pub lsp: Arc<crate::ext_host::lsp::LspManager>,
         global_storage_dir: PathBuf,
         log_dir: PathBuf,
     }
@@ -44,6 +45,7 @@ pub mod lifecycle_impl {
                 registry: Arc::new(Mutex::new(HashMap::new())),
                 active: Arc::new(Mutex::new(HashMap::new())),
                 states: Arc::new(Mutex::new(HashMap::new())),
+                lsp: Arc::new(crate::ext_host::lsp::LspManager::new()),
                 global_storage_dir,
                 log_dir,
             }
@@ -151,7 +153,7 @@ pub mod lifecycle_impl {
 
             // Create QuickJS runtime & inject vscode API
             let runtime = ExtensionRuntime::new()?;
-            let api = VscodeApiHost::new();
+            let api = VscodeApiHost::with_lsp(self.lsp.clone());
             api.inject_into_runtime(&runtime, &ext.location.to_string_lossy())?;
 
             let location_json = serde_json::to_string(&ext.location.to_string_lossy())
