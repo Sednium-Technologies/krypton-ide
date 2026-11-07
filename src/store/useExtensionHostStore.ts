@@ -22,6 +22,7 @@ export interface ExtensionHostState {
   executeCommand: <T = any>(command: string, args?: any[]) => Promise<T>;
   refreshCommands: () => Promise<string[]>;
   drainNotifications: () => Promise<ExtensionNotification[]>;
+  getContributedCommands: () => Array<{ extensionId: string; command: string; title: string; category?: string }>;
   initListeners: () => () => void;
 }
 
@@ -118,6 +119,15 @@ export const useExtensionHostStore = create<ExtensionHostState>((set, get) => ({
 
   executeCommand: async <T = any>(command: string, args?: any[]) => {
     try {
+      // Auto-activate owner extension if registered but not yet active
+      const state = get();
+      const owner = state.installedExtensions.find((e) =>
+        e.manifest?.contributes?.commands?.some((c) => c.command === command)
+      );
+      if (owner && !state.activeExtensions[owner.id]) {
+        await get().activateExtension(owner.id);
+      }
+
       const res = await NativeExtensionHost.executeCommand<T>({ command, arguments: args });
       void get().drainNotifications();
       return res.result;
@@ -126,6 +136,25 @@ export const useExtensionHostStore = create<ExtensionHostState>((set, get) => ({
       set({ error: err });
       throw new Error(err);
     }
+  },
+
+  getContributedCommands: () => {
+    const list: Array<{ extensionId: string; command: string; title: string; category?: string }> = [];
+    const exts = get().installedExtensions || [];
+    for (const ext of exts) {
+      const cmds = ext.manifest?.contributes?.commands;
+      if (Array.isArray(cmds)) {
+        for (const cmd of cmds) {
+          list.push({
+            extensionId: ext.id,
+            command: cmd.command,
+            title: cmd.title,
+            category: cmd.category,
+          });
+        }
+      }
+    }
+    return list;
   },
 
   refreshCommands: async () => {

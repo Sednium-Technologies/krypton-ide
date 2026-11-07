@@ -195,6 +195,16 @@ export class ExtensionHostWeb implements ExtensionHostPlugin {
   }
 }
 
+const webFallbackInstance = new ExtensionHostWeb();
+
+export function registerWebMockCommand(id: string, fn: (...args: any[]) => any) {
+  webFallbackInstance.registerMockCommand(id, fn);
+}
+
+export function pushWebMockNotification(note: ExtensionNotification) {
+  webFallbackInstance.pushMockNotification(note);
+}
+
 export const NativeExtensionHost = registerPlugin<ExtensionHostPlugin>('ExtensionHost', {
-  web: () => new ExtensionHostWeb(),
+  web: () => webFallbackInstance,
 });

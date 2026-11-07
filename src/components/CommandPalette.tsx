@@ -3,17 +3,19 @@ import {
   Search, File, Moon, Sun, Monitor, PanelLeft, TerminalSquare, Play, Plus, 
   FolderPlus, Palette, ArrowLeft, Hash, Replace, SearchCode, Bot, Sparkles, 
   GitBranch, GitCommit, GitPullRequest, Code2, WrapText, Check, ChevronRight,
-  Download, Terminal, Zap, Bug, FileCode
+  Download, Terminal, Zap, Bug, FileCode, Puzzle
 } from 'lucide-react';
 import { useIdeStore } from '../store/useIdeStore';
 import { useHarnessStore, KNOWN_HARNESSES } from '../store/useHarnessStore';
 import { useNativeTerminalStore } from '../store/useNativeTerminalStore';
+import { useExtensionHostStore } from '../store/useExtensionHostStore';
+import { useToastStore } from '../store/useToastStore';
 
 export type PaletteMode = 'all' | 'commands' | 'line' | 'symbol';
 
 interface PaletteItem {
   id: string;
-  category?: 'Editor' | 'Git' | 'Terminal' | 'AI' | 'View' | 'Project' | 'File' | 'Symbol';
+  category?: 'Editor' | 'Git' | 'Terminal' | 'AI' | 'View' | 'Project' | 'File' | 'Symbol' | 'Extensions';
   label: string;
   description?: string;
   icon: React.ReactNode;
@@ -41,6 +43,9 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
     defaultHarnessId, setDefaultHarnessId, getInstalledHarnesses, 
     dispatchAgentTask, executionMode, setExecutionMode 
   } = useHarnessStore();
+
+  const hostExtensions = useExtensionHostStore((state) => state.installedExtensions);
+  const executeHostCommand = useExtensionHostStore((state) => state.executeCommand);
 
   const activeFile = activeFileId ? files[activeFileId] : null;
 
@@ -466,11 +471,39 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
           setCommandPaletteOpen(false);
         }
       },
+
+      // ── Contributed Extension Commands ──
+      ...hostExtensions.flatMap((ext) => {
+        const cmds = ext.manifest?.contributes?.commands || [];
+        return cmds.map((cmd) => ({
+          id: `ext-cmd-${ext.id}-${cmd.command}`,
+          category: 'Extensions' as const,
+          label: cmd.category ? `${cmd.category}: ${cmd.title}` : cmd.title,
+          description: `${cmd.command} (${ext.manifest.displayName || ext.manifest.name})`,
+          icon: <Puzzle size={16} className="text-[#7C9B79]" />,
+          action: async () => {
+            setCommandPaletteOpen(false);
+            try {
+              const res = await executeHostCommand(cmd.command);
+              useToastStore.getState().show({
+                message: `${cmd.title} executed${res !== undefined ? `: ${typeof res === 'object' ? JSON.stringify(res) : res}` : ''}`,
+                type: 'success',
+              });
+            } catch (err: any) {
+              useToastStore.getState().show({
+                message: `Failed: ${err?.message || err}`,
+                type: 'error',
+              });
+            }
+          },
+        }));
+      }),
     ];
   }, [
     activeFile, activeFileId, closeFile, createFile, defaultHarnessId, dispatchAgentTask, 
     executionMode, getInstalledHarnesses, onBackToProjects, onRunProject, openFile, 
-    setCommandPaletteOpen, setDefaultHarnessId, setExecutionMode, setSidebarView, setTheme, toggleSidebar
+    setCommandPaletteOpen, setDefaultHarnessId, setExecutionMode, setSidebarView, setTheme, toggleSidebar,
+    hostExtensions, executeHostCommand
   ]);
 
   // Filter items based on active mode
