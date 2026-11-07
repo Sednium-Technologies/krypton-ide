@@ -284,7 +284,7 @@ export class ExtensionHostWeb implements ExtensionHostPlugin {
   }
 
   async installVsix(options: { path: string }): Promise<{ success: boolean; extension: InstalledExtension }> {
-    const mockManifest: ExtensionManifest = {
+    let manifest: ExtensionManifest = {
       name: options.path.split('/').pop()?.replace('.vsix', '') || 'web-preview-extension',
       publisher: 'web',
       version: '1.0.0',
@@ -295,11 +295,31 @@ export class ExtensionHostWeb implements ExtensionHostPlugin {
         commands: [{ command: 'web.hello', title: 'Say Hello' }],
       },
     };
+
+    if (typeof process !== 'undefined' && options.path) {
+      try {
+        const fs = await import('node:fs');
+        if (fs.existsSync(options.path)) {
+          const admZipMod: any = await import('adm-zip');
+          const AdmZipClass = admZipMod?.default || admZipMod;
+          const AdmZip = AdmZipClass?.default || AdmZipClass;
+          const zip = new AdmZip(options.path);
+          const pkgEntry = zip.getEntry('extension/package.json');
+          if (pkgEntry) {
+            const rawPkg = zip.readAsText(pkgEntry);
+            manifest = JSON.parse(rawPkg);
+          }
+        }
+      } catch {
+        // Fall back to filename extraction
+      }
+    }
+
     const extension: InstalledExtension = {
-      id: `${mockManifest.publisher}.${mockManifest.name}`,
-      version: mockManifest.version,
-      location: `/extensions/${mockManifest.publisher}.${mockManifest.name}-1.0.0`,
-      manifest: mockManifest,
+      id: `${manifest.publisher}.${manifest.name}`,
+      version: manifest.version,
+      location: `/extensions/${manifest.publisher}.${manifest.name}-${manifest.version}`,
+      manifest: manifest,
     };
     this.inMemoryExtensions = this.inMemoryExtensions.filter(e => e.id !== extension.id);
     this.inMemoryExtensions.push(extension);
