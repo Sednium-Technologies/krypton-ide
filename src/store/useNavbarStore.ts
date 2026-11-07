@@ -14,6 +14,7 @@ import { useIdeStore } from './useIdeStore';
 import { useAiStore } from './useAiStore';
 import { useExtensionsStore } from './useExtensionsStore';
 import { useToastStore } from './useToastStore';
+import { useExtensionHostStore } from './useExtensionHostStore';
 
 
 export interface NavToolDefinition {
@@ -312,11 +313,40 @@ export const useNavbarStore = create<NavbarState>((set, get) => ({
   },
 
   syncExtensionTools: () => {
+    const hostExtensions = useExtensionHostStore.getState().installedExtensions || [];
+    const activeCustomToolIds = new Set<string>();
+
+    // Dynamic: Inspect installed extensions from NativeExtensionHost that contribute activity bar view containers
+    for (const ext of hostExtensions) {
+      const activitybar = ext.manifest?.contributes?.viewsContainers?.activitybar;
+      if (Array.isArray(activitybar)) {
+        for (const contrib of activitybar) {
+          const toolId = `ext-${ext.id}-${contrib.id}`;
+          activeCustomToolIds.add(toolId);
+          get().registerCustomTool({
+            id: toolId,
+            label: contrib.title || ext.manifest?.displayName || ext.manifest?.name || ext.id,
+            icon: contrib.icon || ext.manifest?.icon || Puzzle,
+            isCustom: true,
+            extensionId: ext.id,
+            action: () => {
+              const ide = useIdeStore.getState();
+              ide.openExtensionView({
+                extensionId: ext.id,
+                viewContainerId: contrib.id,
+                title: contrib.title || ext.manifest?.name || ext.manifest?.displayName || ext.id,
+                icon: contrib.icon || ext.manifest?.icon,
+                toolId,
+              });
+            },
+          });
+        }
+      }
+    }
+
     const extState = useExtensionsStore.getState();
     const installed = new Set(extState.installedExtensions || []);
-    const allInstalled = extState.customExtensions.filter((e) => installed.has(e.id));
-
-    const activeCustomToolIds = new Set<string>();
+    const allInstalled = (extState.customExtensions || []).filter((e) => installed.has(e.id));
 
     // Dynamic: Inspect ONLY installed extensions that explicitly contribute activity bar view containers
     for (const ext of allInstalled) {
@@ -417,12 +447,17 @@ export const useNavbarStore = create<NavbarState>((set, get) => ({
   },
 }));
 
+// Subscribe to extension host store so updates to installed extensions automatically synchronize navbar tools
+useExtensionHostStore.subscribe(() => {
+  useNavbarStore.getState().syncExtensionTools();
+});
+
+useExtensionsStore.subscribe(() => {
+  useNavbarStore.getState().syncExtensionTools();
+});
+
 if (typeof window !== 'undefined') {
   window.addEventListener('krypton:extensions-changed', () => {
-    useNavbarStore.getState().syncExtensionTools();
-  });
-
-  useExtensionsStore.subscribe(() => {
     useNavbarStore.getState().syncExtensionTools();
   });
 
