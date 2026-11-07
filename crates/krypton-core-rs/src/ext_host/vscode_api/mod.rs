@@ -6,13 +6,22 @@ pub use commands::CommandRegistry;
 pub use window::{NotificationMessage, WindowHost};
 pub use workspace::WorkspaceHost;
 
+use std::sync::Arc;
 use rquickjs::Function;
+use crate::ext_host::lsp::LspManager;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct VscodeApiHost {
     pub commands: CommandRegistry,
     pub window: WindowHost,
     pub workspace: WorkspaceHost,
+    pub lsp: Arc<LspManager>,
+}
+
+impl Default for VscodeApiHost {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl VscodeApiHost {
@@ -21,6 +30,16 @@ impl VscodeApiHost {
             commands: CommandRegistry::new(),
             window: WindowHost::new(),
             workspace: WorkspaceHost::new(),
+            lsp: Arc::new(LspManager::new()),
+        }
+    }
+
+    pub fn with_lsp(lsp: Arc<LspManager>) -> Self {
+        Self {
+            commands: CommandRegistry::new(),
+            window: WindowHost::new(),
+            workspace: WorkspaceHost::new(),
+            lsp,
         }
     }
 
@@ -78,6 +97,7 @@ impl VscodeApiHost {
         let commands = self.commands.clone();
         let window = self.window.clone();
         let workspace = self.workspace.clone();
+        let lsp = self.lsp.clone();
 
         runtime
             .context()
@@ -134,6 +154,12 @@ impl VscodeApiHost {
                     win_sb_dispose.dispose_status_bar_item(&id);
                 })?;
                 globals.set("__krypton_native_dispose_status_bar", fn_dispose_sb)?;
+
+                let lsp_reg = lsp.clone();
+                let fn_register_lsp = Function::new(ctx.clone(), move |desc_json: String| -> bool {
+                    lsp_reg.register_extension_client(&desc_json).is_ok()
+                })?;
+                globals.set("__krypton_native_register_lsp_client", fn_register_lsp)?;
 
                 Ok(())
             })
@@ -378,9 +404,86 @@ impl VscodeApiHost {
 
                 globalThis.vscode = vscode;
 
+                var TransportKind = {{
+                    stdio: 0,
+                    ipc: 1,
+                    pipe: 2,
+                    socket: 3
+                }};
+
+                function LanguageClient(id, name, serverOptions, clientOptions) {{
+                    this.id = id || 'lsp-client';
+                    this.name = name || 'Language Client';
+                    this.serverOptions = serverOptions || {{}};
+                    this.clientOptions = clientOptions || {{}};
+                    this._disposed = false;
+                    this.outputChannel = {{
+                        name: this.name,
+                        append: function() {{}},
+                        appendLine: function() {{}},
+                        clear: function() {{}},
+                        show: function() {{}},
+                        hide: function() {{}},
+                        dispose: function() {{}}
+                    }};
+                }}
+                LanguageClient.prototype.start = function() {{
+                    var self = this;
+                    if (typeof __krypton_native_register_lsp_client === 'function') {{
+                        try {{
+                            __krypton_native_register_lsp_client(JSON.stringify({{
+                                id: self.id,
+                                name: self.name,
+                                serverOptions: self.serverOptions,
+                                clientOptions: self.clientOptions
+                            }}));
+                        }} catch (e) {{}}
+                    }}
+                    var disposable = {{
+                        dispose: function() {{
+                            self.stop();
+                        }},
+                        then: function(onFulfilled, onRejected) {{
+                            return Promise.resolve().then(onFulfilled, onRejected);
+                        }},
+                        catch: function(onRejected) {{
+                            return Promise.resolve().catch(onRejected);
+                        }}
+                    }};
+                    return disposable;
+                }};
+                LanguageClient.prototype.stop = function() {{
+                    this._disposed = true;
+                    return Promise.resolve();
+                }};
+                LanguageClient.prototype.onReady = function() {{
+                    return Promise.resolve();
+                }};
+                LanguageClient.prototype.sendRequest = function(type, params) {{
+                    return Promise.resolve(null);
+                }};
+                LanguageClient.prototype.sendNotification = function(type, params) {{}};
+                LanguageClient.prototype.onRequest = function(type, handler) {{
+                    return new Disposable(function() {{}});
+                }};
+                LanguageClient.prototype.onNotification = function(type, handler) {{
+                    return new Disposable(function() {{}});
+                }};
+
+                var vscodeLanguageClient = {{
+                    LanguageClient: LanguageClient,
+                    TransportKind: TransportKind,
+                    State: {{ Stopped: 1, Starting: 2, Running: 3 }}
+                }};
+
+                globalThis.vscodeLanguageClient = vscodeLanguageClient;
+
                 globalThis.require = function(id) {{
                     if (id === 'vscode') {{
                         return globalThis.vscode;
+                    }}
+                    if (id === 'vscode-languageclient' || id === 'vscode-languageclient/node') {{
+                        return globalThis.vscodeLanguageClient;
                     }}
                     throw new Error("Cannot find module '" + id + "'");
                 }};
