@@ -29,11 +29,11 @@
 - Modify: `src/store/useNavbarStore.ts`
 - Test: `tests/extensionNavbarContributions.test.ts`
 
-- [ ] **Step 1: Write failing test in `tests/extensionNavbarContributions.test.ts` for host extension activity bar syncing**
-- [ ] **Step 2: Run `npm test` to verify failure**
-- [ ] **Step 3: Update `useNavbarStore.ts` to source from `useExtensionHostStore.installedExtensions` (unpinned in More section by default)**
-- [ ] **Step 4: Run `npm test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing test in `tests/extensionNavbarContributions.test.ts` for host extension activity bar syncing**
+- [x] **Step 2: Run `npm test` to verify failure**
+- [x] **Step 3: Update `useNavbarStore.ts` to source from `useExtensionHostStore.installedExtensions` (unpinned in More section by default)**
+- [x] **Step 4: Run `npm test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -44,11 +44,11 @@
 - Modify: `src/store/useIdeStore.ts` (if view state requires alignment)
 - Test: `tests/extensionViewPanel.test.ts`
 
-- [ ] **Step 1: Write failing test for dynamic view container resolution and webview container mounting**
-- [ ] **Step 2: Run `npm test` to verify failure**
-- [ ] **Step 3: Implement dynamic view lookup and rendering in `ExtensionViewPanel.tsx`**
-- [ ] **Step 4: Run `npm test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing test for dynamic view container resolution and webview container mounting**
+- [x] **Step 2: Run `npm test` to verify failure**
+- [x] **Step 3: Implement dynamic view lookup and rendering in `ExtensionViewPanel.tsx`**
+- [x] **Step 4: Run `npm test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -59,11 +59,11 @@
 - Modify: `src/components/command-palette/CommandPalette.tsx` (or command palette store)
 - Test: `tests/extensionCommandPalette.test.ts`
 
-- [ ] **Step 1: Write failing test for palette contributed commands aggregation and execution**
-- [ ] **Step 2: Run `npm test` to verify failure**
-- [ ] **Step 3: Connect contributed commands into Command Palette with auto-activation**
-- [ ] **Step 4: Run `npm test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing test for palette contributed commands aggregation and execution**
+- [x] **Step 2: Run `npm test` to verify failure**
+- [x] **Step 3: Connect contributed commands into Command Palette with auto-activation**
+- [x] **Step 4: Run `npm test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -78,11 +78,11 @@
 - Modify: `src/components/layout/StatusBar.tsx`
 - Test: `crates/krypton-core-rs/tests/ext_statusbar_test.rs` & `tests/extensionStatusBar.test.ts`
 
-- [ ] **Step 1: Write failing Rust test for `createStatusBarItem` object model**
-- [ ] **Step 2: Implement Rust `createStatusBarItem` in `window.rs` and JNI drain/query**
-- [ ] **Step 3: Bridge to TypeScript store and render contributed items in `StatusBar.tsx`**
-- [ ] **Step 4: Run `cargo test` and `npm test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing Rust test for `createStatusBarItem` object model**
+- [x] **Step 2: Implement Rust `createStatusBarItem` in `window.rs` and JNI drain/query**
+- [x] **Step 3: Bridge to TypeScript store and render contributed items in `StatusBar.tsx`**
+- [x] **Step 4: Run `cargo test` and `npm test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -93,11 +93,11 @@
 - Modify: `src/store/useExtensionHostStore.ts`
 - Test: `tests/extensionConfiguration.test.ts`
 
-- [ ] **Step 1: Write failing test for dynamic configuration schema parsing and value persistence**
-- [ ] **Step 2: Run `npm test` to verify failure**
-- [ ] **Step 3: Implement dynamic Extensions settings section and workspace configuration sync**
-- [ ] **Step 4: Run `npm test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing test for dynamic configuration schema parsing and value persistence**
+- [x] **Step 2: Run `npm test` to verify failure**
+- [x] **Step 3: Implement dynamic Extensions settings section and workspace configuration sync**
+- [x] **Step 4: Run `npm test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -108,7 +108,7 @@
 - Create: `tests/fixtures/sample-ui-ext/main.js`
 - Test: `tests/extensionHostPhase3E2e.test.ts`
 
-- [ ] **Step 1: Create fixture extension exercising activity bar, views, commands, status bar, and settings**
-- [ ] **Step 2: Implement full E2E test suite in `tests/extensionHostPhase3E2e.test.ts`**
-- [ ] **Step 3: Verify all test gates: `cargo test`, `npm test`, and `npx tsc --noEmit`**
-- [ ] **Step 4: Commit task**
+- [x] **Step 1: Create fixture extension exercising activity bar, views, commands, status bar, and settings**
+- [x] **Step 2: Implement full E2E test suite in `tests/extensionHostPhase3E2e.test.ts`**
+- [x] **Step 3: Verify all test gates: `cargo test`, `npm test`, and `npx tsc --noEmit`**
+- [x] **Step 4: Commit task**
