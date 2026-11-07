@@ -83,28 +83,56 @@ export interface InstalledExtension {
   manifest: ExtensionManifest;
 }
 
+export interface ExtensionNotification {
+  level: 'info' | 'warn' | 'error';
+  message: string;
+  items: string[];
+}
+
 export interface ExtensionHostPlugin {
   installVsix(options: { path: string }): Promise<{ success: boolean; extension: InstalledExtension }>;
   listInstalled(): Promise<{ extensions: InstalledExtension[] }>;
   uninstall(options: { id: string }): Promise<{ success: boolean; id: string }>;
   getManifest(options: { id: string }): Promise<{ manifest: ExtensionManifest | null }>;
+  activate(options: { id: string }): Promise<{ success: boolean; id: string; state: string }>;
+  executeCommand<T = any>(options: { command: string; arguments?: any[] }): Promise<{ success: boolean; result: T }>;
+  listCommands(): Promise<{ commands: string[] }>;
+  drainNotifications(): Promise<{ notifications: ExtensionNotification[] }>;
   addListener(
     eventName: 'contributionsChanged',
     listenerFunc: (info: any) => void
   ): Promise<PluginListenerHandle>;
 }
 
-class ExtensionHostWeb implements ExtensionHostPlugin {
+export class ExtensionHostWeb implements ExtensionHostPlugin {
   private inMemoryExtensions: InstalledExtension[] = [];
+  private activeExtensions: Set<string> = new Set();
+  private mockCommands: Map<string, (...args: any[]) => any> = new Map();
+  private pendingNotifications: ExtensionNotification[] = [];
+
+  constructor() {
+    this.mockCommands.set('krypton.ping', () => 'pong');
+  }
+
+  registerMockCommand(id: string, fn: (...args: any[]) => any) {
+    this.mockCommands.set(id, fn);
+  }
+
+  pushMockNotification(note: ExtensionNotification) {
+    this.pendingNotifications.push(note);
+  }
 
   async installVsix(options: { path: string }): Promise<{ success: boolean; extension: InstalledExtension }> {
-    // In web dev preview, return simulated success or parse in-memory
     const mockManifest: ExtensionManifest = {
       name: options.path.split('/').pop()?.replace('.vsix', '') || 'web-preview-extension',
       publisher: 'web',
       version: '1.0.0',
       displayName: 'Web Preview Extension',
       description: 'Simulated extension in web preview environment',
+      activationEvents: ['*'],
+      contributes: {
+        commands: [{ command: 'web.hello', title: 'Say Hello' }],
+      },
     };
     const extension: InstalledExtension = {
       id: `${mockManifest.publisher}.${mockManifest.name}`,
@@ -124,12 +152,37 @@ class ExtensionHostWeb implements ExtensionHostPlugin {
   async uninstall(options: { id: string }): Promise<{ success: boolean; id: string }> {
     const priorLen = this.inMemoryExtensions.length;
     this.inMemoryExtensions = this.inMemoryExtensions.filter(e => e.id !== options.id);
+    this.activeExtensions.delete(options.id);
     return { success: this.inMemoryExtensions.length < priorLen, id: options.id };
   }
 
   async getManifest(options: { id: string }): Promise<{ manifest: ExtensionManifest | null }> {
     const found = this.inMemoryExtensions.find(e => e.id === options.id);
     return { manifest: found ? found.manifest : null };
+  }
+
+  async activate(options: { id: string }): Promise<{ success: boolean; id: string; state: string }> {
+    this.activeExtensions.add(options.id);
+    return { success: true, id: options.id, state: 'active' };
+  }
+
+  async executeCommand<T = any>(options: { command: string; arguments?: any[] }): Promise<{ success: boolean; result: T }> {
+    if (this.mockCommands.has(options.command)) {
+      const fn = this.mockCommands.get(options.command)!;
+      const res = await Promise.resolve(fn(...(options.arguments || [])));
+      return { success: true, result: res };
+    }
+    return { success: true, result: null as unknown as T };
+  }
+
+  async listCommands(): Promise<{ commands: string[] }> {
+    return { commands: Array.from(this.mockCommands.keys()) };
+  }
+
+  async drainNotifications(): Promise<{ notifications: ExtensionNotification[] }> {
+    const notes = [...this.pendingNotifications];
+    this.pendingNotifications = [];
+    return { notifications: notes };
   }
 
   async addListener(
