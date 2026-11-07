@@ -16,6 +16,7 @@ pub struct VscodeApiHost {
     pub window: WindowHost,
     pub workspace: WorkspaceHost,
     pub lsp: Arc<LspManager>,
+    pub trust: Arc<crate::ext_host::trust::TrustManager>,
 }
 
 impl Default for VscodeApiHost {
@@ -31,6 +32,7 @@ impl VscodeApiHost {
             window: WindowHost::new(),
             workspace: WorkspaceHost::new(),
             lsp: Arc::new(LspManager::new()),
+            trust: Arc::new(crate::ext_host::trust::TrustManager::new()),
         }
     }
 
@@ -40,6 +42,20 @@ impl VscodeApiHost {
             window: WindowHost::new(),
             workspace: WorkspaceHost::new(),
             lsp,
+            trust: Arc::new(crate::ext_host::trust::TrustManager::new()),
+        }
+    }
+
+    pub fn with_lsp_and_trust(
+        lsp: Arc<LspManager>,
+        trust: Arc<crate::ext_host::trust::TrustManager>,
+    ) -> Self {
+        Self {
+            commands: CommandRegistry::new(),
+            window: WindowHost::new(),
+            workspace: WorkspaceHost::new(),
+            lsp,
+            trust,
         }
     }
 
@@ -94,6 +110,13 @@ impl VscodeApiHost {
         runtime: &super::runtime::ExtensionRuntime,
         base_dir: &str,
     ) -> Result<(), String> {
+        // Inject Node compatibility polyfills and native hooks first
+        crate::ext_host::node_compat::inject_node_compat(
+            runtime,
+            self.trust.clone(),
+            base_dir,
+        )?;
+
         let commands = self.commands.clone();
         let window = self.window.clone();
         let workspace = self.workspace.clone();
@@ -484,6 +507,21 @@ impl VscodeApiHost {
                     }}
                     if (id === 'vscode-languageclient' || id === 'vscode-languageclient/node') {{
                         return globalThis.vscodeLanguageClient;
+                    }}
+                    if (id === 'path') {{
+                        return globalThis.__krypton_path;
+                    }}
+                    if (id === 'os') {{
+                        return globalThis.__krypton_os;
+                    }}
+                    if (id === 'events') {{
+                        return globalThis.__krypton_events;
+                    }}
+                    if (id === 'fs') {{
+                        return globalThis.__krypton_fs;
+                    }}
+                    if (id === 'child_process') {{
+                        return globalThis.__krypton_child_process;
                     }}
                     throw new Error("Cannot find module '" + id + "'");
                 }};
