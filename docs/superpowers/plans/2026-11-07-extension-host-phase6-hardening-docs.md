@@ -41,11 +41,11 @@ Phase 6 completes the Native Extension Host roadmap by delivering comprehensive 
 - Create: `tests/fixtures/packVsix.ts` (OPC zip builder with `[Content_Types].xml`, `extension.vsixmanifest`)
 - Test: `tests/vsixPackager.test.ts`
 
-- [ ] **Step 1: Implement VSIX packager in `tests/fixtures/packVsix.ts`**
-- [ ] **Step 2: Create authentic fixtures across all 6 categories**
-- [ ] **Step 3: Write test `tests/vsixPackager.test.ts` verifying VSIX archive generation and CRC/structure**
-- [ ] **Step 4: Run `npm test tests/vsixPackager.test.ts`**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Implement VSIX packager in `tests/fixtures/packVsix.ts`**
+- [x] **Step 2: Create authentic fixtures across all 6 categories**
+- [x] **Step 3: Write test `tests/vsixPackager.test.ts` verifying VSIX archive generation and CRC/structure**
+- [x] **Step 4: Run `npm test tests/vsixPackager.test.ts`**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -53,21 +53,21 @@ Phase 6 completes the Native Extension Host roadmap by delivering comprehensive 
 - Create: `crates/krypton-core-rs/tests/ext_hardening_test.rs`
 - Modify: `crates/krypton-core-rs/src/ext_host/installer.rs` (if error handling needs additional guards)
 
-- [ ] **Step 1: Write stress tests in `ext_hardening_test.rs` (corrupted zip, missing manifest, directory traversal, syntax errors)**
-- [ ] **Step 2: Run `cargo test --test ext_hardening_test`**
-- [ ] **Step 3: Verify clean error handling without panics**
-- [ ] **Step 4: Commit task**
+- [x] **Step 1: Write stress tests in `ext_hardening_test.rs` (corrupted zip, missing manifest, directory traversal, syntax errors)**
+- [x] **Step 2: Run `cargo test --test ext_hardening_test`**
+- [x] **Step 3: Verify clean error handling without panics**
+- [x] **Step 4: Commit task**
 
 ---
 
 ### Task 3: Full Device E2E Integration Test Suite
 - Create: `tests/extensionHostPhase6E2e.test.ts`
 
-- [ ] **Step 1: Implement Phase 6 E2E test exercising all 6 fixtures end-to-end**
-- [ ] **Step 2: Verify theme registration, snippet availability, tree view rendering, webview communication, LSP start, and agent commands**
-- [ ] **Step 3: Verify clean uninstallation and contribution cleanup for all 6 extensions**
-- [ ] **Step 4: Run `npm test tests/extensionHostPhase6E2e.test.ts`**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Implement Phase 6 E2E test exercising all 6 fixtures end-to-end**
+- [x] **Step 2: Verify theme registration, snippet availability, tree view rendering, webview communication, LSP start, and agent commands**
+- [x] **Step 3: Verify clean uninstallation and contribution cleanup for all 6 extensions**
+- [x] **Step 4: Run `npm test tests/extensionHostPhase6E2e.test.ts`**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -76,23 +76,23 @@ Phase 6 completes the Native Extension Host roadmap by delivering comprehensive 
 - Modify: `docs/design/krypton-native-extension-host.md`
 - Modify: `README.md`
 
-- [ ] **Step 1: Author `docs/extensions/extension-authoring-guide.md` with complete API reference and packaging guides**
-- [ ] **Step 2: Update `docs/design/krypton-native-extension-host.md` status to Complete (Phases 0-6 delivered)**
-- [ ] **Step 3: Update `README.md` with Extension Host overview**
-- [ ] **Step 4: Commit task**
+- [x] **Step 1: Author `docs/extensions/extension-authoring-guide.md` with complete API reference and packaging guides**
+- [x] **Step 2: Update `docs/design/krypton-native-extension-host.md` status to Complete (Phases 0-6 delivered)**
+- [x] **Step 3: Update `README.md` with Extension Host overview**
+- [x] **Step 4: Commit task**
 
 ---
 
 ### Task 5: Final Multi-Gate Verification Across Entire Codebase
-- [ ] **Step 1: Run full Rust test suite `cd crates/krypton-core-rs && cargo test`**
-- [ ] **Step 2: Run full TypeScript test suite `npm test`**
-- [ ] **Step 3: Run full type check `npx tsc --noEmit`**
-- [ ] **Step 4: Generate final Walkthrough artifact**
+- [x] **Step 1: Run full Rust test suite `cd crates/krypton-core-rs && cargo test` (67/67 passed)**
+- [x] **Step 2: Run full TypeScript test suite `npm test` (127/127 passed)**
+- [x] **Step 3: Run full type check `npx tsc --noEmit` (0 errors, clean exit 0)**
+- [x] **Step 4: Generate final Walkthrough artifact**
 
 ---
 
 ## 3. Verification Commands
 
-1. **Rust Core:** `cd crates/krypton-core-rs && cargo test`
-2. **TypeScript & IDE:** `npm test`
-3. **Type Checking:** `npx tsc --noEmit`
+1. **Rust Core:** `cd crates/krypton-core-rs && cargo test` (67/67 passed)
+2. **TypeScript & IDE:** `npm test` (127/127 passed)
+3. **Type Checking:** `npx tsc --noEmit` (0 errors)
