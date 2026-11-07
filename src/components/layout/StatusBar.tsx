@@ -1,7 +1,10 @@
 import React, { useMemo } from 'react';
 import { useIdeStore, getLanguageFromFilename } from '../../store/useIdeStore';
 import { useExtensionHostStore } from '../../store/useExtensionHostStore';
+import { useLspStore } from '../../store/useLspStore';
+import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
 import { useToastStore } from '../../store/useToastStore';
+import { cn } from '../../lib/utils';
 import type { ExtensionStatusBarItem } from '../../lib/extensions/nativeExtensionHost';
 
 export function StatusBar() {
@@ -31,6 +34,30 @@ export function StatusBar() {
 
   const language = activeFile ? (activeFile.language || getLanguageFromFilename(activeFile.name)) : '';
   const displayLang = language.charAt(0).toUpperCase() + language.slice(1);
+
+  const lspSession = useLspStore((s) => s.sessions[language]);
+  const lspInstallCmd = useLspStore((s) => s.getInstallCommand(language));
+
+  const handleLspClick = async () => {
+    if (!language) return;
+    const lspState = useLspStore.getState();
+    const session = lspState.sessions[language];
+    const installCmd = lspState.getInstallCommand(language);
+
+    if (!session || session.status === 'error') {
+      useIdeStore.getState().setIsTerminalOpen(true);
+      await useNativeTerminalStore.getState().sendInput(`${installCmd}\n`);
+      useToastStore.getState().show({
+        message: `Installing ${language} language server in terminal: ${installCmd}`,
+        type: 'info',
+      });
+    } else if (session.status === 'ready') {
+      useToastStore.getState().show({
+        message: `${displayLang} Language Server is active (${session.sessionId})`,
+        type: 'success',
+      });
+    }
+  };
 
   // Compute word count, character count, and line count for the active file
   const stats = useMemo(() => {
@@ -106,6 +133,31 @@ export function StatusBar() {
             <span className="cursor-pointer hover:bg-white/20 px-1.5 py-0.5 rounded">Spaces: 2</span>
             <span className="cursor-pointer hover:bg-white/20 px-1.5 py-0.5 rounded">UTF-8</span>
             <span className="cursor-pointer hover:bg-white/20 px-1.5 py-0.5 rounded">{displayLang}</span>
+            {displayLang && (
+              <span
+                onClick={handleLspClick}
+                title={
+                  lspSession?.status === 'ready'
+                    ? `${displayLang} Language Server is active. Click for info.`
+                    : lspSession?.status === 'starting'
+                    ? `${displayLang} Language Server is starting...`
+                    : `${displayLang} Language Server is not installed. Click to install in terminal: ${lspInstallCmd}`
+                }
+                className={cn(
+                  "cursor-pointer hover:bg-white/20 px-1.5 py-0.5 rounded flex items-center space-x-1 transition-colors",
+                  lspSession?.status === 'error' && "text-amber-300 font-medium animate-pulse",
+                  lspSession?.status === 'ready' && "text-emerald-300 font-medium"
+                )}
+              >
+                <span>
+                  {lspSession?.status === 'ready'
+                    ? `● ${displayLang} LSP`
+                    : lspSession?.status === 'starting'
+                    ? `⟳ ${displayLang} LSP`
+                    : `⚠ ${displayLang} (Install LSP)`}
+                </span>
+              </span>
+            )}
           </>
         )}
       </div>
