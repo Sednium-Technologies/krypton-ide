@@ -530,4 +530,93 @@ class ExtensionHostPlugin : Plugin() {
             }
         }
     }
+
+    @PluginMethod
+    fun setWorkspaceTrust(call: PluginCall) {
+        val state = call.getString("state") ?: "restricted"
+        val root = call.getString("workspaceRoot") ?: ""
+
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("state", state)
+            ret.put("workspaceRoot", root)
+            ret.put("isTrusted", state.equals("trusted", ignoreCase = true))
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeSetWorkspaceTrust(state, root, getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false) && parsed.has("data")) {
+                    val data = parsed.getJSONObject("data")
+                    call.resolve(JSObject(data.toString()))
+                } else {
+                    val err = parsed.optString("error", "Failed to set workspace trust")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Set workspace trust error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun getWorkspaceTrust(call: PluginCall) {
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("state", "restricted")
+            ret.put("workspaceRoot", "")
+            ret.put("isTrusted", false)
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeGetWorkspaceTrust(getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false) && parsed.has("data")) {
+                    val data = parsed.getJSONObject("data")
+                    call.resolve(JSObject(data.toString()))
+                } else {
+                    val err = parsed.optString("error", "Failed to get workspace trust")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Get workspace trust error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun checkCapability(call: PluginCall) {
+        val capability = call.getString("capability") ?: ""
+
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("capability", capability)
+            ret.put("allowed", false)
+            ret.put("error", "Native extension host unavailable")
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeCheckCapability(capability, getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false) && parsed.has("data")) {
+                    val data = parsed.getJSONObject("data")
+                    call.resolve(JSObject(data.toString()))
+                } else {
+                    val err = parsed.optString("error", "Failed to check capability")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Check capability error: ${e.message}", e)
+            }
+        }
+    }
 }

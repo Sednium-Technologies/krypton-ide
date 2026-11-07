@@ -64,4 +64,13 @@ object ExtensionHostNative {
 
     @JvmStatic
     external fun nativeGetBuiltinLspServers(extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeSetWorkspaceTrust(state: String, workspaceRoot: String, extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeGetWorkspaceTrust(extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeCheckCapability(capability: String, extensionsDir: String): String
 }

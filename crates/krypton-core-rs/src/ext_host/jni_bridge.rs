@@ -548,4 +548,153 @@ pub mod ext_jni_impl {
 
         result.unwrap_or(std::ptr::null_mut())
     }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeSetWorkspaceTrust(
+        mut env: JNIEnv,
+        _class: JClass,
+        state: JString,
+        workspace_root: JString,
+        extensions_dir: JString,
+    ) -> jstring {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let state_str: String = match env.get_string(&state) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid state JString: {}", e)),
+                    )
+                }
+            };
+
+            let root_str: String = env
+                .get_string(&workspace_root)
+                .ok()
+                .map(|s| s.into())
+                .unwrap_or_default();
+
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extensions_dir JString: {}", e)),
+                    )
+                }
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            let parsed_state = match state_str.to_lowercase().as_str() {
+                "trusted" => crate::ext_host::trust::WorkspaceTrustState::Trusted,
+                "untrusted" => crate::ext_host::trust::WorkspaceTrustState::Untrusted,
+                _ => crate::ext_host::trust::WorkspaceTrustState::Restricted,
+            };
+
+            mgr.trust.set_state(parsed_state);
+            if !root_str.trim().is_empty() {
+                mgr.trust.set_workspace_root(Path::new(&root_str));
+            }
+
+            let ret_data = serde_json::json!({
+                "state": mgr.trust.get_state(),
+                "workspaceRoot": mgr.trust.get_workspace_root().map(|p| p.to_string_lossy().to_string()),
+                "isTrusted": mgr.trust.is_trusted(),
+            });
+
+            to_json_jstring(&mut env, Ok(ret_data))
+        }));
+
+        result.unwrap_or(std::ptr::null_mut())
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeGetWorkspaceTrust(
+        mut env: JNIEnv,
+        _class: JClass,
+        extensions_dir: JString,
+    ) -> jstring {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extensions_dir JString: {}", e)),
+                    )
+                }
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            let ret_data = serde_json::json!({
+                "state": mgr.trust.get_state(),
+                "workspaceRoot": mgr.trust.get_workspace_root().map(|p| p.to_string_lossy().to_string()),
+                "isTrusted": mgr.trust.is_trusted(),
+            });
+
+            to_json_jstring(&mut env, Ok(ret_data))
+        }));
+
+        result.unwrap_or(std::ptr::null_mut())
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeCheckCapability(
+        mut env: JNIEnv,
+        _class: JClass,
+        capability: JString,
+        extensions_dir: JString,
+    ) -> jstring {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let cap_str: String = match env.get_string(&capability) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid capability JString: {}", e)),
+                    )
+                }
+            };
+
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extensions_dir JString: {}", e)),
+                    )
+                }
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            let parsed_cap = match cap_str.as_str() {
+                "spawnProcess" | "SpawnProcess" => Some(crate::ext_host::trust::Capability::SpawnProcess),
+                "fsOutsideWorkspace" | "FsOutsideWorkspace" => Some(crate::ext_host::trust::Capability::FsOutsideWorkspace),
+                "fsWrite" | "FsWrite" => Some(crate::ext_host::trust::Capability::FsWrite),
+                "network" | "Network" => Some(crate::ext_host::trust::Capability::Network),
+                "terminalWrite" | "TerminalWrite" => Some(crate::ext_host::trust::Capability::TerminalWrite),
+                _ => None,
+            };
+
+            match parsed_cap {
+                Some(cap) => {
+                    let check = mgr.trust.check_capability(cap);
+                    let ret_data = serde_json::json!({
+                        "capability": cap_str,
+                        "allowed": check.is_ok(),
+                        "error": check.err(),
+                    });
+                    to_json_jstring(&mut env, Ok(ret_data))
+                }
+                None => {
+                    to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Unknown capability: {}", cap_str)),
+                    )
+                }
+            }
+        }));
+
+        result.unwrap_or(std::ptr::null_mut())
+    }
 }
