@@ -24,10 +24,25 @@ Version 3.0 is the biggest Krypton update yet — rebuilt from the ground up wit
 
 - ⚡ Offline Execution
 - 🤖 Real-Time AI Workflows
+- 🧩 Native QuickJS Extension Host
 - 🐙 GitHub Integration
 - 📁 File Management
 - 🛠️ Developer Productivity
 - ☁️ Storage & Synchronization
+
+---
+
+# 🧩 Native Extension Host & QuickJS Engine
+
+Install and execute genuine `.vsix` packages natively on Android and desktop with zero predetermined mock data:
+
+- **Embedded QuickJS Runtime:** Fast, lightweight JavaScript execution directly within the native Rust core (`libkrypton_core_rs.so`).
+- **VS Code API Subset:** Compatible with `vscode.commands`, `vscode.window`, `vscode.workspace`, `vscode.Uri`, and `vscode.Disposable`.
+- **Language Server Protocol (LSP):** Offline language servers (TypeScript, Python, Rust, Clangd) spawned in Termux userland with stdio JSON-RPC framing, connecting directly to Monaco Editor.
+- **Node.js Polyfills:** Native support for `path`, `os`, `events`, `fs`, and `child_process`.
+- **Workspace Trust Gates:** Restricts process execution and filesystem writes outside the workspace until explicitly trusted by the user.
+- **Dynamic Contributions:** Activity bar view containers, sidebar panels, status bar items, and themes driven entirely by extension manifests.
+- **Developer Guide:** See [`docs/extensions/extension-authoring-guide.md`](docs/extensions/extension-authoring-guide.md) to author and package custom extensions.
 
 ---
 
