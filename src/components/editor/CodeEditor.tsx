@@ -23,6 +23,8 @@ import { predictLocalCompletion, fetchAiInlineCompletion } from '../../lib/ai/in
 import { useExtensionsStore } from '../../store/useExtensionsStore';
 import { registerAllMonacoThemes, resolveActiveMonacoTheme } from '../../lib/monacoThemes';
 import { useIsLandscape } from '../../hooks/useIsLandscape';
+import { registerMonacoLspProviders } from '../../lib/lsp/monacoLspAdapter';
+import { useLspStore } from '../../store/useLspStore';
 
 // Monaco identifies models by URI. Using only the file name made two files
 // such as src/index.js and test/index.js share one buffer. The node id makes
@@ -364,6 +366,33 @@ export function CodeEditor() {
     return () => disposables.forEach(d => d.dispose());
   }, [monaco]);
 
+  // ── Native Extension Host Phase 4: Monaco LSP Provider Registration ──
+  useEffect(() => {
+    if (!monaco) return;
+    const lspRegistration = registerMonacoLspProviders(monaco);
+    return () => lspRegistration.dispose();
+  }, [monaco]);
+
+  // ── Native Extension Host Phase 4: Active File LSP Synchronization ──
+  useEffect(() => {
+    if (!activeFile || !activeFile.name) return;
+    const uri = fileModelUri(activeFile);
+    const lang = activeFile.language || 'plaintext';
+    const content = activeFile.content || '';
+
+    let isMounted = true;
+    useLspStore.getState().startServer(lang).then((client) => {
+      if (isMounted && client) {
+        useLspStore.getState().syncDocumentOpen(uri, lang, content);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      useLspStore.getState().syncDocumentClose(uri, lang);
+    };
+  }, [activeFile?.id, activeFile?.name, activeFile?.language]);
+
   // ── Phase 5.4: Oorty Lite Inline Ghost Text Autocomplete ──
   useEffect(() => {
     if (!monaco) return;
@@ -628,6 +657,11 @@ export function CodeEditor() {
     editorChangeTimer.current = setTimeout(() => {
       if (pendingFileId.current && latestValue.current !== undefined) {
         updateFileContent(pendingFileId.current, latestValue.current);
+        if (activeFile) {
+          const uri = fileModelUri(activeFile);
+          const lang = activeFile.language || 'plaintext';
+          useLspStore.getState().syncDocumentChange(uri, lang, latestValue.current);
+        }
       }
       pendingFileId.current = null;
       latestValue.current = undefined;
