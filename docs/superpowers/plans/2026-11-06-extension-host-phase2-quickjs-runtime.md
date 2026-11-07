@@ -44,11 +44,11 @@
 - Modify: `crates/krypton-core-rs/src/ext_host/mod.rs`
 - Test: `crates/krypton-core-rs/tests/ext_vscode_api_test.rs`
 
-- [ ] **Step 1: Write failing integration test for `require('vscode')` and `commands.registerCommand`**
-- [ ] **Step 2: Run `cargo test --test ext_vscode_api_test` to verify failure**
-- [ ] **Step 3: Implement `vscode` module bindings and CJS require injection**
-- [ ] **Step 4: Run `cargo test --test ext_vscode_api_test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing integration test for `require('vscode')` and `commands.registerCommand`**
+- [x] **Step 2: Run `cargo test --test ext_vscode_api_test` to verify failure**
+- [x] **Step 3: Implement `vscode` module bindings and CJS require injection**
+- [x] **Step 4: Run `cargo test --test ext_vscode_api_test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -59,11 +59,11 @@
 - Modify: `crates/krypton-core-rs/src/ext_host/mod.rs`
 - Test: `crates/krypton-core-rs/tests/ext_lifecycle_test.rs`
 
-- [ ] **Step 1: Write failing integration test for extension activation events and activate() call**
-- [ ] **Step 2: Run `cargo test --test ext_lifecycle_test` to verify failure**
-- [ ] **Step 3: Implement `ExtensionLifecycleManager` with lazy activation**
-- [ ] **Step 4: Run `cargo test --test ext_lifecycle_test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing integration test for extension activation events and activate() call**
+- [x] **Step 2: Run `cargo test --test ext_lifecycle_test` to verify failure**
+- [x] **Step 3: Implement `ExtensionLifecycleManager` with lazy activation**
+- [x] **Step 4: Run `cargo test --test ext_lifecycle_test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -74,10 +74,10 @@
 - Modify: `android/app/src/main/java/com/sednium/kryptonide/extensions/ExtensionHostNative.kt`
 - Modify: `android/app/src/main/java/com/sednium/kryptonide/extensions/ExtensionHostPlugin.kt`
 
-- [ ] **Step 1: Add JNI methods: `nativeActivateExtension`, `nativeExecuteExtensionCommand`, `nativeListRegisteredCommands`**
-- [ ] **Step 2: Add Kotlin plugin methods: `activate`, `executeCommand`, `listCommands`**
-- [ ] **Step 3: Run `cargo check` to verify JNI exports**
-- [ ] **Step 4: Commit task**
+- [x] **Step 1: Add JNI methods: `nativeActivateExtension`, `nativeExecuteExtensionCommand`, `nativeListRegisteredCommands`**
+- [x] **Step 2: Add Kotlin plugin methods: `activate`, `executeCommand`, `listCommands`**
+- [x] **Step 3: Run `cargo check` to verify JNI exports**
+- [x] **Step 4: Commit task**
 
 ---
 
@@ -88,10 +88,10 @@
 - Modify: `src/store/useExtensionHostStore.ts`
 - Test: `tests/extensionHostPhase2Command.test.ts`
 
-- [ ] **Step 1: Add command execution types and web fallback to `nativeExtensionHost.ts`**
-- [ ] **Step 2: Extend `useExtensionHostStore.ts` with `executeCommand` and `activateExtension`**
-- [ ] **Step 3: Verify with unit tests**
-- [ ] **Step 4: Commit task**
+- [x] **Step 1: Add command execution types and web fallback to `nativeExtensionHost.ts`**
+- [x] **Step 2: Extend `useExtensionHostStore.ts` with `executeCommand` and `activateExtension`**
+- [x] **Step 3: Verify with unit tests**
+- [x] **Step 4: Commit task**
 
 ---
 
@@ -102,7 +102,7 @@
 - Create: `tests/fixtures/sample-command-ext/main.js`
 - Test: `tests/extensionHostPhase2E2e.test.ts`
 
-- [ ] **Step 1: Create sample VSIX fixture with command registration**
-- [ ] **Step 2: Write E2E test verifying install -> activate -> execute command -> response**
-- [ ] **Step 3: Run full verification: `cargo test` and `npm test`**
-- [ ] **Step 4: Commit task**
+- [x] **Step 1: Create sample VSIX fixture with command registration**
+- [x] **Step 2: Write E2E test verifying install -> activate -> execute command -> response**
+- [x] **Step 3: Run full verification: `cargo test` and `npm test`**
+- [x] **Step 4: Commit task**
