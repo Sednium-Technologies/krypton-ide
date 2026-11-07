@@ -1,0 +1,59 @@
+{
+  "name": "sample-ui-ext",
+  "displayName": "Sample Cloud Extension",
+  "publisher": "krypton-test",
+  "version": "1.0.0",
+  "description": "Fixture extension for Phase 3 full UI contribution testing",
+  "main": "main.js",
+  "activationEvents": [
+    "onCommand:sample.cloudDeploy",
+    "onCommand:sample.cloudStatus",
+    "onView:sample-cloud-view"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sample-cloud-view",
+          "title": "Sample Cloud",
+          "icon": "cloud-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "sample-cloud-view": [
+        {
+          "id": "sample.cloudExplorer",
+          "name": "Cloud Resources"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "sample.cloudDeploy",
+        "title": "Cloud: Deploy Active Project",
+        "category": "Cloud"
+      },
+      {
+        "command": "sample.cloudStatus",
+        "title": "Cloud: Check Cluster Status",
+        "category": "Cloud"
+      }
+    ],
+    "configuration": {
+      "title": "Sample Cloud Configuration",
+      "properties": {
+        "sampleCloud.region": {
+          "type": "string",
+          "default": "us-east-1",
+          "description": "Primary deployment region"
+        },
+        "sampleCloud.autoDeploy": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically deploy on git push"
+        }
+      }
+    }
+  }
+}
