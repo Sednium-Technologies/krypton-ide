@@ -4,7 +4,7 @@ import {
   Loader, CloudUpload, CloudDownload, Type, ChevronDown, RefreshCw,
   CheckCircle, CheckCircle2, AlertCircle, Copy, Check, FolderDown, FolderUp, Vibrate, Shield,
   Database, UserCheck, HardDrive, Sparkles, Layers, Sliders, Zap,
-  Terminal, Bot, AlertTriangle, TerminalSquare, Code2
+  Terminal, Bot, AlertTriangle, TerminalSquare, Code2, Puzzle
 } from 'lucide-react';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth as firebaseAuth, googleProvider } from '../../lib/firebase';
@@ -39,9 +39,10 @@ import {
 } from '../../lib/googleDriveSync';
 
 import { AgentSettingsPanel } from '../settings/AgentSettingsPanel';
+import { ExtensionSettingsPanel } from '../settings/ExtensionSettingsPanel';
 import { useNavbarStore } from '../../store/useNavbarStore';
 
-type SettingsTab = 'account' | 'appearance' | 'agent' | 'terminal' | 'sync' | 'preferences' | 'about';
+type SettingsTab = 'account' | 'appearance' | 'agent' | 'terminal' | 'extensions' | 'sync' | 'preferences' | 'about';
 
 export function SettingsPanel() {
   const { files, loadProject, theme, setTheme, isHapticsEnabled, setHaptics } = useIdeStore();
@@ -579,6 +580,18 @@ export function SettingsPanel() {
         >
           <Terminal size={14} className="text-emerald-400" />
           <span>Terminal</span>
+        </button>
+
+        <button
+          role="tab"
+          aria-selected={activeTab === 'extensions'}
+          onClick={() => { triggerHaptic(); setActiveTab('extensions'); }}
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all min-h-[36px] whitespace-nowrap shrink-0 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
+            activeTab === 'extensions' ? (isLight ? 'bg-[#2a2529] text-white shadow-sm font-bold' : 'bg-[#f3f0e7] text-[#2a2529] font-bold shadow-sm') : textMuted
+          }`}
+        >
+          <Puzzle size={14} className="text-[#7C9B79]" />
+          <span>Extensions</span>
         </button>
 
         <button
@@ -1208,6 +1221,13 @@ export function SettingsPanel() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ── TAB: EXTENSIONS CONFIGURATION ── */}
+        {activeTab === 'extensions' && (
+          <div className="space-y-4 animate-fade-in">
+            <ExtensionSettingsPanel />
           </div>
         )}
 

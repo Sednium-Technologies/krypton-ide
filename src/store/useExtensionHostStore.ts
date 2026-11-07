@@ -13,6 +13,7 @@ export interface ExtensionHostState {
   registeredCommands: string[];
   notifications: ExtensionNotification[];
   statusBarItems: ExtensionStatusBarItem[];
+  configurations: Record<string, any>;
   isLoading: boolean;
   error: string | null;
 
@@ -26,6 +27,9 @@ export interface ExtensionHostState {
   drainNotifications: () => Promise<ExtensionNotification[]>;
   refreshStatusBarItems: () => Promise<ExtensionStatusBarItem[]>;
   getContributedCommands: () => Array<{ extensionId: string; command: string; title: string; category?: string }>;
+  getContributedConfigurations: () => Array<{ extensionId: string; title: string; properties: Record<string, any> }>;
+  getConfiguration: (key: string, defaultValue?: any) => any;
+  updateConfiguration: (key: string, value: any) => void;
   initListeners: () => () => void;
 }
 
@@ -35,6 +39,7 @@ export const useExtensionHostStore = create<ExtensionHostState>((set, get) => ({
   registeredCommands: [],
   notifications: [],
   statusBarItems: [],
+  configurations: {},
   isLoading: false,
   error: null,
 
@@ -196,6 +201,52 @@ export const useExtensionHostStore = create<ExtensionHostState>((set, get) => ({
     } catch {
       return [];
     }
+  },
+
+  getContributedConfigurations: () => {
+    const list: Array<{ extensionId: string; title: string; properties: Record<string, any> }> = [];
+    const exts = get().installedExtensions || [];
+    for (const ext of exts) {
+      const config = ext.manifest?.contributes?.configuration;
+      if (config && typeof config === 'object') {
+        const title = config.title || ext.manifest.displayName || ext.manifest.name || ext.id;
+        const properties = config.properties || {};
+        list.push({
+          extensionId: ext.id,
+          title,
+          properties,
+        });
+      }
+    }
+    return list;
+  },
+
+  getConfiguration: (key: string, defaultValue?: any) => {
+    const configs = get().configurations || {};
+    if (key in configs && configs[key] !== undefined) {
+      return configs[key];
+    }
+    // Check manifest defaults
+    const exts = get().installedExtensions || [];
+    for (const ext of exts) {
+      const props = ext.manifest?.contributes?.configuration?.properties;
+      if (props && key in props && props[key].default !== undefined) {
+        return props[key].default;
+      }
+    }
+    return defaultValue;
+  },
+
+  updateConfiguration: (key: string, value: any) => {
+    set((state) => {
+      const nextConfigs = { ...state.configurations, [key]: value };
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          window.localStorage.setItem('krypton:ext-configs', JSON.stringify(nextConfigs));
+        } catch {}
+      }
+      return { configurations: nextConfigs };
+    });
   },
 
   initListeners: () => {
