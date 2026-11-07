@@ -6,9 +6,12 @@ import {
   Package,
   Layers,
   Info,
+  Play,
 } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useExtensionsStore } from '../../store/useExtensionsStore';
+import { useExtensionHostStore } from '../../store/useExtensionHostStore';
+import { useToastStore } from '../../store/useToastStore';
 import { ToolIcon } from '../ui/ToolIcon';
 import { ExtensionDetailModal } from '../extensions/ExtensionDetailModal';
 import { ExtensionWebviewHost } from '../extensions/ExtensionWebviewHost';
@@ -20,14 +23,20 @@ export function ExtensionViewPanel() {
   const isLight = theme === 'light';
 
   const { customExtensions, installedExtensions, loadFromDisk } = useExtensionsStore();
+  const hostExtensions = useExtensionHostStore((state) => state.installedExtensions);
+  const executeCommand = useExtensionHostStore((state) => state.executeCommand);
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [webviewKey, setWebviewKey] = useState(0);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [runningCmd, setRunningCmd] = useState<string | null>(null);
 
   const extension = findExtension(
     { customExtensions, installedExtensions },
     activeExtensionView?.extensionId || ''
+  );
+  const hostExtension = hostExtensions.find(
+    (e) => e.id === activeExtensionView?.extensionId
   );
 
   const toggleSection = (id: string) => {
@@ -39,6 +48,24 @@ export function ExtensionViewPanel() {
       setWebviewKey((key) => key + 1);
     } else {
       void loadFromDisk();
+    }
+  };
+
+  const handleExecuteCommand = async (commandId: string, commandTitle: string) => {
+    setRunningCmd(commandId);
+    try {
+      const result = await executeCommand(commandId);
+      useToastStore.getState().show({
+        message: `${commandTitle} executed${result !== undefined ? `: ${typeof result === 'object' ? JSON.stringify(result) : result}` : ''}`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      useToastStore.getState().show({
+        message: `Command execution failed: ${err?.message || err}`,
+        type: 'error',
+      });
+    } finally {
+      setRunningCmd(null);
     }
   };
 
@@ -121,7 +148,24 @@ export function ExtensionViewPanel() {
   }
 
   // Fallback: Rich Interactive GUI Panel for Declarative / Tooling / Service Extensions
-  const contribViews = extension?.activityBarContributions?.flatMap((c) => c.views || []) || [];
+  const hostViews =
+    activeExtensionView?.viewContainerId && hostExtension?.manifest?.contributes?.views
+      ? hostExtension.manifest.contributes.views[activeExtensionView.viewContainerId] || []
+      : [];
+  const contribViews = [
+    ...(extension?.activityBarContributions?.flatMap((c) => c.views || []) || []),
+    ...hostViews,
+  ];
+
+  const allCommands = [
+    ...(extension?.contributedCommands || []),
+    ...(hostExtension?.manifest?.contributes?.commands || []),
+  ];
+
+  const packagePublisher = extension?.publisher || hostExtension?.manifest?.publisher || 'Unknown';
+  const packageVersion = extension?.version || hostExtension?.manifest?.version || '1.0.0';
+  const packageId = extension?.id || hostExtension?.id || activeExtensionView?.extensionId;
+  const packageCategory = extension?.category || 'tool';
 
   return (
     <div className={`flex flex-col h-full overflow-hidden select-none ${
@@ -135,6 +179,8 @@ export function ExtensionViewPanel() {
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 overflow-hidden bg-[#7C9B79]/15 text-[#7C9B79]">
             {extension?.iconUrl ? (
               <img src={extension.iconUrl} alt={activeExtensionView.title} className="w-5 h-5 object-contain" />
+            ) : hostExtension?.manifest?.icon ? (
+              <img src={hostExtension.manifest.icon} alt={activeExtensionView.title} className="w-5 h-5 object-contain" />
             ) : activeExtensionView.icon ? (
               <ToolIcon icon={activeExtensionView.icon} size={16} />
             ) : (
@@ -147,7 +193,7 @@ export function ExtensionViewPanel() {
           <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full ${
             isLight ? 'bg-[#2a2529]/10 text-[#2a2529]/70' : 'bg-[#f3f0e7]/10 text-[#f3f0e7]/70'
           }`}>
-            v{extension?.version || '1.0'}
+            v{packageVersion}
           </span>
         </div>
 
@@ -183,8 +229,8 @@ export function ExtensionViewPanel() {
               <button
                 key={v.id}
                 onClick={() => setIsDetailModalOpen(true)}
-                className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-xs ${
-                  isLight ? 'bg-[#2a2529]/5 border-[#2a2529]/10' : 'bg-[#f3f0e7]/5 border-[#f3f0e7]/10'
+                className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer ${
+                  isLight ? 'bg-[#2a2529]/5 border-[#2a2529]/10 hover:bg-[#2a2529]/10' : 'bg-[#f3f0e7]/5 border-[#f3f0e7]/10 hover:bg-[#f3f0e7]/10'
                 }`}
               >
                 <span className="flex items-center space-x-2 truncate">
@@ -204,8 +250,8 @@ export function ExtensionViewPanel() {
           </div>
         )}
 
-        {/* Section: Contributed Commands */}
-        {extension?.contributedCommands && extension.contributedCommands.length > 0 && (
+        {/* Section 2: Contributed Commands with Live /no-shortcuts Execution */}
+        {allCommands.length > 0 && (
           <div className="space-y-2">
             <button
               onClick={() => toggleSection('commands')}
@@ -215,16 +261,13 @@ export function ExtensionViewPanel() {
             >
               <span className="flex items-center space-x-1.5">
                 {collapsedSections['commands'] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-                <span>Commands ({extension.contributedCommands.length})</span>
+                <span>Commands ({allCommands.length})</span>
               </span>
             </button>
 
             {!collapsedSections['commands'] && (
               <div className="space-y-1.5 max-h-56 overflow-y-auto scrollbar-thin pr-1">
-                <p className="text-[11px] opacity-60">
-                  Command metadata from this extension. Execution ships with the native extension host.
-                </p>
-                {extension.contributedCommands.map((cmd) => (
+                {allCommands.map((cmd) => (
                   <div
                     key={cmd.command}
                     className={`flex items-center justify-between p-2 rounded-xl border text-xs transition-colors ${
@@ -235,6 +278,23 @@ export function ExtensionViewPanel() {
                       <div className="font-medium truncate">{cmd.title}</div>
                       <div className="text-[10px] font-mono opacity-60 truncate">{cmd.command}</div>
                     </div>
+                    <button
+                      onClick={() => handleExecuteCommand(cmd.command, cmd.title)}
+                      disabled={runningCmd === cmd.command}
+                      className={`px-2.5 py-1 rounded-lg flex items-center space-x-1 text-xs font-medium cursor-pointer transition-colors ${
+                        isLight
+                          ? 'bg-[#2a2529]/10 hover:bg-[#2a2529]/15 text-[#2a2529]'
+                          : 'bg-[#f3f0e7]/10 hover:bg-[#f3f0e7]/15 text-[#f3f0e7]'
+                      }`}
+                      title={`Run ${cmd.title}`}
+                    >
+                      {runningCmd === cmd.command ? (
+                        <RefreshCw size={11} className="animate-spin" />
+                      ) : (
+                        <Play size={11} className="fill-current" />
+                      )}
+                      <span>Run</span>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -243,7 +303,7 @@ export function ExtensionViewPanel() {
         )}
 
         {/* Section 3: Package Metadata */}
-        {extension && (
+        {(extension || hostExtension) && (
           <div className="space-y-2">
             <button
               onClick={() => toggleSection('info')}
@@ -261,15 +321,15 @@ export function ExtensionViewPanel() {
               <div className={`p-3 rounded-2xl border text-xs space-y-1.5 ${isLight ? 'bg-[#2a2529]/5 border-[#2a2529]/10' : 'bg-[#f3f0e7]/5 border-[#f3f0e7]/10'}`}>
                 <div className="flex justify-between">
                   <span className="opacity-60">Publisher</span>
-                  <span className="font-medium">{extension.publisher}</span>
+                  <span className="font-medium">{packagePublisher}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="opacity-60">Identifier</span>
-                  <span className="font-mono text-[11px]">{extension.id}</span>
+                  <span className="font-mono text-[11px]">{packageId}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="opacity-60">Category</span>
-                  <span className="capitalize">{extension.category}</span>
+                  <span className="capitalize">{packageCategory}</span>
                 </div>
               </div>
             )}
