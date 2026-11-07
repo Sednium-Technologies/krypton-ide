@@ -1,0 +1,26 @@
+{
+  "name": "sample-command-ext",
+  "displayName": "Sample Command Extension",
+  "publisher": "krypton-test",
+  "version": "1.0.0",
+  "description": "Fixture extension for Phase 2 command execution testing",
+  "main": "main.js",
+  "activationEvents": [
+    "onCommand:sample.hello",
+    "onCommand:sample.compute"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "sample.hello",
+        "title": "Sample: Say Hello",
+        "category": "Sample"
+      },
+      {
+        "command": "sample.compute",
+        "title": "Sample: Compute Value",
+        "category": "Sample"
+      }
+    ]
+  }
+}
