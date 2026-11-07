@@ -26,11 +26,11 @@ Phase 4 delivers the Language Server Protocol (LSP) manager for Krypton IDE:
 - Modify: `crates/krypton-core-rs/src/ext_host/mod.rs`
 - Test: `crates/krypton-core-rs/tests/ext_lsp_test.rs`
 
-- [ ] **Step 1: Write failing Rust test for LSP framing reader and built-in server resolution**
-- [ ] **Step 2: Run `cargo test` to verify failure**
-- [ ] **Step 3: Implement `LspFraming`, `LspServerConfig`, `LspProcess`, and `LspManager` in `lsp.rs`**
-- [ ] **Step 4: Run `cargo test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing Rust test for LSP framing reader and built-in server resolution**
+- [x] **Step 2: Run `cargo test` to verify failure**
+- [x] **Step 3: Implement `LspFraming`, `LspServerConfig`, `LspProcess`, and `LspManager` in `lsp.rs`**
+- [x] **Step 4: Run `cargo test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -38,11 +38,11 @@ Phase 4 delivers the Language Server Protocol (LSP) manager for Krypton IDE:
 - Modify: `crates/krypton-core-rs/src/ext_host/vscode_api/mod.rs`
 - Test: `crates/krypton-core-rs/tests/ext_lsp_test.rs`
 
-- [ ] **Step 1: Write failing test in `ext_lsp_test.rs` for `require('vscode-languageclient')` in QuickJS**
-- [ ] **Step 2: Run `cargo test` to verify failure**
-- [ ] **Step 3: Implement `vscode-languageclient` CommonJS module shim in `vscode_api/mod.rs`**
-- [ ] **Step 4: Run `cargo test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing test in `ext_lsp_test.rs` for `require('vscode-languageclient')` in QuickJS**
+- [x] **Step 2: Run `cargo test` to verify failure**
+- [x] **Step 3: Implement `vscode-languageclient` CommonJS module shim in `vscode_api/mod.rs`**
+- [x] **Step 4: Run `cargo test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -52,11 +52,11 @@ Phase 4 delivers the Language Server Protocol (LSP) manager for Krypton IDE:
 - Modify: `android/app/src/main/java/com/sednium/kryptonide/extensions/ExtensionHostPlugin.kt`
 - Test: `crates/krypton-core-rs/tests/ext_lsp_test.rs` (JNI export compilation check)
 
-- [ ] **Step 1: Implement JNI functions for start, send, drain, stop, and binary check in `jni_bridge.rs`**
-- [ ] **Step 2: Add JNI external bindings in `ExtensionHostNative.kt`**
-- [ ] **Step 3: Add `@PluginMethod` handlers in `ExtensionHostPlugin.kt`**
-- [ ] **Step 4: Run `cargo test` and verify clean Rust compilation**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Implement JNI functions for start, send, drain, stop, and binary check in `jni_bridge.rs`**
+- [x] **Step 2: Add JNI external bindings in `ExtensionHostNative.kt`**
+- [x] **Step 3: Add `@PluginMethod` handlers in `ExtensionHostPlugin.kt`**
+- [x] **Step 4: Run `cargo test` and verify clean Rust compilation**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -66,11 +66,11 @@ Phase 4 delivers the Language Server Protocol (LSP) manager for Krypton IDE:
 - Modify: `src/lib/nativeExtensionHost.ts`
 - Test: `tests/lspClient.test.ts`
 
-- [ ] **Step 1: Write failing test in `tests/lspClient.test.ts` for JSON-RPC client requests and document sync**
-- [ ] **Step 2: Run `npm test` to verify failure**
-- [ ] **Step 3: Implement `LspClient` class and `useLspStore` Zustand store with web mock fallback**
-- [ ] **Step 4: Run `npm test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing test in `tests/lspClient.test.ts` for JSON-RPC client requests and document sync**
+- [x] **Step 2: Run `npm test` to verify failure**
+- [x] **Step 3: Implement `LspClient` class and `useLspStore` Zustand store with web mock fallback**
+- [x] **Step 4: Run `npm test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -79,11 +79,11 @@ Phase 4 delivers the Language Server Protocol (LSP) manager for Krypton IDE:
 - Modify: `src/components/editor/CodeEditor.tsx`
 - Test: `tests/monacoLspAdapter.test.ts`
 
-- [ ] **Step 1: Write failing test in `tests/monacoLspAdapter.test.ts` for diagnostic mapping and completion providers**
-- [ ] **Step 2: Run `npm test` to verify failure**
-- [ ] **Step 3: Implement `monacoLspAdapter.ts` and connect Monaco model change listeners in `CodeEditor.tsx`**
-- [ ] **Step 4: Run `npm test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing test in `tests/monacoLspAdapter.test.ts` for diagnostic mapping and completion providers**
+- [x] **Step 2: Run `npm test` to verify failure**
+- [x] **Step 3: Implement `monacoLspAdapter.ts` and connect Monaco model change listeners in `CodeEditor.tsx`**
+- [x] **Step 4: Run `npm test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -92,22 +92,22 @@ Phase 4 delivers the Language Server Protocol (LSP) manager for Krypton IDE:
 - Modify: `src/components/sidebar/TerminalPanel.tsx` (or terminal store integration)
 - Test: `tests/lspTerminalInstall.test.ts`
 
-- [ ] **Step 1: Write failing test in `tests/lspTerminalInstall.test.ts` for missing binary prompt and command dispatch**
-- [ ] **Step 2: Run `npm test` to verify failure**
-- [ ] **Step 3: Wire LSP status indicator in `StatusBar.tsx` and terminal install action**
-- [ ] **Step 4: Run `npm test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing test in `tests/lspTerminalInstall.test.ts` for missing binary prompt and command dispatch**
+- [x] **Step 2: Run `npm test` to verify failure**
+- [x] **Step 3: Wire LSP status indicator in `StatusBar.tsx` and terminal install action**
+- [x] **Step 4: Run `npm test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
 ### Task 7: End-to-End Integration Suite & Verification
 - Create: `tests/extensionHostPhase4E2e.test.ts`
 
-- [ ] **Step 1: Implement full Phase 4 E2E test exercising server start, handshake, sync, diagnostics, completion, and shutdown**
-- [ ] **Step 2: Run `cargo test` in `crates/krypton-core-rs`**
-- [ ] **Step 3: Run `npm test` across all TypeScript test suites**
-- [ ] **Step 4: Run `npx tsc --noEmit` to verify type safety**
-- [ ] **Step 5: Commit task and create Walkthrough artifact**
+- [x] **Step 1: Implement full Phase 4 E2E test exercising server start, handshake, sync, diagnostics, completion, and shutdown**
+- [x] **Step 2: Run `cargo test` in `crates/krypton-core-rs`**
+- [x] **Step 3: Run `npm test` across all TypeScript test suites**
+- [x] **Step 4: Run `npx tsc --noEmit` to verify type safety**
+- [x] **Step 5: Commit task and create Walkthrough artifact**
 
 ---
 
