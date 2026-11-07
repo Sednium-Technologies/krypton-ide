@@ -1,0 +1,22 @@
+{
+  "name": "sample-theme-ext",
+  "displayName": "Sample Krypton Theme",
+  "description": "Authentic cyberpunk neon theme extension for Krypton IDE",
+  "version": "1.0.0",
+  "publisher": "krypton",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "contributes": {
+    "themes": [
+      {
+        "label": "Krypton Cyberpunk Neon",
+        "uiTheme": "vs-dark",
+        "path": "./syntaxes/cyberpunk-neon.json"
+      }
+    ]
+  }
+}

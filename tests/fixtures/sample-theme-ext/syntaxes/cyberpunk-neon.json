@@ -1,0 +1,96 @@
+{
+  "name": "Krypton Cyberpunk Neon",
+  "type": "dark",
+  "colors": {
+    "editor.background": "#0d0f18",
+    "editor.foreground": "#e0e6ed",
+    "editorCursor.foreground": "#00ffcc",
+    "editor.lineHighlightBackground": "#171b26",
+    "editorLineNumber.foreground": "#4a5568",
+    "editorLineNumber.activeForeground": "#00ffcc",
+    "editor.selectionBackground": "#263354",
+    "editor.inactiveSelectionBackground": "#1e2840",
+    "activityBar.background": "#080a10",
+    "activityBar.foreground": "#00ffcc",
+    "sideBar.background": "#0b0d14",
+    "sideBar.foreground": "#a0aec0",
+    "statusBar.background": "#05070a",
+    "statusBar.foreground": "#00ffcc",
+    "titleBar.activeBackground": "#080a10",
+    "titleBar.activeForeground": "#e0e6ed"
+  },
+  "tokenColors": [
+    {
+      "name": "Comment",
+      "scope": [
+        "comment",
+        "punctuation.definition.comment"
+      ],
+      "settings": {
+        "foreground": "#637777",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "name": "Keywords",
+      "scope": [
+        "keyword",
+        "keyword.control"
+      ],
+      "settings": {
+        "foreground": "#ff007f",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "name": "Functions",
+      "scope": [
+        "entity.name.function",
+        "support.function"
+      ],
+      "settings": {
+        "foreground": "#00ffcc"
+      }
+    },
+    {
+      "name": "Strings",
+      "scope": [
+        "string",
+        "string.quoted"
+      ],
+      "settings": {
+        "foreground": "#ffe600"
+      }
+    },
+    {
+      "name": "Variables",
+      "scope": [
+        "variable",
+        "variable.other"
+      ],
+      "settings": {
+        "foreground": "#00d4ff"
+      }
+    },
+    {
+      "name": "Types",
+      "scope": [
+        "entity.name.type",
+        "support.type"
+      ],
+      "settings": {
+        "foreground": "#b537f2"
+      }
+    },
+    {
+      "name": "Constants & Numbers",
+      "scope": [
+        "constant.numeric",
+        "constant.language"
+      ],
+      "settings": {
+        "foreground": "#ff8800"
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "sample-agent-ext",
+  "displayName": "Sample Agent Harness Extension",
+  "description": "Autonomous developer agent harness extension with planning and auditing commands",
+  "version": "1.0.0",
+  "publisher": "krypton",
+  "main": "./main.js",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": [
+    "onCommand:krypton.agent.plan",
+    "onCommand:krypton.agent.audit"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "krypton.agent.plan",
+        "title": "Agent: Generate Plan",
+        "category": "Agent"
+      },
+      {
+        "command": "krypton.agent.audit",
+        "title": "Agent: Run Code Audit",
+        "category": "Agent"
+      }
+    ]
+  }
+}

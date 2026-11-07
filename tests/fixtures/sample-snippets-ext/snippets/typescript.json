@@ -1,0 +1,36 @@
+{
+  "Console Log": {
+    "prefix": "log",
+    "body": [
+      "console.log('${1:label}:', ${2:value});$0"
+    ],
+    "description": "Log output to console"
+  },
+  "Arrow Function": {
+    "prefix": "fn",
+    "body": [
+      "const ${1:name} = (${2:params}): ${3:void} => {",
+      "\t$0",
+      "};"
+    ],
+    "description": "Create an arrow function"
+  },
+  "New Promise": {
+    "prefix": "promise",
+    "body": [
+      "new Promise<${1:void}>((resolve, reject) => {",
+      "\t$0",
+      "});"
+    ],
+    "description": "Create a new Promise"
+  },
+  "Async Function": {
+    "prefix": "afn",
+    "body": [
+      "async function ${1:name}(${2:params}): Promise<${3:void}> {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Create an async function"
+  }
+}

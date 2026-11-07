@@ -1,0 +1,24 @@
+{
+  "name": "sample-lsp-ext",
+  "displayName": "Sample LSP Client Extension",
+  "description": "Language server client extension bootstrapping LanguageClient for Krypton IDE",
+  "version": "1.0.0",
+  "publisher": "krypton",
+  "main": "./main.js",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onCommand:krypton.lsp.restart"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "krypton.lsp.restart",
+        "title": "Restart Language Server",
+        "category": "LSP"
+      }
+    ]
+  }
+}

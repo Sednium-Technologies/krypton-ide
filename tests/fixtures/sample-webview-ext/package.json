@@ -1,0 +1,23 @@
+{
+  "name": "sample-webview-ext",
+  "displayName": "Sample Webview Extension",
+  "description": "Interactive webview panel extension with message routing for Krypton IDE",
+  "version": "1.0.0",
+  "publisher": "krypton",
+  "main": "./main.js",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": [
+    "onCommand:krypton.webview.open"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "krypton.webview.open",
+        "title": "Open Sample Webview",
+        "category": "Webview"
+      }
+    ]
+  }
+}

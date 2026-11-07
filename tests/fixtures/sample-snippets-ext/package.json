@@ -1,0 +1,21 @@
+{
+  "name": "sample-snippets-ext",
+  "displayName": "Sample Krypton Snippets",
+  "description": "Authentic TypeScript code snippets for Krypton IDE",
+  "version": "1.0.0",
+  "publisher": "krypton",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Snippets"
+  ],
+  "contributes": {
+    "snippets": [
+      {
+        "language": "typescript",
+        "path": "./snippets/typescript.json"
+      }
+    ]
+  }
+}

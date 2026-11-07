@@ -1,0 +1,41 @@
+{
+  "name": "sample-treeview-ext",
+  "displayName": "Sample TreeView Extension",
+  "description": "Dynamic activity bar and custom view container extension for Krypton IDE",
+  "version": "1.0.0",
+  "publisher": "krypton",
+  "main": "./main.js",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": [
+    "onView:krypton.sampleView",
+    "onCommand:krypton.sample.refresh"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "krypton-sample-container",
+          "title": "Sample Explorer",
+          "icon": "$(folder)"
+        }
+      ]
+    },
+    "views": {
+      "krypton-sample-container": [
+        {
+          "id": "krypton.sampleView",
+          "name": "Sample View"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "krypton.sample.refresh",
+        "title": "Sample: Refresh View",
+        "category": "Sample"
+      }
+    ]
+  }
+}
