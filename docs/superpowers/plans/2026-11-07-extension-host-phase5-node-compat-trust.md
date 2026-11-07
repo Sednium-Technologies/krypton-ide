@@ -35,11 +35,11 @@ Phase 5 implements Node.js compatibility APIs in QuickJS and enforces VS Code-st
 - Modify: `crates/krypton-core-rs/src/ext_host/lifecycle.rs`
 - Test: `crates/krypton-core-rs/tests/ext_trust_test.rs`
 
-- [ ] **Step 1: Write failing Rust test for TrustManager capability gating**
-- [ ] **Step 2: Run `cargo test` to verify failure**
-- [ ] **Step 3: Implement `TrustManager`, `WorkspaceTrustState`, and `Capability` in `trust.rs`**
-- [ ] **Step 4: Run `cargo test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing Rust test for TrustManager capability gating**
+- [x] **Step 2: Run `cargo test` to verify failure**
+- [x] **Step 3: Implement `TrustManager`, `WorkspaceTrustState`, and `Capability` in `trust.rs`**
+- [x] **Step 4: Run `cargo test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -48,11 +48,11 @@ Phase 5 implements Node.js compatibility APIs in QuickJS and enforces VS Code-st
 - Modify: `crates/krypton-core-rs/src/ext_host/vscode_api/mod.rs`
 - Test: `crates/krypton-core-rs/tests/ext_node_compat_test.rs`
 
-- [ ] **Step 1: Write failing test in `ext_node_compat_test.rs` for `path`, `os`, `events`, `fs`, and `child_process`**
-- [ ] **Step 2: Run `cargo test` to verify failure**
-- [ ] **Step 3: Implement Node compatibility CJS modules with trust capability checks**
-- [ ] **Step 4: Run `cargo test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing test in `ext_node_compat_test.rs` for `path`, `os`, `events`, `fs`, and `child_process`**
+- [x] **Step 2: Run `cargo test` to verify failure**
+- [x] **Step 3: Implement Node compatibility CJS modules with trust capability checks**
+- [x] **Step 4: Run `cargo test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -62,11 +62,11 @@ Phase 5 implements Node.js compatibility APIs in QuickJS and enforces VS Code-st
 - Modify: `android/app/src/main/java/com/sednium/kryptonide/extensions/ExtensionHostPlugin.kt`
 - Test: `crates/krypton-core-rs/tests/ext_trust_test.rs`
 
-- [ ] **Step 1: Implement JNI functions for `nativeSetWorkspaceTrust`, `nativeGetWorkspaceTrust`, `nativeCheckCapability`**
-- [ ] **Step 2: Add external bindings in `ExtensionHostNative.kt`**
-- [ ] **Step 3: Add `@PluginMethod`s in `ExtensionHostPlugin.kt`**
-- [ ] **Step 4: Run `cargo test` and verify compilation**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Implement JNI functions for `nativeSetWorkspaceTrust`, `nativeGetWorkspaceTrust`, `nativeCheckCapability`**
+- [x] **Step 2: Add external bindings in `ExtensionHostNative.kt`**
+- [x] **Step 3: Add `@PluginMethod`s in `ExtensionHostPlugin.kt`**
+- [x] **Step 4: Run `cargo test` and verify compilation**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -75,11 +75,11 @@ Phase 5 implements Node.js compatibility APIs in QuickJS and enforces VS Code-st
 - Modify: `src/lib/extensions/nativeExtensionHost.ts`
 - Test: `tests/trustStore.test.ts`
 
-- [ ] **Step 1: Write failing test in `tests/trustStore.test.ts` for trust state and permission extraction**
-- [ ] **Step 2: Run `npm test` to verify failure**
-- [ ] **Step 3: Implement `useTrustStore.ts` and update `nativeExtensionHost.ts` with trust methods and web mock**
-- [ ] **Step 4: Run `npm test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing test in `tests/trustStore.test.ts` for trust state and permission extraction**
+- [x] **Step 2: Run `npm test` to verify failure**
+- [x] **Step 3: Implement `useTrustStore.ts` and update `nativeExtensionHost.ts` with trust methods and web mock**
+- [x] **Step 4: Run `npm test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
@@ -90,30 +90,30 @@ Phase 5 implements Node.js compatibility APIs in QuickJS and enforces VS Code-st
 - Modify: `src/components/editor/CodeEditor.tsx`
 - Test: `tests/trustUi.test.ts`
 
-- [ ] **Step 1: Write failing test in `tests/trustUi.test.ts` for trust banner and modal triggers**
-- [ ] **Step 2: Run `npm test` to verify failure**
-- [ ] **Step 3: Implement `WorkspaceTrustBanner`, `ExtensionConsentModal`, and wire into editor and status bar**
-- [ ] **Step 4: Run `npm test` to verify pass**
-- [ ] **Step 5: Commit task**
+- [x] **Step 1: Write failing test in `tests/trustUi.test.ts` for trust banner and modal triggers**
+- [x] **Step 2: Run `npm test` to verify failure**
+- [x] **Step 3: Implement `WorkspaceTrustBanner`, `ExtensionConsentModal`, and wire into editor and status bar**
+- [x] **Step 4: Run `npm test` to verify pass**
+- [x] **Step 5: Commit task**
 
 ---
 
 ### Task 6: Phase 5 End-to-End Integration Suite & Verification
 - Create: `tests/extensionHostPhase5E2e.test.ts`
 
-- [ ] **Step 1: Implement full Phase 5 E2E test verifying child_process block in Restricted mode, execution in Trusted mode, FS gating, and consent dialog**
-- [ ] **Step 2: Run `cargo test` in `crates/krypton-core-rs`**
-- [ ] **Step 3: Run `npm test` across all TypeScript test suites**
-- [ ] **Step 4: Run `npx tsc --noEmit` to verify type safety**
-- [ ] **Step 5: Commit task and create Walkthrough artifact**
+- [x] **Step 1: Implement full Phase 5 E2E test verifying child_process block in Restricted mode, execution in Trusted mode, FS gating, and consent dialog**
+- [x] **Step 2: Run `cargo test` in `crates/krypton-core-rs`**
+- [x] **Step 3: Run `npm test` across all TypeScript test suites**
+- [x] **Step 4: Run `npx tsc --noEmit` to verify type safety**
+- [x] **Step 5: Commit task and create Walkthrough artifact**
 
 ---
 
 ## 3. Verification Commands
 
 1. **Rust Core:**
-   `cd crates/krypton-core-rs && cargo test`
+   `cd crates/krypton-core-rs && cargo test` (58/58 passed)
 2. **TypeScript & IDE:**
-   `npm test`
+   `npm test` (116/116 passed)
 3. **Type Checking:**
-   `npx tsc --noEmit`
+   `npx tsc --noEmit` (exit code 0, 0 errors)
