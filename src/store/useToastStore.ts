@@ -12,6 +12,7 @@ export interface Toast {
 interface ToastStore {
   toasts: Toast[];
   addToast: (toast: Omit<Toast, 'id'>) => string;
+  show: (toast: Omit<Toast, 'id'>) => string;
   removeToast: (id: string) => void;
   success: (message: string, duration?: number) => string;
   error: (message: string, duration?: number) => string;
@@ -42,6 +43,8 @@ export const useToastStore = create<ToastStore>((set, get) => ({
 
     return id;
   },
+
+  show: (toast) => get().addToast(toast),
 
   removeToast: (id: string) => {
     const timer = timers.get(id);

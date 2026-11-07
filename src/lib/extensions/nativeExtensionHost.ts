@@ -61,6 +61,10 @@ export interface ExtensionContributions {
   iconThemes?: ExtensionIconThemeContribution[];
   snippets?: ExtensionSnippetContribution[];
   languages?: ExtensionLanguageContribution[];
+  debuggers?: Array<{ type: string; label?: string; [key: string]: any }>;
+  terminal?: any;
+  terminalProfiles?: any;
+  [key: string]: any;
 }
 
 export interface ExtensionManifest {
