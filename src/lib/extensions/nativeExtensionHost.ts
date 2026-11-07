@@ -89,6 +89,16 @@ export interface ExtensionNotification {
   items: string[];
 }
 
+export interface ExtensionStatusBarItem {
+  id: string;
+  alignment?: number;
+  priority?: number;
+  text: string;
+  tooltip?: string;
+  command?: string;
+  visible?: boolean;
+}
+
 export interface ExtensionHostPlugin {
   installVsix(options: { path: string }): Promise<{ success: boolean; extension: InstalledExtension }>;
   listInstalled(): Promise<{ extensions: InstalledExtension[] }>;
@@ -98,6 +108,7 @@ export interface ExtensionHostPlugin {
   executeCommand<T = any>(options: { command: string; arguments?: any[] }): Promise<{ success: boolean; result: T }>;
   listCommands(): Promise<{ commands: string[] }>;
   drainNotifications(): Promise<{ notifications: ExtensionNotification[] }>;
+  listStatusBarItems(): Promise<{ items: ExtensionStatusBarItem[] }>;
   addListener(
     eventName: 'contributionsChanged',
     listenerFunc: (info: any) => void
@@ -109,6 +120,7 @@ export class ExtensionHostWeb implements ExtensionHostPlugin {
   private activeExtensions: Set<string> = new Set();
   private mockCommands: Map<string, (...args: any[]) => any> = new Map();
   private pendingNotifications: ExtensionNotification[] = [];
+  private mockStatusBarItems: Map<string, ExtensionStatusBarItem> = new Map();
 
   constructor() {
     this.mockCommands.set('krypton.ping', () => 'pong');
@@ -185,6 +197,21 @@ export class ExtensionHostWeb implements ExtensionHostPlugin {
     return { notifications: notes };
   }
 
+  setMockStatusBarItem(item: ExtensionStatusBarItem) {
+    this.mockStatusBarItems.set(item.id, item);
+  }
+
+  removeMockStatusBarItem(id: string) {
+    this.mockStatusBarItems.delete(id);
+  }
+
+  async listStatusBarItems(): Promise<{ items: ExtensionStatusBarItem[] }> {
+    const visibleItems = Array.from(this.mockStatusBarItems.values())
+      .filter((it) => it.visible !== false)
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    return { items: visibleItems };
+  }
+
   async addListener(
     _eventName: 'contributionsChanged',
     _listenerFunc: (info: any) => void
@@ -203,6 +230,10 @@ export function registerWebMockCommand(id: string, fn: (...args: any[]) => any) 
 
 export function pushWebMockNotification(note: ExtensionNotification) {
   webFallbackInstance.pushMockNotification(note);
+}
+
+export function setWebMockStatusBarItem(item: ExtensionStatusBarItem) {
+  webFallbackInstance.setMockStatusBarItem(item);
 }
 
 export const NativeExtensionHost = registerPlugin<ExtensionHostPlugin>('ExtensionHost', {

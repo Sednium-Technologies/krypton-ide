@@ -1,9 +1,33 @@
 import React, { useMemo } from 'react';
 import { useIdeStore, getLanguageFromFilename } from '../../store/useIdeStore';
+import { useExtensionHostStore } from '../../store/useExtensionHostStore';
+import { useToastStore } from '../../store/useToastStore';
+import type { ExtensionStatusBarItem } from '../../lib/extensions/nativeExtensionHost';
 
 export function StatusBar() {
   const { cursorPosition, activeFileId, files, theme } = useIdeStore();
+  const statusBarItems = useExtensionHostStore((state) => state.statusBarItems);
+  const executeCommand = useExtensionHostStore((state) => state.executeCommand);
   const activeFile = activeFileId ? files[activeFileId] : null;
+
+  const leftItems = useMemo(() => statusBarItems.filter((i) => (i.alignment || 1) !== 2), [statusBarItems]);
+  const rightItems = useMemo(() => statusBarItems.filter((i) => i.alignment === 2), [statusBarItems]);
+
+  const handleItemClick = async (item: ExtensionStatusBarItem) => {
+    if (!item.command) return;
+    try {
+      const res = await executeCommand(item.command);
+      useToastStore.getState().show({
+        message: `${item.text} triggered${res !== undefined ? `: ${typeof res === 'object' ? JSON.stringify(res) : res}` : ''}`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      useToastStore.getState().show({
+        message: `Command failed: ${err?.message || err}`,
+        type: 'error',
+      });
+    }
+  };
 
   const language = activeFile ? (activeFile.language || getLanguageFromFilename(activeFile.name)) : '';
   const displayLang = language.charAt(0).toUpperCase() + language.slice(1);
@@ -45,8 +69,30 @@ export function StatusBar() {
             {fileSize}
           </span>
         )}
+        {/* Contributed Left Status Bar Items */}
+        {leftItems.map((item) => (
+          <span
+            key={item.id}
+            onClick={() => handleItemClick(item)}
+            title={item.tooltip || item.text}
+            className={`px-1.5 py-0.5 rounded flex items-center space-x-1 ${item.command ? 'cursor-pointer hover:bg-white/20' : ''}`}
+          >
+            <span>{item.text}</span>
+          </span>
+        ))}
       </div>
       <div className="flex space-x-3 items-center">
+        {/* Contributed Right Status Bar Items */}
+        {rightItems.map((item) => (
+          <span
+            key={item.id}
+            onClick={() => handleItemClick(item)}
+            title={item.tooltip || item.text}
+            className={`px-1.5 py-0.5 rounded flex items-center space-x-1 ${item.command ? 'cursor-pointer hover:bg-white/20' : ''}`}
+          >
+            <span>{item.text}</span>
+          </span>
+        ))}
         {activeFile && (
           <>
             <span className="cursor-pointer hover:bg-white/20 px-1.5 py-0.5 rounded">

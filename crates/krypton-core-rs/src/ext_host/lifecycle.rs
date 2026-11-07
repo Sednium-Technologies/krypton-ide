@@ -8,7 +8,7 @@ pub mod lifecycle_impl {
 
     use crate::ext_host::installer::InstalledExtension;
     use crate::ext_host::runtime::ExtensionRuntime;
-    use crate::ext_host::vscode_api::{NotificationMessage, VscodeApiHost};
+    use crate::ext_host::vscode_api::{window::StatusBarItemState, NotificationMessage, VscodeApiHost};
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -339,6 +339,20 @@ pub mod lifecycle_impl {
                 all_notes.extend(inst.api.drain_notifications());
             }
             all_notes
+        }
+
+        pub fn list_status_bar_items(&self) -> Vec<StatusBarItemState> {
+            let active = match self.active.lock() {
+                Ok(a) => a,
+                Err(_) => return Vec::new(),
+            };
+
+            let mut all_items = Vec::new();
+            for inst in active.values() {
+                all_items.extend(inst.api.list_status_bar_items());
+            }
+            all_items.sort_by(|a, b| b.priority.cmp(&a.priority));
+            all_items
         }
     }
 }

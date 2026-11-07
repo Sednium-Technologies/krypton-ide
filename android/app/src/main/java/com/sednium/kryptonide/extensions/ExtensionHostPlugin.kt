@@ -304,4 +304,40 @@ class ExtensionHostPlugin : Plugin() {
             }
         }
     }
+
+    @PluginMethod
+    fun listStatusBarItems(call: PluginCall) {
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("items", JSArray())
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeListStatusBarItems(getExtensionsDir())
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false)) {
+                    val ret = JSObject()
+                    if (parsed.has("data")) {
+                        val arr = parsed.getJSONArray("data")
+                        val jsArray = JSArray()
+                        for (i in 0 until arr.length()) {
+                            jsArray.put(JSObject(arr.getJSONObject(i).toString()))
+                        }
+                        ret.put("items", jsArray)
+                    } else {
+                        ret.put("items", JSArray())
+                    }
+                    call.resolve(ret)
+                } else {
+                    val err = parsed.optString("error", "Failed to list status bar items")
+                    call.reject(err)
+                }
+            } catch (e: Exception) {
+                call.reject("Status bar list error: ${e.message}", e)
+            }
+        }
+    }
 }

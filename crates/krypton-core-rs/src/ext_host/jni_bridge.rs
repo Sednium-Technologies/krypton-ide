@@ -309,4 +309,29 @@ pub mod ext_jni_impl {
 
         result.unwrap_or(std::ptr::null_mut())
     }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeListStatusBarItems(
+        mut env: JNIEnv,
+        _class: JClass,
+        extensions_dir: JString,
+    ) -> jstring {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extensions_dir JString: {}", e)),
+                    )
+                }
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            let items = mgr.list_status_bar_items();
+            to_json_jstring(&mut env, Ok(items))
+        }));
+
+        result.unwrap_or(std::ptr::null_mut())
+    }
 }

@@ -4,6 +4,7 @@ import {
   type InstalledExtension,
   type ExtensionManifest,
   type ExtensionNotification,
+  type ExtensionStatusBarItem,
 } from '../lib/extensions/nativeExtensionHost';
 
 export interface ExtensionHostState {
@@ -11,6 +12,7 @@ export interface ExtensionHostState {
   activeExtensions: Record<string, string>;
   registeredCommands: string[];
   notifications: ExtensionNotification[];
+  statusBarItems: ExtensionStatusBarItem[];
   isLoading: boolean;
   error: string | null;
 
@@ -22,6 +24,7 @@ export interface ExtensionHostState {
   executeCommand: <T = any>(command: string, args?: any[]) => Promise<T>;
   refreshCommands: () => Promise<string[]>;
   drainNotifications: () => Promise<ExtensionNotification[]>;
+  refreshStatusBarItems: () => Promise<ExtensionStatusBarItem[]>;
   getContributedCommands: () => Array<{ extensionId: string; command: string; title: string; category?: string }>;
   initListeners: () => () => void;
 }
@@ -31,6 +34,7 @@ export const useExtensionHostStore = create<ExtensionHostState>((set, get) => ({
   activeExtensions: {},
   registeredCommands: [],
   notifications: [],
+  statusBarItems: [],
   isLoading: false,
   error: null,
 
@@ -178,6 +182,17 @@ export const useExtensionHostStore = create<ExtensionHostState>((set, get) => ({
         }));
       }
       return notes;
+    } catch {
+      return [];
+    }
+  },
+
+  refreshStatusBarItems: async () => {
+    try {
+      const res = await NativeExtensionHost.listStatusBarItems();
+      const items = res.items || [];
+      set({ statusBarItems: items });
+      return items;
     } catch {
       return [];
     }

@@ -43,4 +43,7 @@ object ExtensionHostNative {
 
     @JvmStatic
     external fun nativeDrainNotifications(extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeListStatusBarItems(extensionsDir: String): String
 }

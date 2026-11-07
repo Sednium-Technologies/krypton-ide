@@ -32,6 +32,10 @@ impl VscodeApiHost {
         self.window.drain_notifications()
     }
 
+    pub fn list_status_bar_items(&self) -> Vec<window::StatusBarItemState> {
+        self.window.list_status_bar_items()
+    }
+
     pub fn execute_command(
         &self,
         runtime: &super::runtime::ExtensionRuntime,
@@ -116,6 +120,20 @@ impl VscodeApiHost {
                         serde_json::to_string(&val).unwrap_or_else(|_| "null".to_string())
                     })?;
                 globals.set("__krypton_native_get_config", fn_get_config)?;
+
+                let win_sb = window.clone();
+                let fn_update_sb = Function::new(ctx.clone(), move |json_str: String| {
+                    if let Ok(item) = serde_json::from_str::<window::StatusBarItemState>(&json_str) {
+                        win_sb.update_status_bar_item(item);
+                    }
+                })?;
+                globals.set("__krypton_native_update_status_bar", fn_update_sb)?;
+
+                let win_sb_dispose = window.clone();
+                let fn_dispose_sb = Function::new(ctx.clone(), move |id: String| {
+                    win_sb_dispose.dispose_status_bar_item(&id);
+                })?;
+                globals.set("__krypton_native_dispose_status_bar", fn_dispose_sb)?;
 
                 Ok(())
             })
@@ -226,6 +244,49 @@ impl VscodeApiHost {
                     }}
                 }};
 
+                var StatusBarAlignment = {{
+                    Left: 1,
+                    Right: 2
+                }};
+
+                var _sbItemSeq = 0;
+                function StatusBarItem(alignment, priority) {{
+                    this.id = 'sb_' + (++_sbItemSeq);
+                    this.alignment = alignment || 1;
+                    this.priority = priority || 0;
+                    this.text = '';
+                    this.tooltip = '';
+                    this.command = '';
+                    this._visible = false;
+                }}
+                StatusBarItem.prototype.show = function() {{
+                    this._visible = true;
+                    this._sync();
+                }};
+                StatusBarItem.prototype.hide = function() {{
+                    this._visible = false;
+                    this._sync();
+                }};
+                StatusBarItem.prototype.dispose = function() {{
+                    this._visible = false;
+                    if (typeof __krypton_native_dispose_status_bar === 'function') {{
+                        __krypton_native_dispose_status_bar(this.id);
+                    }}
+                }};
+                StatusBarItem.prototype._sync = function() {{
+                    if (typeof __krypton_native_update_status_bar === 'function') {{
+                        __krypton_native_update_status_bar(JSON.stringify({{
+                            id: this.id,
+                            alignment: this.alignment,
+                            priority: this.priority,
+                            text: this.text || '',
+                            tooltip: this.tooltip || '',
+                            command: this.command || '',
+                            visible: this._visible
+                        }}));
+                    }}
+                }};
+
                 var window = {{
                     showInformationMessage: function(msg, ...items) {{
                         if (typeof __krypton_native_notify === 'function') {{
@@ -244,6 +305,9 @@ impl VscodeApiHost {
                             __krypton_native_notify("error", msg, JSON.stringify(items));
                         }}
                         return Promise.resolve(items.length > 0 ? items[0] : undefined);
+                    }},
+                    createStatusBarItem: function(alignment, priority) {{
+                        return new StatusBarItem(alignment, priority);
                     }}
                 }};
 
@@ -308,7 +372,8 @@ impl VscodeApiHost {
                     window: window,
                     workspace: workspace,
                     Disposable: Disposable,
-                    Uri: Uri
+                    Uri: Uri,
+                    StatusBarAlignment: StatusBarAlignment
                 }};
 
                 globalThis.vscode = vscode;
