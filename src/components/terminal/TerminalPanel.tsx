@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Play,
+  ChevronDown,
 } from 'lucide-react';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
@@ -105,6 +106,22 @@ export function TerminalPanel() {
   const [isBootstrapModalOpen, setIsBootstrapModalOpen] = useState(false);
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
+  const [isShellDropdownOpen, setIsShellDropdownOpen] = useState(false);
+  const shellDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (shellDropdownRef.current && !shellDropdownRef.current.contains(e.target as Node)) {
+        setIsShellDropdownOpen(false);
+      }
+    };
+    if (isShellDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isShellDropdownOpen]);
 
   // Mutable refs for callbacks
   const activeTabRef = useRef<'project' | 'system'>(activeTab);
@@ -334,59 +351,77 @@ export function TerminalPanel() {
     <div className="flex h-full flex-col bg-[#2a2529] text-[#f3f0e7] overflow-hidden select-none">
       {/* Dual Tab Header & Actions Bar */}
       <div className="flex h-10 items-center justify-between px-2 sm:px-3 bg-[#231e22] border-b border-[#f3f0e7]/10 shrink-0">
-        {/* Tabs */}
-        <div 
-          role="tablist"
-          aria-label="Terminal sessions"
-          className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto scrollbar-hide py-1"
-        >
-          {/* Tab 1: Project Shell */}
+        {/* Shell Selector Dropdown */}
+        <div className="relative py-1" ref={shellDropdownRef}>
           <button
             type="button"
-            role="tab"
-            aria-selected={activeTab === 'project'}
-            aria-label="Project Shell tab"
-            title="Project Shell tab"
-            onClick={() => handleTabSwitch('project')}
-            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
-              activeTab === 'project'
-                ? 'bg-[#342f33] text-[#f3f0e7] shadow-sm border border-[#f3f0e7]/15'
-                : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7] hover:bg-[#342f33]/50'
-            }`}
+            aria-haspopup="listbox"
+            aria-expanded={isShellDropdownOpen}
+            aria-label="Switch terminal shell"
+            onClick={() => setIsShellDropdownOpen(!isShellDropdownOpen)}
+            className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all bg-[#342f33] text-[#f3f0e7] shadow-sm border border-[#f3f0e7]/15 hover:bg-[#3d373c] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none cursor-pointer"
           >
-            <Folder size={13} className="shrink-0 text-amber-400" />
-            <span className="whitespace-nowrap font-semibold">Project Shell</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#231e22] text-[#f3f0e7]/70 font-mono truncate max-w-[80px] sm:max-w-[120px]">
-              {projectName}
-            </span>
+            {activeTab === 'project' ? (
+              <>
+                <Folder size={13} className="text-amber-400 shrink-0" />
+                <span className="font-semibold">Project Shell</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#231e22] text-[#f3f0e7]/70 font-mono truncate max-w-[90px]">
+                  {projectName}
+                </span>
+              </>
+            ) : (
+              <>
+                <Zap size={13} className="text-[#88c0d0] shrink-0" />
+                <span className="font-semibold">System Shell</span>
+              </>
+            )}
+            <ChevronDown
+              size={12}
+              className={`shrink-0 ml-0.5 text-[#f3f0e7]/60 transition-transform ${
+                isShellDropdownOpen ? 'rotate-180' : ''
+              }`}
+            />
           </button>
 
-          {/* Tab 2: System Shell */}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'system'}
-            aria-label="System Shell tab"
-            title="System Shell tab"
-            onClick={() => handleTabSwitch('system')}
-            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
-              activeTab === 'system'
-                ? 'bg-[#342f33] text-[#f3f0e7] shadow-sm border border-[#f3f0e7]/15'
-                : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7] hover:bg-[#342f33]/50'
-            }`}
-          >
-            <Zap size={13} className="shrink-0 text-[#88c0d0]" />
-            <span className="whitespace-nowrap font-semibold">System Shell</span>
-            {isBootstrapInstalled ? (
-              <span className="inline-flex items-center text-[10px] font-medium text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.2 rounded-full">
-                Ready
-              </span>
-            ) : (
-              <span className="inline-flex items-center text-[10px] font-medium text-amber-400 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 rounded-full">
-                Minimal
-              </span>
-            )}
-          </button>
+          {isShellDropdownOpen && (
+            <div className="absolute top-full left-0 mt-1 z-50 w-52 py-1 rounded-xl bg-[#231e22] border border-[#f3f0e7]/15 shadow-2xl select-none">
+              <button
+                type="button"
+                onClick={() => {
+                  handleTabSwitch('project');
+                  setIsShellDropdownOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 text-xs transition-colors hover:bg-[#342f33] cursor-pointer ${
+                  activeTab === 'project' ? 'text-[#f3f0e7] font-semibold bg-[#342f33]/60' : 'text-[#f3f0e7]/75'
+                }`}
+              >
+                <div className="flex items-center space-x-2 truncate">
+                  <Folder size={13} className="text-amber-400 shrink-0" />
+                  <span className="truncate">Project Shell</span>
+                </div>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#2a2529] text-[#f3f0e7]/70 font-mono truncate max-w-[80px]">
+                  {projectName}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleTabSwitch('system');
+                  setIsShellDropdownOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 text-xs transition-colors hover:bg-[#342f33] cursor-pointer ${
+                  activeTab === 'system' ? 'text-[#f3f0e7] font-semibold bg-[#342f33]/60' : 'text-[#f3f0e7]/75'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <Zap size={13} className="text-[#88c0d0] shrink-0" />
+                  <span>System Shell</span>
+                </div>
+                <span className="text-[10px] text-[#f3f0e7]/50 font-mono">native</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Quick Rust / Cargo Actions */}

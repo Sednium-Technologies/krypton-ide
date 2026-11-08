@@ -802,8 +802,8 @@ export function ProjectsDashboard() {
                 <div 
                   className="absolute top-0 left-0 right-0 h-[3px]" 
                   style={{ 
-                    backgroundColor: isLight ? '#7C9B79' : (continueDominantColor || '#7C9B79'), 
-                    boxShadow: isLight ? '0 0 10px rgba(124, 155, 121, 0.45)' : `0 0 10px ${continueDominantColor}66` 
+                    backgroundColor: '#7C9B79', 
+                    boxShadow: '0 0 8px rgba(124, 155, 121, 0.45)' 
                   }} 
                 />
 
@@ -1015,8 +1015,8 @@ export function ProjectsDashboard() {
                   <div 
                     className="absolute top-0 left-0 right-0 h-[3px]" 
                     style={{ 
-                      backgroundColor: isLight ? '#7C9B79' : (dominantColor || '#7C9B79'), 
-                      boxShadow: isLight ? '0 0 8px rgba(124, 155, 121, 0.45)' : `0 0 8px ${dominantColor}66` 
+                      backgroundColor: '#7C9B79', 
+                      boxShadow: '0 0 8px rgba(124, 155, 121, 0.45)' 
                     }} 
                   />
 

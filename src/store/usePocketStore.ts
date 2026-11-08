@@ -212,25 +212,9 @@ export const usePocketStore = create<PocketState>()((set, get) => ({
         } catch {}
       }
 
-      // If no local models found on device, provide fallback discovered template
-      const fallbackModels: PocketModel[] = discovered.length > 0 ? [] : [
-        {
-          id: 'custom-llama-3.2-1b-q4',
-          name: 'Llama 3.2 1B Instruct (Discovered)',
-          type: 'gguf',
-          path: `${modelDirs[0]}/llama-3.2-1b-instruct.Q4_K_M.gguf`,
-          size: '850 MB',
-          contextLength: 8192,
-          quantization: 'Q4_K_M',
-          description: 'Discovered in KryptonIDE/models directory',
-          isDiscovered: true,
-        }
-      ];
-
       const merged = [
         ...BUILTIN_POCKET_MODELS,
         ...discovered,
-        ...fallbackModels,
       ];
 
       set({ availableModels: merged });

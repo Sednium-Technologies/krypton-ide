@@ -28,7 +28,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('@huggingface/transformers')) {
+          if (id.includes('@huggingface/transformers') || id.includes('onnxruntime-web') || id.includes('onnxruntime-common')) {
             return 'transformers';
           }
           if (id.includes('monaco-editor') || id.includes('@monaco-editor')) {

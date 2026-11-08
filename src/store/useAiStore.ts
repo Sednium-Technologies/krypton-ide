@@ -62,6 +62,16 @@ interface AiState {
   savedModels: SavedModel[];
   activeModelId?: string;
   
+  contextWindow: number; // default 128000
+  maxOutputTokens: number; // default 8192
+  reasoningEffort: 'none' | 'low' | 'medium' | 'high'; // default 'none'
+  thinkingBudget: number; // default 0
+
+  setContextWindow: (tokens: number) => void;
+  setMaxOutputTokens: (tokens: number) => void;
+  setReasoningEffort: (effort: 'none' | 'low' | 'medium' | 'high') => void;
+  setThinkingBudget: (budget: number) => void;
+
   // Actions
   setProvider: (p: string) => void;
   setApiKey: (k: string) => void;
@@ -124,6 +134,15 @@ export const useAiStore = create<AiState>()((set, get) => ({
   baseUrl: '',
   savedModels: [],
   activeModelId: undefined,
+  contextWindow: 128000,
+  maxOutputTokens: 8192,
+  reasoningEffort: 'none',
+  thinkingBudget: 0,
+
+  setContextWindow: (tokens) => set({ contextWindow: tokens }),
+  setMaxOutputTokens: (tokens) => set({ maxOutputTokens: tokens }),
+  setReasoningEffort: (effort) => set({ reasoningEffort: effort }),
+  setThinkingBudget: (budget) => set({ thinkingBudget: budget }),
 
   loadFromDisk: async (projectId?: string) => {
     try {
@@ -235,6 +254,10 @@ export const useAiStore = create<AiState>()((set, get) => ({
         provider: saved.provider,
         model: saved.model,
         baseUrl: saved.baseUrl || '',
+        contextWindow: saved.contextWindow ?? 128000,
+        maxOutputTokens: saved.maxOutputTokens ?? 8192,
+        reasoningEffort: saved.reasoningEffort ?? 'none',
+        thinkingBudget: saved.thinkingBudget ?? 0,
       });
       // Optionally also update apiKey if it carries one, 
       // but apiKey is usually loaded globally, so setting the local state is fine.
@@ -430,6 +453,9 @@ export const useAiStore = create<AiState>()((set, get) => ({
     ] as any);
 
     const tools = ModelAdapters.getToolsForProvider(provider);
+    const maxOutput = get().maxOutputTokens || 8192;
+    const reasoning = get().reasoningEffort || 'none';
+    const budget = get().thinkingBudget || 0;
 
     // 2. API Call
     const isGoogle = provider === 'google' || provider === 'gemini';
@@ -474,12 +500,29 @@ export const useAiStore = create<AiState>()((set, get) => ({
       });
       body.systemInstruction = { parts: [{ text: systemContext }] };
       body.tools = tools;
+      body.generationConfig = {
+        maxOutputTokens: maxOutput,
+        ...(reasoning !== 'none' && (geminiModel.includes('2.0') || geminiModel.includes('2.5'))
+          ? { thinkingConfig: { thinkingBudget: budget > 0 ? budget : (reasoning === 'low' ? 1024 : reasoning === 'medium' ? 4096 : 8192) } }
+          : {}),
+      };
     } else if (provider === 'anthropic') {
       // Anthropic Messages API format
       body = {
         model,
         system: systemContext,
-        max_tokens: 8192,
+        max_tokens: maxOutput,
+        ...(reasoning !== 'none'
+          ? {
+              thinking: {
+                type: 'enabled',
+                budget_tokens: Math.min(
+                  budget > 0 ? budget : (reasoning === 'low' ? 1024 : reasoning === 'medium' ? 4096 : 8192),
+                  Math.max(1024, maxOutput - 1024)
+                ),
+              },
+            }
+          : {}),
         messages: providerMessages.map((msg: any) => {
           const ogMatch = session.messages.find(m => m.content === (typeof msg.content === 'string' ? msg.content : ''));
           if (ogMatch && ogMatch.attachments && ogMatch.attachments.length > 0) {
@@ -511,20 +554,41 @@ export const useAiStore = create<AiState>()((set, get) => ({
         { role: 'system', content: systemContext },
         ...providerMessages
       ];
-      body = { model, messages: messagesWithSystem.map((msg: any) => {
-        const ogMatch = session.messages.find(m => m.content === msg.content);
-        if (ogMatch && ogMatch.attachments && ogMatch.attachments.length > 0 && (provider === 'openai' || provider === 'openrouter' || provider === 'groq' || provider === 'custom')) {
-           const imgContents = ogMatch.attachments.map(att => ({
-             type: 'image_url',
-             image_url: { url: att.data.includes('base64,') ? att.data : `data:${att.type};base64,${att.data}` }
-           }));
-           return {
-             ...msg,
-             content: [ { type: 'text', text: msg.content }, ...imgContents ]
-           };
+      body = {
+        model,
+        messages: messagesWithSystem.map((msg: any) => {
+          const ogMatch = session.messages.find(m => m.content === msg.content);
+          if (ogMatch && ogMatch.attachments && ogMatch.attachments.length > 0 && (provider === 'openai' || provider === 'openrouter' || provider === 'groq' || provider === 'custom')) {
+             const imgContents = ogMatch.attachments.map(att => ({
+               type: 'image_url',
+               image_url: { url: att.data.includes('base64,') ? att.data : `data:${att.type};base64,${att.data}` }
+             }));
+             return {
+               ...msg,
+               content: [ { type: 'text', text: msg.content }, ...imgContents ]
+             };
+          }
+          return msg;
+        }),
+        tools: tools,
+        stream: true,
+      };
+
+      if (provider === 'openai') {
+        const isO1orO3 = model.toLowerCase().startsWith('o1') || model.toLowerCase().startsWith('o3');
+        if (isO1orO3) {
+          body.max_completion_tokens = maxOutput;
+          if (reasoning !== 'none') body.reasoning_effort = reasoning;
+        } else {
+          body.max_tokens = maxOutput;
         }
-        return msg;
-      }), tools: tools, stream: true };
+      } else if (provider === 'openrouter') {
+        body.max_tokens = maxOutput;
+        if (reasoning !== 'none') body.reasoning = { effort: reasoning };
+      } else {
+        // NVIDIA NIM, Groq, DeepSeek, Custom: pass max_tokens only; never pass unrecognized top-level fields
+        body.max_tokens = maxOutput;
+      }
     }
 
     const response = await fetch(url, {

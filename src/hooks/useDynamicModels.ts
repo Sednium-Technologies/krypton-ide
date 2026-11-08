@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { getProviderById } from '../config/aiProviders';
 
 export interface AIModel {
@@ -29,8 +30,10 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
     return `krypton_dynamic_models_v3_${provider}${urlKey}${keyFingerprint}`;
   }, [provider, apiKey, customBaseUrl]);
 
-  // Read live cached models on key/provider change
+  // Read live cached models on key/provider change, fallback to baseline catalog
   useEffect(() => {
+    const p = getProviderById(provider);
+    const baselineModels: AIModel[] = (p?.models || []).map((m) => ({ id: m, name: m }));
     const cacheKey = getCacheKey();
     try {
       const cached = localStorage.getItem(cacheKey);
@@ -45,20 +48,21 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
       }
     } catch {}
 
-    setModels([]);
+    setModels(baselineModels);
     setIsLive(false);
-  }, [getCacheKey]);
+  }, [provider, getCacheKey]);
 
   const fetchModelsFromApi = useCallback(async (isManual: boolean = false) => {
     const p = getProviderById(provider);
     const requiresKey = p?.requiresKey ?? true;
     const cleanKey = (apiKey || '').trim();
+    const baselineModels: AIModel[] = (p?.models || []).map((m) => ({ id: m, name: m }));
 
     // Check if key is needed
     if (requiresKey && !cleanKey && provider !== 'openrouter' && provider !== 'ollama' && provider !== 'custom') {
-      setModels([]);
+      setModels(baselineModels);
       setIsLive(false);
-      setError('API key required to fetch live endpoint models');
+      setError(null);
       return;
     }
 
@@ -138,18 +142,30 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
           break;
       }
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: provider === 'google' || provider === 'gemini' ? undefined : headers,
-        signal: controller.signal,
-      });
+      let data: any;
+      if (Capacitor.isNativePlatform()) {
+        const nativeRes = await CapacitorHttp.get({
+          url,
+          headers: provider === 'google' || provider === 'gemini' ? {} : headers,
+        });
+        if (nativeRes.status >= 400) {
+          throw new Error(nativeRes.data?.error?.message || nativeRes.data?.message || `Status ${nativeRes.status}`);
+        }
+        data = nativeRes.data;
+      } else {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: provider === 'google' || provider === 'gemini' ? undefined : headers,
+          signal: controller.signal,
+        });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error?.message || errData.message || `Status ${response.status}`);
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error?.message || errData.message || `Status ${response.status}`);
+        }
+
+        data = await response.json();
       }
-
-      const data = await response.json();
       let rawModels: any[] = [];
 
       if (provider === 'google' || provider === 'gemini') {
@@ -228,7 +244,7 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
       } catch {}
 
       if (!hasCached) {
-        setModels([]);
+        setModels(baselineModels.length > 0 ? baselineModels : []);
         setIsLive(false);
       }
 
@@ -247,9 +263,10 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
     const requiresKey = p?.requiresKey ?? true;
     const cleanKey = (apiKey || '').trim();
 
-    // If key required and not present, don't query
+    // If key required and not present, keep baseline catalog
     if (requiresKey && !cleanKey && provider !== 'openrouter' && provider !== 'ollama' && provider !== 'custom') {
-      setModels([]);
+      const baselineModels: AIModel[] = (p?.models || []).map((m) => ({ id: m, name: m }));
+      setModels(baselineModels);
       setIsLive(false);
       return;
     }
@@ -294,8 +311,8 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
   }, [fetchModelsFromApi, getCacheKey]);
 
   const refresh = useCallback(() => {
-    setRefreshTrigger((prev) => prev + 1);
-  }, []);
+    fetchModelsFromApi(true);
+  }, [fetchModelsFromApi]);
 
   return {
     models,

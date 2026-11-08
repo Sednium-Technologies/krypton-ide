@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import { X, RefreshCw, ExternalLink, Loader2, CheckCircle2, XCircle, Terminal as TerminalIcon, Package, Wifi, WifiOff, AlertTriangle, TerminalSquare, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, RefreshCw, ExternalLink, Loader2, CheckCircle2, XCircle, Terminal as TerminalIcon, Package, Wifi, WifiOff, AlertTriangle, TerminalSquare, ChevronDown, ChevronUp, Smartphone, Monitor } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useProjectsStore } from '../../store/useProjectsStore';
 import { executeCode, canExecuteLanguage, getNativeTerminalCommand } from '../../lib/codeRunner';
@@ -34,7 +34,8 @@ function useObjectUrl(html: string | null): string | null {
 }
 
 export function LivePreview({ onClose }: LivePreviewProps) {
-  const { files, activeFileId } = useIdeStore();
+  const { files, activeFileId, theme } = useIdeStore();
+  const isLight = theme === 'light';
   const { currentProjectId, projects } = useProjectsStore();
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -43,6 +44,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   const [internetWarningAccepted, setInternetWarningAccepted] = useState(false);
   const [showConsole, setShowConsole] = useState(false);
   const [unreadLogs, setUnreadLogs] = useState(0);
+  const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
   
   const project = currentProjectId ? projects[currentProjectId] : null;
 
@@ -516,17 +518,48 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   // ─── React Project Preview ───
   if (hasReactProject && reactPreviewSrc) {
     return (
-      <div className="fixed inset-0 z-50 bg-black flex flex-col animate-fade-in">
-        <PreviewHeader onClose={onClose} onRefresh={handleRefresh} isCodeMode={false} fileName="React App" previewUrl={reactPreviewSrc} showConsole={showConsole} onToggleConsole={() => setShowConsole(!showConsole)} unreadLogs={unreadLogs} />
-        <div className="flex-1 bg-white relative">
-          <iframe
-            key={refreshKey}
-            src={reactPreviewSrc}
-            title="React Preview"
-            sandbox="allow-scripts allow-modals allow-forms"
-            className="w-full h-full border-none"
-          />
-          <ConsoleOverlay logs={consoleLogs} isOpen={showConsole} />
+      <div className={`fixed inset-0 z-50 flex flex-col animate-fade-in ${isLight ? 'bg-[#f4f0e6] text-[#2a2529]' : 'bg-[#151217] text-[#f3f0e7]'}`}>
+        <PreviewHeader 
+          onClose={onClose} 
+          onRefresh={handleRefresh} 
+          isCodeMode={false} 
+          fileName="React App" 
+          previewUrl={reactPreviewSrc} 
+          showConsole={showConsole} 
+          onToggleConsole={() => setShowConsole(!showConsole)} 
+          unreadLogs={unreadLogs}
+          previewMode={previewMode}
+          onTogglePreviewMode={() => setPreviewMode(m => m === 'desktop' ? 'mobile' : 'desktop')}
+          isLight={isLight}
+        />
+        <div className={`flex-1 relative overflow-hidden flex items-center justify-center ${
+          previewMode === 'mobile' ? (isLight ? 'bg-[#ede8db] p-3 sm:p-6' : 'bg-[#151217] p-3 sm:p-6') : 'bg-white'
+        }`}>
+          {previewMode === 'mobile' ? (
+            <div className={`w-full max-w-[390px] h-[95%] max-h-[820px] rounded-[38px] border-4 shadow-2xl overflow-hidden relative flex flex-col transition-all duration-300 ${
+              isLight ? 'border-[#2a2529]/25 bg-white shadow-stone-400/40' : 'border-[#f3f0e7]/20 bg-white shadow-black/80'
+            }`}>
+              <div className="h-5 w-full bg-black/5 flex items-center justify-center shrink-0">
+                <div className="w-16 h-1 rounded-full bg-black/20" />
+              </div>
+              <iframe
+                key={refreshKey}
+                src={reactPreviewSrc}
+                title="React Preview"
+                sandbox="allow-scripts allow-modals allow-forms"
+                className="w-full flex-1 border-none bg-white"
+              />
+            </div>
+          ) : (
+            <iframe
+              key={refreshKey}
+              src={reactPreviewSrc}
+              title="React Preview"
+              sandbox="allow-scripts allow-modals allow-forms"
+              className="w-full h-full border-none"
+            />
+          )}
+          <ConsoleOverlay logs={consoleLogs} isOpen={showConsole} isLight={isLight} />
         </div>
       </div>
     );
@@ -775,23 +808,53 @@ export function LivePreview({ onClose }: LivePreviewProps) {
 
   // HTML Preview View
   return (
-    <div className="fixed inset-0 z-50 bg-[#2a2529] flex flex-col animate-fade-in text-[#f3f0e7]">
-      <PreviewHeader onClose={onClose} onRefresh={handleRefresh} isCodeMode={false} previewUrl={previewSrc} showConsole={showConsole} onToggleConsole={() => setShowConsole(!showConsole)} unreadLogs={unreadLogs} />
-      <div className="flex-1 bg-white relative">
-        {previewSrc ? (
-          <iframe
-            key={refreshKey}
-            src={previewSrc}
-            title="Live Preview"
-            sandbox="allow-scripts allow-modals allow-forms"
-            className="w-full h-full border-none"
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full bg-[#2a2529]">
-            <p className="text-[#f3f0e7]/50">Could not build preview</p>
+    <div className={`fixed inset-0 z-50 flex flex-col animate-fade-in ${isLight ? 'bg-[#f4f0e6] text-[#2a2529]' : 'bg-[#2a2529] text-[#f3f0e7]'}`}>
+      <PreviewHeader 
+        onClose={onClose} 
+        onRefresh={handleRefresh} 
+        isCodeMode={false} 
+        previewUrl={previewSrc} 
+        showConsole={showConsole} 
+        onToggleConsole={() => setShowConsole(!showConsole)} 
+        unreadLogs={unreadLogs}
+        previewMode={previewMode}
+        onTogglePreviewMode={() => setPreviewMode(m => m === 'desktop' ? 'mobile' : 'desktop')}
+        isLight={isLight}
+      />
+      <div className={`flex-1 relative overflow-hidden flex items-center justify-center ${
+        previewMode === 'mobile' ? (isLight ? 'bg-[#ede8db] p-3 sm:p-6' : 'bg-[#151217] p-3 sm:p-6') : 'bg-white'
+      }`}>
+        {previewMode === 'mobile' ? (
+          <div className={`w-full max-w-[390px] h-[95%] max-h-[820px] rounded-[38px] border-4 shadow-2xl overflow-hidden relative flex flex-col transition-all duration-300 ${
+            isLight ? 'border-[#2a2529]/25 bg-white shadow-stone-400/40' : 'border-[#f3f0e7]/20 bg-white shadow-black/80'
+          }`}>
+            <div className="h-5 w-full bg-black/5 flex items-center justify-center shrink-0">
+              <div className="w-16 h-1 rounded-full bg-black/20" />
+            </div>
+            <iframe
+              key={refreshKey}
+              src={previewSrc}
+              title="Live Preview"
+              sandbox="allow-scripts allow-modals allow-forms"
+              className="w-full flex-1 border-none bg-white"
+            />
           </div>
+        ) : (
+          previewSrc ? (
+            <iframe
+              key={refreshKey}
+              src={previewSrc}
+              title="Live Preview"
+              sandbox="allow-scripts allow-modals allow-forms"
+              className="w-full h-full border-none"
+            />
+          ) : (
+            <div className={`flex items-center justify-center h-full ${isLight ? 'bg-[#f4f0e6]' : 'bg-[#2a2529]'}`}>
+              <p className={isLight ? 'text-[#2a2529]/50' : 'text-[#f3f0e7]/50'}>Could not build preview</p>
+            </div>
+          )
         )}
-        <ConsoleOverlay logs={consoleLogs} isOpen={showConsole} />
+        <ConsoleOverlay logs={consoleLogs} isOpen={showConsole} isLight={isLight} />
       </div>
     </div>
   );
@@ -808,6 +871,9 @@ function PreviewHeader({
   onToggleConsole, 
   unreadLogs,
   onRunInNativeTerminal,
+  previewMode,
+  onTogglePreviewMode,
+  isLight,
 }: { 
   onClose: () => void; 
   onRefresh: () => void; 
@@ -819,6 +885,9 @@ function PreviewHeader({
   onToggleConsole?: () => void;
   unreadLogs?: number;
   onRunInNativeTerminal?: () => void;
+  previewMode?: 'desktop' | 'mobile';
+  onTogglePreviewMode?: () => void;
+  isLight?: boolean;
 }) {
 
   const handleOpenInBrowser = () => {
@@ -829,20 +898,39 @@ function PreviewHeader({
 
   return (
     <div 
-      className="flex items-center justify-between bg-[#231e22] border-b border-[#f3f0e7]/15 px-3 flex-shrink-0"
+      className={`flex items-center justify-between border-b px-3 flex-shrink-0 transition-colors ${
+        isLight ? 'bg-[#f4f0e6] border-[#2a2529]/15 text-[#2a2529]' : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7]'
+      }`}
       style={{ height: 'calc(3.2rem + env(safe-area-inset-top, 0px))', paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
-      <div className="flex items-center space-x-2 text-xs text-[#f3f0e7]">
-        <div className={`w-2.5 h-2.5 rounded-full ${isCodeMode ? 'bg-[#f3f0e7]' : 'bg-emerald-400'} animate-pulse`} />
+      <div className={`flex items-center space-x-2 text-xs ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>
+        <div className={`w-2.5 h-2.5 rounded-full ${isCodeMode ? (isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]') : 'bg-emerald-400'} animate-pulse`} />
         <span className="font-bold">{isCodeMode ? 'Output' : 'Preview'}</span>
         {fileName && (
-          <span className="text-[11px] text-[#f3f0e7]/70 bg-[#342f33] px-2 py-0.5 rounded-md border border-[#f3f0e7]/10 font-mono">{fileName}</span>
+          <span className={`text-[11px] px-2 py-0.5 rounded-md border font-mono ${
+            isLight ? 'text-[#2a2529]/80 bg-[#e6e2d6] border-[#2a2529]/15' : 'text-[#f3f0e7]/70 bg-[#342f33] border-[#f3f0e7]/10'
+          }`}>{fileName}</span>
         )}
         {language && (
-          <span className="text-[11px] text-[#f3f0e7]/50">{language}</span>
+          <span className={`text-[11px] ${isLight ? 'text-[#2a2529]/50' : 'text-[#f3f0e7]/50'}`}>{language}</span>
         )}
       </div>
       <div className="flex items-center space-x-1">
+        {onTogglePreviewMode && !isCodeMode && (
+          <button
+            onClick={onTogglePreviewMode}
+            className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold active:scale-95 transition-all ${
+              isLight
+                ? 'bg-white/80 border-[#2a2529]/15 text-[#2a2529] hover:bg-white'
+                : 'bg-[#342f33] border-[#f3f0e7]/15 text-[#f3f0e7] hover:bg-[#3d373c]'
+            }`}
+            title={previewMode === 'mobile' ? 'Switch to Desktop Mode' : 'Switch to Mobile Mode'}
+            aria-label="Toggle preview viewport mode"
+          >
+            {previewMode === 'mobile' ? <Smartphone size={15} className="text-emerald-500" /> : <Monitor size={15} className="text-sky-400" />}
+            <span className="text-[11px] hidden sm:inline">{previewMode === 'mobile' ? 'Mobile' : 'Desktop'}</span>
+          </button>
+        )}
         {onRunInNativeTerminal && (
           <button 
             onClick={onRunInNativeTerminal}
@@ -857,13 +945,19 @@ function PreviewHeader({
         {onToggleConsole && (
           <button 
             onClick={onToggleConsole}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl transition-colors relative ${showConsole ? 'bg-[#f3f0e7]/20 text-[#f3f0e7] font-bold' : 'text-[#f3f0e7]/60 hover:bg-[#f3f0e7]/10 hover:text-[#f3f0e7]'}`}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl transition-colors relative ${
+              showConsole 
+                ? (isLight ? 'bg-[#2a2529]/10 text-[#2a2529] font-bold' : 'bg-[#f3f0e7]/20 text-[#f3f0e7] font-bold') 
+                : (isLight ? 'text-[#2a2529]/60 hover:bg-[#2a2529]/10 hover:text-[#2a2529]' : 'text-[#f3f0e7]/60 hover:bg-[#f3f0e7]/10 hover:text-[#f3f0e7]')
+            }`}
             title="Toggle Console"
           >
             <TerminalSquare size={16} />
             <span className="text-xs font-semibold">Console</span>
             {unreadLogs !== undefined && unreadLogs > 0 && !showConsole && (
-              <span className="absolute -top-1 -right-1 bg-[#f3f0e7] text-[#2a2529] text-[9px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[16px] text-center shadow-md">
+              <span className={`absolute -top-1 -right-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[16px] text-center shadow-md ${
+                isLight ? 'bg-[#2a2529] text-white' : 'bg-[#f3f0e7] text-[#2a2529]'
+              }`}>
                 {unreadLogs > 99 ? '99+' : unreadLogs}
               </span>
             )}
@@ -873,7 +967,7 @@ function PreviewHeader({
         {previewUrl && (
           <button 
             onClick={handleOpenInBrowser}
-            className="p-2 text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded-xl transition-colors"
+            className={`p-2 rounded-xl transition-colors ${isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'}`}
             title="Open in Browser"
           >
             <ExternalLink size={18} />
@@ -881,14 +975,14 @@ function PreviewHeader({
         )}
         <button 
           onClick={onRefresh}
-          className="p-2 text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded-xl transition-colors"
+          className={`p-2 rounded-xl transition-colors ${isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'}`}
           title={isCodeMode ? 'Re-run' : 'Refresh'}
         >
           <RefreshCw size={18} />
         </button>
         <button 
           onClick={onClose}
-          className="p-2 text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded-xl transition-colors"
+          className={`p-2 rounded-xl transition-colors ${isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'}`}
         >
           <X size={18} />
         </button>
@@ -901,7 +995,7 @@ function escapeRegex(str: string) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function ConsoleOverlay({ logs, isOpen }: { logs: { type: string, args: string }[], isOpen: boolean }) {
+function ConsoleOverlay({ logs, isOpen, isLight }: { logs: { type: string, args: string }[], isOpen: boolean, isLight?: boolean }) {
   const endRef = React.useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -913,21 +1007,23 @@ function ConsoleOverlay({ logs, isOpen }: { logs: { type: string, args: string }
   if (!isOpen) return null;
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 h-[40vh] bg-[#342f33]/95 backdrop-blur-md border-t border-[#f3f0e7]/15 shadow-2xl z-20 flex flex-col animate-overlay-up text-[#f3f0e7]">
+    <div className={`absolute bottom-0 left-0 right-0 h-[40vh] backdrop-blur-md border-t shadow-2xl z-20 flex flex-col animate-overlay-up ${
+      isLight ? 'bg-[#f4f0e6]/95 border-[#2a2529]/15 text-[#2a2529]' : 'bg-[#342f33]/95 border-[#f3f0e7]/15 text-[#f3f0e7]'
+    }`}>
       <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] md:text-xs">
         {logs.map((log, i) => (
           <div key={i} className={`px-2.5 py-1.5 mb-1.5 rounded-xl border-l-2 ${
-            log.type === 'error' ? 'bg-red-500/10 text-red-400 border-red-500' : 
-            log.type === 'warn' ? 'bg-amber-500/10 text-amber-300 border-amber-500' : 
-            log.type === 'info' ? 'bg-[#f3f0e7]/10 text-[#f3f0e7] border-[#f3f0e7]' :
-            'text-[#f3f0e7]/80 border-[#f3f0e7]/30 hover:bg-[#f3f0e7]/5'
+            log.type === 'error' ? (isLight ? 'bg-red-500/10 text-red-600 border-red-500' : 'bg-red-500/10 text-red-400 border-red-500') : 
+            log.type === 'warn' ? (isLight ? 'bg-amber-500/15 text-amber-800 border-amber-500' : 'bg-amber-500/10 text-amber-300 border-amber-500') : 
+            log.type === 'info' ? (isLight ? 'bg-[#2a2529]/10 text-[#2a2529] border-[#2a2529]' : 'bg-[#f3f0e7]/10 text-[#f3f0e7] border-[#f3f0e7]') :
+            (isLight ? 'text-[#2a2529]/80 border-[#2a2529]/30 hover:bg-[#2a2529]/5' : 'text-[#f3f0e7]/80 border-[#f3f0e7]/30 hover:bg-[#f3f0e7]/5')
           }`}>
             <span className="opacity-50 mr-2 shrink-0">[{log.type}]</span>
             <span className="whitespace-pre-wrap break-all">{log.args}</span>
           </div>
         ))}
         {logs.length === 0 && (
-          <div className="text-[#f3f0e7]/40 text-center py-8 italic flex flex-col items-center">
+          <div className={`${isLight ? 'text-[#2a2529]/40' : 'text-[#f3f0e7]/40'} text-center py-8 italic flex flex-col items-center`}>
             <TerminalSquare size={32} className="mb-2 opacity-30" />
             <span>Console is empty</span>
           </div>

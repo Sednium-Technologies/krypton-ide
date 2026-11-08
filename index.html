@@ -2,7 +2,7 @@
 <html lang="en" class="light" data-theme="light">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https: wss: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com blob:; font-src 'self' https://fonts.gstatic.com data: blob:; img-src 'self' data: blob: https:; frame-src 'self' blob: data:; worker-src 'self' blob:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' http: https: ws: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http: https: ws: wss: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com blob:; font-src 'self' https://fonts.gstatic.com data: blob:; img-src 'self' data: blob: https:; frame-src 'self' blob: data:; worker-src 'self' blob:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#f3f0e7" />
     <meta name="description" content="Kryptonide - A powerful mobile-first code editor for your smartphone" />
@@ -17,6 +17,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Urbanist:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <script>
+      window.__ERRORS__ = [];
+      window.addEventListener('error', function(e) {
+        window.__ERRORS__.push(e.message || (e.error && e.error.message) || String(e));
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        window.__ERRORS__.push('UnhandledRejection: ' + ((e.reason && e.reason.message) || String(e.reason)));
+      });
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

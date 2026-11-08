@@ -200,7 +200,7 @@ export function NavbarOverflowDrawer() {
             );
           })}
 
-          {/* Perched More Tab */}
+          {/* Floating Circular More Button */}
           <button
             onClick={() => {
               if (isLongPressedRef.current) {
@@ -223,50 +223,30 @@ export function NavbarOverflowDrawer() {
             }}
             aria-label="Open more tools"
             title="More tools (long press to arrange dock)"
-            className={`absolute bottom-full mb-[-1px] ${
+            className={`absolute bottom-[calc(100%+54px)] ${
               moreDockPosition === 'left'
                 ? 'left-3'
                 : moreDockPosition === 'center'
                 ? 'left-1/2 -translate-x-1/2'
                 : 'right-3'
-            } z-40 w-[124px] h-[30px] flex items-center justify-between px-2.5 rounded-t-xl border-t border-x border-b-0 active:scale-95 transition-all cursor-pointer select-none group shadow-[0_-3px_10px_rgba(0,0,0,0.06)] ${
+            } z-40 w-10 h-10 rounded-full flex items-center justify-center shadow-lg border active:scale-95 transition-all select-none cursor-pointer ${
               isLight
-                ? 'bg-[#f4f0e6] border-[#2a2529]/12 text-[#2a2529] hover:bg-[#eae5d8]'
-                : 'bg-[#231e22] border-[#f3f0e7]/12 text-[#f3f0e7] hover:bg-[#2c262b]'
+                ? 'bg-[#f4f0e6] border-[#2a2529]/15 text-[#2a2529] hover:bg-[#eae5d8]'
+                : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] hover:bg-[#2c262b]'
             }`}
           >
-            {/* Seam Eraser: Extends downward 2px to eliminate any subpixel dividing line with the navbar */}
-            <div
-              className="absolute -bottom-[2px] left-0 right-0 h-[3px] pointer-events-none"
-              style={{ backgroundColor: surfaceBg }}
-            />
-
-            <div className="flex items-center space-x-1.5 min-w-0">
-              <MoreHorizontal
-                size={13}
-                className={`transition-colors shrink-0 ${
-                  isLight ? 'text-[#2a2529]/70 group-hover:text-[#2a2529]' : 'text-[#f3f0e7]/70 group-hover:text-[#f3f0e7]'
+            <MoreHorizontal size={18} />
+            {overflowTools.length > 0 && (
+              <span
+                className={`absolute -top-1 -right-1 text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full border shadow-sm ${
+                  isLight
+                    ? 'bg-[#2a2529] text-[#f4f0e6] border-[#f4f0e6]'
+                    : 'bg-[#f3f0e7] text-[#231e22] border-[#231e22]'
                 }`}
-              />
-              <span className="text-[10px] font-semibold tracking-wide">More</span>
-              {overflowTools.length > 0 && (
-                <span
-                  className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
-                    isLight ? 'bg-[#2a2529]/10 text-teal-800' : 'bg-[#f3f0e7]/10 text-teal-300'
-                  }`}
-                >
-                  +{overflowTools.length}
-                </span>
-              )}
-            </div>
-            <ChevronUp
-              size={11}
-              className={`transition-transform shrink-0 ${
-                isOverflowOpen ? 'rotate-180' : ''
-              } ${
-                isLight ? 'text-[#2a2529]/50 group-hover:text-[#2a2529]' : 'text-[#f3f0e7]/50 group-hover:text-[#f3f0e7]'
-              }`}
-            />
+              >
+                +{overflowTools.length}
+              </span>
+            )}
           </button>
         </nav>
       </div>

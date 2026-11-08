@@ -207,7 +207,7 @@ export function BottomPanel({ onClose, height, setHeight, isDockedSide = false }
           ? 'fixed inset-0 w-screen h-screen z-[9999] rounded-none border-0 shadow-none'
           : isFloating
             ? 'rounded-[28px] border border-[#f3f0e7]/20 shadow-2xl overflow-hidden'
-            : 'h-full will-change-transform'
+            : 'h-full rounded-t-[28px] overflow-hidden will-change-transform'
       }`}
       style={isTerminalFullScreen ? {
         position: 'fixed',
@@ -352,7 +352,7 @@ export function BottomPanel({ onClose, height, setHeight, isDockedSide = false }
               title={isTerminalFullScreen ? "Exit Full Screen" : "Full Screen Mode"}
               aria-label={isTerminalFullScreen ? "Exit Full Screen" : "Full Screen Mode"}
             >
-              <Maximize2 size={14} />
+              {isTerminalFullScreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             </button>
             <button
               type="button"
@@ -412,23 +412,23 @@ function BuildPanel({ onMinimize }: { onMinimize: () => void }) {
 function ProblemsTabLabel({ active, onClick }: { active: boolean; onClick: () => void }) {
   const errorCount = useProblemsStore(s => s.errorCount);
   const warningCount = useProblemsStore(s => s.warningCount);
+  const totalCount = errorCount + warningCount;
 
   return (
     <button
       type="button"
       role="tab"
       aria-selected={active}
-      aria-label={`Problems tab (${errorCount} errors, ${warningCount} warnings)`}
+      aria-label={`Problems tab (${totalCount} problems)`}
       tabIndex={0}
       className={`flex items-center space-x-2 cursor-pointer h-9 px-1 uppercase tracking-wider text-[11px] focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none rounded ${active ? 'text-[#f3f0e7] border-b-2 border-[#f3f0e7] font-bold' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7]'}`}
       onClick={onClick}
     >
       <span>Problems</span>
-      {errorCount > 0 && (
-        <span className="bg-red-500/20 text-red-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{errorCount}</span>
-      )}
-      {warningCount > 0 && (
-        <span className="bg-amber-500/20 text-amber-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{warningCount}</span>
+      {totalCount > 0 && (
+        <span className="bg-red-500/20 text-red-500 dark:text-red-400 border border-red-500/30 text-[10px] px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">
+          {totalCount}
+        </span>
       )}
     </button>
   );

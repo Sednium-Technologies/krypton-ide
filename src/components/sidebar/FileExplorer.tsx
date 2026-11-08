@@ -51,6 +51,7 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
   const saveFile = useIdeStore((state) => state.saveFile);
   const updateFileContent = useIdeStore((state) => state.updateFileContent);
   const theme = useIdeStore((state) => state.theme);
+  const setSidebarView = useIdeStore((state) => state.setSidebarView);
   const isLight = theme === 'light';
 
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
@@ -678,6 +679,14 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
     const isActive = activeFileId === nodeId;
     const isRenaming = renamingId === nodeId;
 
+    const visibleChildren = (isFolder && node.children)
+      ? node.children.filter(childId => {
+          const child = files[childId];
+          return child && !SYSTEM_EXCLUDED_FILES.has(child.name);
+        })
+      : [];
+    const hasVisibleChildren = isFolder && isExpanded && visibleChildren.length > 0;
+
     return (
       <div key={nodeId} className="relative">
         <div
@@ -700,6 +709,25 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
           onTouchMove={handleTouchMove}
           onContextMenu={(e) => handleContextMenu(nodeId, e)}
         >
+          {/* Smooth non-linear drop curve from expanded folder to children */}
+          {hasVisibleChildren && (
+            <svg
+              className="absolute pointer-events-none select-none overflow-visible"
+              style={{ left: `${depth * 14 + 10}px`, top: 0, width: 14, height: '100%' }}
+              viewBox="0 0 14 32"
+              preserveAspectRatio="none"
+              fill="none"
+            >
+              <path
+                d="M 7 16 Q 1 16 1 23 V 36"
+                stroke={isLight ? "rgba(42,37,41,0.25)" : "rgba(243,240,231,0.25)"}
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                fill="none"
+              />
+            </svg>
+          )}
+
           {depth > 0 && (
             <>
               {/* Ancestor vertical spine guide lines */}
@@ -716,12 +744,12 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
                   >
                     <line
                       x1="1"
-                      y1="-6"
+                      y1="-4"
                       x2="1"
                       y2="36"
                       stroke={isLight ? 'rgba(42,37,41,0.22)' : 'rgba(243,240,231,0.22)'}
                       strokeWidth="1.2"
-                      strokeLinecap="round"
+                      strokeLinecap="butt"
                     />
                   </svg>
                 );
@@ -735,17 +763,32 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
                 preserveAspectRatio="none"
                 fill="none"
               >
-                <path
-                  d={
-                    isLast
-                      ? "M 1 -6 V 10 Q 1 16 7 16 H 14"
-                      : "M 1 -6 V 36 M 1 6 Q 1 16 7 16 H 14"
-                  }
-                  stroke={isLight ? 'rgba(42,37,41,0.25)' : 'rgba(243,240,231,0.25)'}
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                  fill="none"
-                />
+                {isLast ? (
+                  <path
+                    d="M 1 -4 V 10 Q 1 16 7 16 H 14"
+                    stroke={isLight ? 'rgba(42,37,41,0.25)' : 'rgba(243,240,231,0.25)'}
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                ) : (
+                  <>
+                    <path
+                      d="M 1 -4 V 36"
+                      stroke={isLight ? 'rgba(42,37,41,0.25)' : 'rgba(243,240,231,0.25)'}
+                      strokeWidth="1.2"
+                      strokeLinecap="butt"
+                      fill="none"
+                    />
+                    <path
+                      d="M 1 10 Q 1 16 7 16 H 14"
+                      stroke={isLight ? 'rgba(42,37,41,0.25)' : 'rgba(243,240,231,0.25)'}
+                      strokeWidth="1.2"
+                      strokeLinecap="round"
+                      fill="none"
+                    />
+                  </>
+                )}
               </svg>
             </>
           )}
@@ -825,19 +868,13 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
           )}
         </div>
         
-        {isFolder && isExpanded && node.children && (
+        {hasVisibleChildren && (
           <div className="relative">
-            {(() => {
-              const visibleChildren = node.children.filter(childId => {
-                const child = files[childId];
-                return child && !SYSTEM_EXCLUDED_FILES.has(child.name);
-              });
-              return visibleChildren.map((childId, index) => {
-                const isLastChild = index === visibleChildren.length - 1;
-                const nextAncestorLines = depth > 0 ? [...ancestorLines, !isLast] : [];
-                return renderNode(childId, depth + 1, isLastChild, nextAncestorLines);
-              });
-            })()}
+            {visibleChildren.map((childId, index) => {
+              const isLastChild = index === visibleChildren.length - 1;
+              const nextAncestorLines = depth === 0 ? [] : [...ancestorLines, !isLast];
+              return renderNode(childId, depth + 1, isLastChild, nextAncestorLines);
+            })}
           </div>
         )}
       </div>
@@ -894,22 +931,10 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
               <ChevronsDownUp size={15} />
             </button>
             <button
-              onClick={() => {
-                setIsSearchOpen(prev => {
-                  const next = !prev;
-                  if (next) setTimeout(() => searchInputRef.current?.focus(), 100);
-                  else setSearchQuery('');
-                  return next;
-                });
-              }}
-              className={cn(
-                "p-1.5 rounded-lg transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none",
-                isSearchOpen || searchQuery
-                  ? "bg-[#f3f0e7]/20 text-[#f3f0e7]"
-                  : "text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10"
-              )}
+              onClick={() => setSidebarView('search')}
+              className="p-1.5 rounded-lg transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10"
               title="Search Files"
-              aria-label="Toggle file search"
+              aria-label="Search files"
             >
               <Search size={15} />
             </button>

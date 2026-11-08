@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Send, Key, X, Sparkles, Loader2, Plus, MessageSquare, Trash2, ChevronDown, ChevronRight, BrainCircuit, FileCode, CheckCircle2, AlertCircle, Square, ClipboardList, Zap, Settings2, Paperclip, RotateCw, Check, Search, TerminalSquare } from 'lucide-react';
+import { Bot, Send, Key, X, Sparkles, Loader2, Plus, MessageSquare, Trash2, ChevronDown, ChevronRight, BrainCircuit, FileCode, CheckCircle2, AlertCircle, Square, ClipboardList, Zap, Settings2, Paperclip, RotateCw, Check, Search, TerminalSquare, Globe, FolderCode, Mic, Copy, Edit3, RotateCcw } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useAiStore, Message, AttachedFile } from '../../store/useAiStore';
 import { useProblemsStore } from '../../store/useProblemsStore';
@@ -169,6 +169,55 @@ export function AiAssistant() {
     }
   }, [activeProvider, currentProvider.defaultModel]);
 
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const [configContextWindow, setConfigContextWindow] = useState(aiStore.contextWindow || 128000);
+  const [configMaxOutputTokens, setConfigMaxOutputTokens] = useState(aiStore.maxOutputTokens || 8192);
+  const [configReasoningEffort, setConfigReasoningEffort] = useState<'none' | 'low' | 'medium' | 'high'>(aiStore.reasoningEffort || 'none');
+  const [configThinkingBudget, setConfigThinkingBudget] = useState(aiStore.thinkingBudget || 0);
+
+  const handleCopyText = (text: string, id: string) => {
+    navigator.clipboard?.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const toggleVoiceInput = () => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      alert('Voice dictation is not supported in this browser environment.');
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    try {
+      const recognition = new SpeechRec();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      recognition.onstart = () => setIsListening(true);
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0]?.[0]?.transcript || '';
+        if (transcript) {
+          setInput(prev => prev ? `${prev} ${transcript}` : transcript);
+        }
+        setIsListening(false);
+      };
+      recognition.onerror = () => setIsListening(false);
+      recognition.onend = () => setIsListening(false);
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Speech recognition error:', err);
+      setIsListening(false);
+    }
+  };
+
   const [weightLoadingState, setWeightLoadingState] = useState<{
     isLoading: boolean;
     percentage: number;
@@ -304,6 +353,27 @@ export function AiAssistant() {
     const fileName = e.dataTransfer.getData('fileName');
     if (fileName) {
       setActiveMentionTags(prev => [...prev, { type: 'file', id: fileId || fileName, name: fileName }]);
+    }
+  };
+
+  const retryLastMessage = (targetIdx?: number) => {
+    const msgs = activeSession?.messages || aiMessages;
+    let userMsg: Message | undefined;
+    let cutIdx = -1;
+    if (typeof targetIdx === 'number' && targetIdx >= 0) {
+      userMsg = msgs.slice(0, targetIdx).reverse().find(m => m.role === 'user');
+      cutIdx = targetIdx;
+    } else {
+      userMsg = [...msgs].reverse().find(m => m.role === 'user');
+      cutIdx = msgs.map(m => m.role).lastIndexOf('assistant');
+    }
+    if (!userMsg) return;
+    setInput(userMsg.content);
+    if (inputRef.current) inputRef.current.focus();
+    if (activeSession && cutIdx >= 0) {
+      aiStore.updateSession(activeSession.id, {
+        messages: msgs.slice(0, cutIdx)
+      });
     }
   };
 
@@ -550,52 +620,66 @@ export function AiAssistant() {
   // Settings panel
   if (showSettings) {
     return (
-      <div className="flex h-full flex-col bg-[#2a2529] text-[#f3f0e7]">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#f3f0e7]/10 shrink-0 bg-[#231e22]">
+      <div className={`flex h-full flex-col ${isLight ? 'bg-[#f4f0e6] text-[#2a2529]' : 'bg-[#2a2529] text-[#f3f0e7]'}`}>
+        <div className={`flex items-center justify-between px-5 py-4 border-b shrink-0 ${
+          isLight ? 'bg-[#eae5d8] border-[#2a2529]/15 text-[#2a2529]' : 'bg-[#231e22] border-[#f3f0e7]/10 text-[#f3f0e7]'
+        }`}>
           <div className="flex items-center space-x-2">
-            <Bot size={18} className="text-[#f3f0e7]" />
-            <h3 className="text-sm font-bold uppercase tracking-widest text-[#f3f0e7]">Model Configurations</h3>
+            <Bot size={18} className={isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'} />
+            <h3 className={`text-sm font-bold uppercase tracking-widest ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>Model Configurations</h3>
           </div>
-          <button onClick={() => setShowSettings(false)} className="p-1.5 text-[#f3f0e7]/60 hover:text-[#f3f0e7] rounded-lg hover:bg-[#f3f0e7]/5 transition-colors">
+          <button onClick={() => setShowSettings(false)} className={`p-1.5 rounded-lg transition-colors ${
+            isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/5'
+          }`}>
             <X size={18} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
           <div>
-            <h4 className="text-[10px] text-[#f3f0e7]/50 font-black uppercase tracking-[0.2em] mb-3 block">Saved Models</h4>
+            <h4 className={`text-[10px] font-black uppercase tracking-[0.2em] mb-3 block ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>Saved Models</h4>
             <div className="space-y-2">
               {aiStore.savedModels.map(model => (
-                <div key={model.id} className="flex items-center justify-between bg-[#342f33] px-3.5 py-2.5 rounded-xl border border-[#f3f0e7]/10">
+                <div key={model.id} className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border ${
+                  isLight ? 'bg-white border-[#2a2529]/12 text-[#2a2529]' : 'bg-[#342f33] border-[#f3f0e7]/10 text-[#f3f0e7]'
+                }`}>
                   <div className="flex items-center space-x-3">
                     <button 
                       onClick={() => aiStore.setActiveSavedModel(model.id)}
-                      className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${aiStore.activeModelId === model.id ? 'border-[#f3f0e7] bg-[#f3f0e7]/20' : 'border-[#f3f0e7]/40'}`}
+                      className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+                        aiStore.activeModelId === model.id 
+                          ? (isLight ? 'border-[#2a2529] bg-[#2a2529]/20' : 'border-[#f3f0e7] bg-[#f3f0e7]/20') 
+                          : (isLight ? 'border-[#2a2529]/40' : 'border-[#f3f0e7]/40')
+                      }`}
                     >
-                      {aiStore.activeModelId === model.id && <div className="w-1.5 h-1.5 rounded-full bg-[#f3f0e7]" />}
+                      {aiStore.activeModelId === model.id && <div className={`w-1.5 h-1.5 rounded-full ${isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]'}`} />}
                     </button>
                     <div className="flex flex-col text-left">
-                      <span className="text-xs font-bold text-[#f3f0e7]">{model.name}</span>
-                      <span className="text-[9px] text-[#f3f0e7]/50 font-mono mt-0.5">{model.provider} / {model.model}</span>
+                      <span className={`text-xs font-bold ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>{model.name}</span>
+                      <span className={`text-[9px] font-mono mt-0.5 ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>{model.provider} / {model.model}</span>
                     </div>
                   </div>
-                  <button onClick={() => aiStore.removeSavedModel(model.id)} className="text-[#f3f0e7]/40 hover:text-red-400 p-1.5 transition-colors rounded-lg hover:bg-[#f3f0e7]/5">
+                  <button onClick={() => aiStore.removeSavedModel(model.id)} className={`p-1.5 transition-colors rounded-lg ${
+                    isLight ? 'text-[#2a2529]/50 hover:text-red-600 hover:bg-[#2a2529]/5' : 'text-[#f3f0e7]/40 hover:text-red-400 hover:bg-[#f3f0e7]/5'
+                  }`}>
                     <Trash2 size={14} />
                   </button>
                 </div>
               ))}
               {aiStore.savedModels.length === 0 && (
-                <div className="text-[11px] text-[#f3f0e7]/50 italic p-4 text-center border border-dashed border-[#f3f0e7]/15 rounded-xl">
+                <div className={`text-[11px] italic p-4 text-center border border-dashed rounded-xl ${
+                  isLight ? 'text-[#2a2529]/50 border-[#2a2529]/15' : 'text-[#f3f0e7]/50 border-[#f3f0e7]/15'
+                }`}>
                   No saved models yet. Create one below to continue.
                 </div>
               )}
             </div>
           </div>
 
-          <div className="border-t border-[#f3f0e7]/10 pt-6 space-y-6">
-            <h4 className="text-[10px] text-[#f3f0e7]/80 font-black uppercase tracking-[0.2em] mb-3 block">Add New Configuration</h4>
+          <div className={`border-t pt-6 space-y-6 ${isLight ? 'border-[#2a2529]/15' : 'border-[#f3f0e7]/10'}`}>
+            <h4 className={`text-[10px] font-black uppercase tracking-[0.2em] mb-3 block ${isLight ? 'text-[#2a2529]/80' : 'text-[#f3f0e7]/80'}`}>Add New Configuration</h4>
             <div>
-              <label className="text-[10px] text-[#f3f0e7]/50 font-black uppercase tracking-[0.2em] mb-3 block">Infrastructure Provider</label>
+              <label className={`text-[10px] font-black uppercase tracking-[0.2em] mb-3 block ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>Infrastructure Provider</label>
               <div className="grid grid-cols-2 gap-2">
                 {PROVIDERS.map(provider => (
                   <button
@@ -605,134 +689,243 @@ export function AiAssistant() {
                       aiStore.setModel(provider.defaultModel);
                       aiStore.setBaseUrl(provider.baseUrl);
                     }}
-                  className={`px-3 py-2.5 rounded-xl text-xs text-center border transition-all duration-200 ${
-                    activeProvider === provider.id
-                      ? 'bg-[#f3f0e7]/15 text-[#f3f0e7] border-[#f3f0e7]/40 font-bold'
-                      : 'bg-[#342f33] text-[#f3f0e7]/60 border-[#f3f0e7]/10 hover:border-[#f3f0e7]/30'
-                  }`}
-                >
-                  {provider.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {(currentProvider?.allowCustomBaseUrl || activeProvider === 'custom' || activeProvider === 'ollama') && (
-              <div>
-                <label className="text-[10px] text-[#f3f0e7]/50 font-black uppercase tracking-[0.2em] mb-2 block">
-                  API Base URL {activeProvider === 'custom' && '(OpenAI Compatible)'}
-                </label>
-                <input
-                  type="text"
-                  value={aiStore.baseUrl !== undefined ? aiStore.baseUrl : (currentProvider.baseUrl || '')}
-                  onChange={(e) => aiStore.setBaseUrl(e.target.value)}
-                  placeholder={currentProvider.baseUrl || 'http://localhost:8080/v1'}
-                  className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-4 py-3 text-sm text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
-                />
-                <p className="text-[10px] text-[#f3f0e7]/40 mt-1">
-                  {activeProvider === 'custom' 
-                    ? 'Target URL of any OpenAI-compatible server (e.g. vLLM, LM Studio, Ollama /v1)' 
-                    : activeProvider === 'ollama'
-                    ? 'Ollama endpoint (e.g. http://localhost:11434)'
-                    : 'Override default API host endpoint'}
-                </p>
-              </div>
-            )}
-
-            <div>
-              <label className="text-[10px] text-[#f3f0e7]/50 font-black uppercase tracking-[0.2em] mb-2 block">
-                Secret Key {(!currentProvider.requiresKey || activeProvider === 'custom' || activeProvider === 'ollama') ? '(Optional)' : ''}
-              </label>
-              <input
-                type="text"
-                value={currentKey}
-                onChange={(e) => aiStore.setApiKey(e.target.value)}
-                placeholder={currentProvider.placeholder}
-                className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-4 py-3 text-sm text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <label className="text-[10px] text-[#f3f0e7]/50 font-black uppercase tracking-[0.2em] block">Deployment Model</label>
-                  {isModelsLive && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      Live ({dynamicModels.length})
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => refreshModels()}
-                  disabled={isModelsLoading}
-                  className="flex items-center space-x-1 text-[10px] text-[#f3f0e7]/60 hover:text-[#f3f0e7] disabled:opacity-40 transition-colors"
-                  title="Refresh models list"
-                >
-                  <RotateCw size={11} className={isModelsLoading ? 'animate-spin' : ''} />
-                  <span>{isModelsLoading ? 'Syncing...' : 'Sync Models'}</span>
-                </button>
-              </div>
-
-              {dynamicModels.length > 0 ? (
-                <div className="mb-2">
-                  <select
-                    value={dynamicModels.some(m => m.id === customModelText) ? customModelText : '__custom__'}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val && val !== '__custom__') {
-                        setCustomModelText(val);
-                        aiStore.setModel(val);
-                        if (val.includes('local') || val.includes('gguf') || val.includes('llama') || val.includes('q4')) {
-                          triggerWeightLoadingProgress(`/models/${val}.gguf`, val);
-                        }
-                      }
-                    }}
-                    className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-3 py-2.5 text-xs text-[#f3f0e7] focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
+                    className={`px-3 py-2.5 rounded-xl text-xs text-center border transition-all duration-200 ${
+                      activeProvider === provider.id
+                        ? (isLight ? 'bg-[#2a2529] text-white border-[#2a2529] font-bold shadow-sm' : 'bg-[#f3f0e7]/15 text-[#f3f0e7] border-[#f3f0e7]/40 font-bold')
+                        : (isLight ? 'bg-white text-[#2a2529]/75 border-[#2a2529]/15 hover:border-[#2a2529]/35' : 'bg-[#342f33] text-[#f3f0e7]/60 border-[#f3f0e7]/10 hover:border-[#f3f0e7]/30')
+                    }`}
                   >
-                    <option value="" disabled>Select from endpoint models ({dynamicModels.length})...</option>
-                    {dynamicModels.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.name || m.id}
-                      </option>
-                    ))}
-                    {!dynamicModels.some(m => m.id === customModelText) && customModelText && (
-                      <option value="__custom__">
-                        Custom Model: {customModelText}
-                      </option>
-                    )}
-                  </select>
-                </div>
-              ) : (
-                <div className="mb-2 px-3 py-2 rounded-xl bg-[#231e22]/50 border border-[#f3f0e7]/10 text-[11px] text-[#f3f0e7]/60 font-mono">
-                  {isModelsLoading ? 'Querying live endpoint models...' : 'No endpoint models queried yet. Click "Sync Models" or enter a model ID below.'}
+                    {provider.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {(currentProvider?.allowCustomBaseUrl || activeProvider === 'custom' || activeProvider === 'ollama') && (
+                <div>
+                  <label className={`text-[10px] font-black uppercase tracking-[0.2em] mb-2 block ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>
+                    API Base URL {activeProvider === 'custom' && '(OpenAI Compatible)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={aiStore.baseUrl !== undefined ? aiStore.baseUrl : (currentProvider.baseUrl || '')}
+                    onChange={(e) => aiStore.setBaseUrl(e.target.value)}
+                    placeholder={currentProvider.baseUrl || 'http://localhost:8080/v1'}
+                    className={`w-full rounded-xl px-4 py-3 text-sm font-mono border transition-all focus:outline-none ${
+                      isLight 
+                        ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50' 
+                        : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40'
+                    }`}
+                  />
+                  <p className={`text-[10px] mt-1 ${isLight ? 'text-[#2a2529]/50' : 'text-[#f3f0e7]/40'}`}>
+                    {activeProvider === 'custom' 
+                      ? 'Target URL of any OpenAI-compatible server (e.g. vLLM, LM Studio, Ollama /v1)' 
+                      : activeProvider === 'ollama'
+                      ? 'Ollama endpoint (e.g. http://localhost:11434)'
+                      : 'Override default API host endpoint'}
+                  </p>
                 </div>
               )}
 
-              <input
-                type="text"
-                value={customModelText}
-                onChange={(e) => {
-                  isEditingCustomModel.current = true;
-                  const val = e.target.value;
-                  setCustomModelText(val);
-                  aiStore.setModel(val);
-                }}
-                onBlur={() => {
-                  isEditingCustomModel.current = false;
-                }}
-                className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-4 py-3 text-sm text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
-                placeholder="Or type any custom model ID..."
-                autoComplete="off"
-                spellCheck={false}
-              />
+              <div>
+                <label className={`text-[10px] font-black uppercase tracking-[0.2em] mb-2 block ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>
+                  Secret Key {(!currentProvider.requiresKey || activeProvider === 'openrouter' || activeProvider === 'custom' || activeProvider === 'ollama') ? '(Optional)' : ''}
+                </label>
+                <input
+                  type="text"
+                  value={currentKey}
+                  onChange={(e) => aiStore.setApiKey(e.target.value)}
+                  placeholder={currentProvider.placeholder}
+                  className={`w-full rounded-xl px-4 py-3 text-sm font-mono border transition-all focus:outline-none ${
+                    isLight 
+                      ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50' 
+                      : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center space-x-2">
+                    <label className={`text-[10px] font-black uppercase tracking-[0.2em] block ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>Deployment Model</label>
+                    {isModelsLive && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        Live ({dynamicModels.length})
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => refreshModels()}
+                    disabled={isModelsLoading}
+                    className={`flex items-center space-x-1 text-[10px] disabled:opacity-40 transition-colors ${
+                      isLight ? 'text-[#2a2529]/70 hover:text-[#2a2529]' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7]'
+                    }`}
+                    title="Refresh models list"
+                  >
+                    <RotateCw size={11} className={isModelsLoading ? 'animate-spin' : ''} />
+                    <span>{isModelsLoading ? 'Syncing...' : 'Sync Models'}</span>
+                  </button>
+                </div>
+
+                {dynamicModels.length > 0 ? (
+                  <div className="mb-2">
+                    <select
+                      value={dynamicModels.some(m => m.id === customModelText) ? customModelText : '__custom__'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val && val !== '__custom__') {
+                          setCustomModelText(val);
+                          aiStore.setModel(val);
+                          if (val.includes('local') || val.includes('gguf') || val.includes('llama') || val.includes('q4')) {
+                            triggerWeightLoadingProgress(`/models/${val}.gguf`, val);
+                          }
+                        }
+                      }}
+                      className={`w-full rounded-xl px-3 py-2.5 text-xs transition-all font-mono border focus:outline-none ${
+                        isLight 
+                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] focus:border-[#2a2529]/50' 
+                          : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] focus:border-[#f3f0e7]/40'
+                      }`}
+                    >
+                      <option value="" disabled>Select from endpoint models ({dynamicModels.length})...</option>
+                      {dynamicModels.map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name || m.id}
+                        </option>
+                      ))}
+                      {!dynamicModels.some(m => m.id === customModelText) && customModelText && (
+                        <option value="__custom__">
+                          Custom Model: {customModelText}
+                        </option>
+                      )}
+                    </select>
+                  </div>
+                ) : (
+                  <div className={`mb-2 px-3 py-2 rounded-xl text-[11px] font-mono border ${
+                    isLight ? 'bg-white/60 border-[#2a2529]/15 text-[#2a2529]/70' : 'bg-[#231e22]/50 border-[#f3f0e7]/10 text-[#f3f0e7]/60'
+                  }`}>
+                    {isModelsLoading ? 'Querying live endpoint models...' : 'No endpoint models queried yet. Click "Sync Models" or enter a model ID below.'}
+                  </div>
+                )}
+
+                <input
+                  type="text"
+                  value={customModelText}
+                  onChange={(e) => {
+                    isEditingCustomModel.current = true;
+                    const val = e.target.value;
+                    setCustomModelText(val);
+                    aiStore.setModel(val);
+                  }}
+                  onBlur={() => {
+                    isEditingCustomModel.current = false;
+                  }}
+                  className={`w-full rounded-xl px-4 py-3 text-sm font-mono border transition-all focus:outline-none ${
+                    isLight 
+                      ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50' 
+                      : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40'
+                  }`}
+                  placeholder="Or type any custom model ID..."
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+
+              {/* Advanced Model Parameters: Context, Output, Reasoning */}
+              <div className={`pt-3 border-t space-y-3 ${isLight ? 'border-[#2a2529]/15' : 'border-[#f3f0e7]/10'}`}>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1.5 block ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>
+                      Context Window
+                    </label>
+                    <select
+                      value={configContextWindow}
+                      onChange={(e) => setConfigContextWindow(Number(e.target.value))}
+                      className={`w-full rounded-xl px-3 py-2 text-xs font-mono border focus:outline-none ${
+                        isLight 
+                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] focus:border-[#2a2529]/50' 
+                          : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] focus:border-[#f3f0e7]/40'
+                      }`}
+                    >
+                      <option value={4096}>4K (4,096)</option>
+                      <option value={8192}>8K (8,192)</option>
+                      <option value={16384}>16K (16,384)</option>
+                      <option value={32768}>32K (32,768)</option>
+                      <option value={65536}>64K (65,536)</option>
+                      <option value={131072}>128K (131,072)</option>
+                      <option value={200000}>200K (200,000)</option>
+                      <option value={1048576}>1M (1,048,576)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1.5 block ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>
+                      Max Output
+                    </label>
+                    <select
+                      value={configMaxOutputTokens}
+                      onChange={(e) => setConfigMaxOutputTokens(Number(e.target.value))}
+                      className={`w-full rounded-xl px-3 py-2 text-xs font-mono border focus:outline-none ${
+                        isLight 
+                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] focus:border-[#2a2529]/50' 
+                          : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] focus:border-[#f3f0e7]/40'
+                      }`}
+                    >
+                      <option value={2048}>2K (2,048)</option>
+                      <option value={4096}>4K (4,096)</option>
+                      <option value={8192}>8K (8,192)</option>
+                      <option value={16384}>16K (16,384)</option>
+                      <option value={32768}>32K (32,768)</option>
+                      <option value={65536}>64K (65,536)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1.5 block ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>
+                    Reasoning / Thinking Level
+                  </label>
+                  <div className="grid grid-cols-4 gap-1.5 mb-2">
+                    {(['none', 'low', 'medium', 'high'] as const).map((lvl) => (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => setConfigReasoningEffort(lvl)}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold capitalize border transition-all ${
+                          configReasoningEffort === lvl
+                            ? (isLight ? 'bg-[#2a2529] text-white border-[#2a2529]' : 'bg-[#f3f0e7] text-[#2a2529] border-[#f3f0e7]')
+                            : (isLight ? 'bg-white text-[#2a2529]/75 border-[#2a2529]/15 hover:border-[#2a2529]/30' : 'bg-[#231e22] text-[#f3f0e7]/70 border-[#f3f0e7]/15 hover:border-[#f3f0e7]/30')
+                        }`}
+                      >
+                        {lvl === 'none' ? 'Off' : lvl}
+                      </button>
+                    ))}
+                  </div>
+                  {configReasoningEffort !== 'none' && (
+                    <input
+                      type="number"
+                      min={0}
+                      step={512}
+                      value={configThinkingBudget || ''}
+                      onChange={(e) => setConfigThinkingBudget(Number(e.target.value) || 0)}
+                      placeholder="Custom thinking budget tokens (0 for default)"
+                      className={`w-full rounded-xl px-3 py-2 text-xs font-mono border focus:outline-none ${
+                        isLight 
+                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50' 
+                          : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40'
+                      }`}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="px-5 py-4 flex-shrink-0 border-t border-[#f3f0e7]/10 bg-[#231e22]">
+        <div className={`px-5 py-4 flex-shrink-0 border-t ${
+          isLight ? 'bg-[#eae5d8] border-[#2a2529]/15' : 'bg-[#231e22] border-[#f3f0e7]/10'
+        }`}>
           <button 
             onClick={() => {
               const canSave = currentKey || !currentProvider.requiresKey || activeProvider === 'openrouter' || activeProvider === 'ollama' || activeProvider === 'custom';
@@ -743,13 +936,23 @@ export function AiAssistant() {
                   provider: activeProvider,
                   model: selectedModel,
                   apiKey: currentKey,
-                  baseUrl: aiStore.baseUrl || currentProvider.baseUrl
+                  baseUrl: aiStore.baseUrl || currentProvider.baseUrl,
+                  contextWindow: configContextWindow,
+                  maxOutputTokens: configMaxOutputTokens,
+                  reasoningEffort: configReasoningEffort,
+                  thinkingBudget: configThinkingBudget,
                 });
+                aiStore.setContextWindow(configContextWindow);
+                aiStore.setMaxOutputTokens(configMaxOutputTokens);
+                aiStore.setReasoningEffort(configReasoningEffort);
+                aiStore.setThinkingBudget(configThinkingBudget);
                 setShowSettings(false);
               }
             }}
             disabled={currentProvider.requiresKey && !currentKey && activeProvider !== 'openrouter' && activeProvider !== 'ollama' && activeProvider !== 'custom'}
-            className="w-full bg-[#f3f0e7] text-[#2a2529] hover:bg-white disabled:opacity-40 py-3.5 rounded-2xl text-sm font-bold transition-all shadow-lg active:scale-[0.98]"
+            className={`w-full py-3.5 rounded-2xl text-sm font-bold transition-all shadow-lg active:scale-[0.98] disabled:opacity-40 ${
+              isLight ? 'bg-[#2a2529] text-white hover:bg-black' : 'bg-[#f3f0e7] text-[#2a2529] hover:bg-white'
+            }`}
           >
             Save Model Configuration
           </button>
@@ -760,9 +963,11 @@ export function AiAssistant() {
 
   // Chat view
   return (
-    <div className="flex h-full flex-col relative w-full overflow-hidden bg-[#2a2529] text-[#f3f0e7]">
+    <div className={`flex h-full flex-col relative w-full overflow-hidden ${isLight ? 'bg-[#f4f0e6] text-[#2a2529]' : 'bg-[#2a2529] text-[#f3f0e7]'}`}>
       {/* Chat header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#f3f0e7]/10 flex-shrink-0 bg-[#231e22] z-30">
+      <div className={`flex items-center justify-between px-4 py-3 border-b flex-shrink-0 z-30 ${
+        isLight ? 'bg-[#eae5d8] border-[#2a2529]/15 text-[#2a2529]' : 'bg-[#231e22] border-[#f3f0e7]/10 text-[#f3f0e7]'
+      }`}>
         <div 
           onClick={() => setShowQuickModelPicker(!showQuickModelPicker)}
           onKeyDown={(e) => {
@@ -771,27 +976,35 @@ export function AiAssistant() {
               setShowQuickModelPicker(!showQuickModelPicker);
             }
           }}
-          className="flex items-center space-x-2.5 cursor-pointer hover:opacity-85 transition-opacity select-none focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none rounded-xl p-1"
+          className={`flex items-center space-x-2.5 cursor-pointer hover:opacity-85 transition-opacity select-none focus-visible:ring-2 focus-visible:outline-none rounded-xl p-1 ${
+            isLight ? 'focus-visible:ring-[#2a2529]/50' : 'focus-visible:ring-[#f3f0e7]/50'
+          }`}
           role="button"
           tabIndex={0}
           aria-label="Switch AI model"
           title="Click to quickly switch models"
         >
-          <div className="w-7 h-7 rounded-xl bg-[#342f33] border border-[#f3f0e7]/15 flex items-center justify-center relative overflow-hidden">
+          <div className={`w-7 h-7 rounded-xl border flex items-center justify-center relative overflow-hidden ${
+            isLight ? 'bg-white border-[#2a2529]/15' : 'bg-[#342f33] border-[#f3f0e7]/15'
+          }`}>
             <OortyLiteIcon size={16} />
             {isModelsLive && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-[#231e22]" />
+              <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border ${
+                isLight ? 'border-white' : 'border-[#231e22]'
+              }`} />
             )}
           </div>
           <div className="flex flex-col">
             <div className="flex items-center space-x-1.5">
-              <span className="text-xs font-bold text-[#f3f0e7] leading-none">Oorty Lite</span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#f3f0e7]/10 text-[#f3f0e7]/80 font-mono leading-none">
+              <span className={`text-xs font-bold leading-none ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>Oorty Lite</span>
+              <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono leading-none ${
+                isLight ? 'bg-[#2a2529]/10 text-[#2a2529]/80' : 'bg-[#f3f0e7]/10 text-[#f3f0e7]/80'
+              }`}>
                 {currentProvider.name}
               </span>
-              <ChevronDown size={11} className="text-[#f3f0e7]/70" />
+              <ChevronDown size={11} className={isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'} />
             </div>
-            <span className="text-[9px] text-[#f3f0e7]/70 font-mono truncate max-w-[150px] mt-0.5">
+            <span className={`text-[9px] font-mono truncate max-w-[150px] mt-0.5 ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>
               {currentProvider.requiresKey && !currentKey ? 'No API key set' : (aiStore.model || currentProvider.defaultModel)}
             </span>
           </div>
@@ -799,64 +1012,24 @@ export function AiAssistant() {
         <div className="flex items-center space-x-1">
           <button 
             onClick={() => setShowSessionList(!showSessionList)} 
-            className="p-2 text-[#f3f0e7]/75 hover:text-[#f3f0e7] rounded-xl hover:bg-[#f3f0e7]/10 transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+            className={`p-2 rounded-xl transition-all focus-visible:ring-2 focus-visible:outline-none ${
+              isLight ? 'text-[#2a2529]/75 hover:text-[#2a2529] hover:bg-[#2a2529]/10 focus-visible:ring-[#2a2529]/50' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 focus-visible:ring-[#f3f0e7]/50'
+            }`}
             title="View conversations"
             aria-label="View conversations list"
           >
             <MessageSquare size={16} />
           </button>
-          <div className="relative">
-            <button 
-              onClick={() => setShowModelDropdown(!showModelDropdown)} 
-              className="p-2 text-[#f3f0e7]/75 hover:text-[#f3f0e7] rounded-xl hover:bg-[#f3f0e7]/10 transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
-              title="Saved models and API settings"
-              aria-label="Saved models and settings"
-              aria-haspopup="true"
-              aria-expanded={showModelDropdown}
-            >
-              <Key size={16} />
-            </button>
-            {showModelDropdown && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowModelDropdown(false)} />
-                <div className="absolute right-0 top-full mt-2 w-64 bg-[#342f33] border border-[#f3f0e7]/15 rounded-2xl shadow-2xl z-50 p-2 animate-scale-in">
-                  <div className="text-[10px] text-[#f3f0e7]/70 font-black uppercase tracking-[0.2em] mb-2 px-2 mt-1">Saved Models</div>
-                  <div className="flex flex-col mb-1 max-h-[300px] overflow-y-auto">
-                    {aiStore.savedModels.map(m => (
-                      <button 
-                        key={m.id} 
-                        onClick={() => { aiStore.setActiveSavedModel(m.id); setShowModelDropdown(false); }} 
-                        className={`w-full text-left px-3 py-2.5 rounded-xl text-xs flex flex-col transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
-                          aiStore.activeModelId === m.id ? 'bg-[#f3f0e7]/15 text-[#f3f0e7] font-bold' : 'text-[#f3f0e7]/70 hover:bg-[#f3f0e7]/5'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="truncate">{m.name}</span>
-                          {aiStore.activeModelId === m.id && <CheckCircle2 size={12} className="text-[#f3f0e7] shrink-0" />}
-                        </div>
-                        <span className="text-[9px] opacity-60 truncate font-mono mt-0.5">{m.provider} - {m.model}</span>
-                      </button>
-                    ))}
-                    {aiStore.savedModels.length === 0 && (
-                      <div className="px-3 py-4 text-center text-[10px] text-[#f3f0e7]/70">
-                        No saved configurations.
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-1 border-t border-[#f3f0e7]/10 mt-1">
-                    <button 
-                      onClick={() => { setShowModelDropdown(false); setShowSettings(true); }} 
-                      className="w-full py-2 bg-[#f3f0e7]/10 hover:bg-[#f3f0e7]/20 rounded-xl text-xs font-semibold text-[#f3f0e7] transition-colors flex items-center justify-center space-x-2 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
-                      aria-label="Configure AI models"
-                    >
-                       <Settings2 size={14} />
-                       <span>Configure Models</span>
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          <button 
+            onClick={() => setShowSettings(true)} 
+            className={`p-2 rounded-xl transition-all focus-visible:ring-2 focus-visible:outline-none cursor-pointer ${
+              isLight ? 'text-[#2a2529]/75 hover:text-[#2a2529] hover:bg-[#2a2529]/10 focus-visible:ring-[#2a2529]/50' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 focus-visible:ring-[#f3f0e7]/50'
+            }`}
+            title="Configure API key and models"
+            aria-label="Configure API key and models"
+          >
+            <Key size={16} />
+          </button>
         </div>
       </div>
 
@@ -864,13 +1037,17 @@ export function AiAssistant() {
       {showQuickModelPicker && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowQuickModelPicker(false)} />
-          <div className="absolute left-3 top-14 w-80 max-w-[calc(100vw-24px)] bg-[#342f33] border border-[#f3f0e7]/15 rounded-2xl shadow-2xl z-50 p-3 flex flex-col max-h-[460px] animate-scale-in">
-            <div className="flex items-center justify-between pb-2 border-b border-[#f3f0e7]/10">
+          <div className={`absolute left-3 top-14 w-80 max-w-[calc(100vw-24px)] rounded-2xl shadow-2xl z-50 p-3 flex flex-col max-h-[460px] animate-scale-in border ${
+            isLight ? 'bg-[#f4f0e6] border-[#2a2529]/20 text-[#2a2529]' : 'bg-[#342f33] border-[#f3f0e7]/15 text-[#f3f0e7]'
+          }`}>
+            <div className={`flex items-center justify-between pb-2 border-b ${
+              isLight ? 'border-[#2a2529]/10' : 'border-[#f3f0e7]/10'
+            }`}>
               <div className="flex items-center space-x-2">
-                <Sparkles size={14} className="text-[#f3f0e7]" />
-                <span className="text-xs font-bold text-[#f3f0e7]">Quick Model Switch</span>
+                <Sparkles size={14} className={isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'} />
+                <span className={`text-xs font-bold ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>Quick Model Switch</span>
                 {isModelsLive && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                     Live
                   </span>
                 )}
@@ -879,7 +1056,9 @@ export function AiAssistant() {
                 <button
                   onClick={() => refreshModels()}
                   disabled={isModelsLoading}
-                  className="p-1 rounded-lg hover:bg-[#f3f0e7]/10 text-[#f3f0e7]/75 hover:text-[#f3f0e7] disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+                  className={`p-1 rounded-lg disabled:opacity-40 transition-colors focus-visible:ring-2 focus-visible:outline-none ${
+                    isLight ? 'hover:bg-[#2a2529]/10 text-[#2a2529]/75 hover:text-[#2a2529] focus-visible:ring-[#2a2529]/50' : 'hover:bg-[#f3f0e7]/10 text-[#f3f0e7]/75 hover:text-[#f3f0e7] focus-visible:ring-[#f3f0e7]/50'
+                  }`}
                   title="Sync models from API"
                   aria-label="Sync models from API"
                 >
@@ -887,7 +1066,9 @@ export function AiAssistant() {
                 </button>
                 <button
                   onClick={() => setShowQuickModelPicker(false)}
-                  className="p-1 rounded-lg hover:bg-[#f3f0e7]/10 text-[#f3f0e7]/75 hover:text-[#f3f0e7] transition-colors focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+                  className={`p-1 rounded-lg transition-colors focus-visible:ring-2 focus-visible:outline-none ${
+                    isLight ? 'hover:bg-[#2a2529]/10 text-[#2a2529]/75 hover:text-[#2a2529] focus-visible:ring-[#2a2529]/50' : 'hover:bg-[#f3f0e7]/10 text-[#f3f0e7]/75 hover:text-[#f3f0e7] focus-visible:ring-[#f3f0e7]/50'
+                  }`}
                   aria-label="Close model picker"
                 >
                   <X size={14} />
@@ -897,21 +1078,25 @@ export function AiAssistant() {
 
             {/* Search filter */}
             <div className="relative my-2">
-              <Search size={13} className="absolute left-2.5 top-2.5 text-[#f3f0e7]/70" />
+              <Search size={13} className={`absolute left-2.5 top-2.5 ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/70'}`} />
               <input
                 type="text"
                 value={modelSearchQuery}
                 onChange={(e) => setModelSearchQuery(e.target.value)}
                 placeholder={`Filter ${dynamicModels.length} models...`}
                 aria-label="Filter models"
-                className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl pl-8 pr-3 py-1.5 text-xs text-[#f3f0e7] placeholder-[#f3f0e7]/50 focus:outline-none focus:border-[#f3f0e7]/35 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 font-mono"
+                className={`w-full rounded-xl pl-8 pr-3 py-1.5 text-xs font-mono border focus:outline-none ${
+                  isLight 
+                    ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/40 focus:border-[#2a2529]/50' 
+                    : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/50 focus:border-[#f3f0e7]/35'
+                }`}
                 autoFocus
               />
             </div>
 
             {/* API key missing warning banner */}
             {currentProvider.requiresKey && !currentKey && (
-              <div className="p-2.5 mb-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-xs text-amber-200 flex items-center justify-between">
+              <div className="p-2.5 mb-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-xs text-amber-800 dark:text-amber-200 flex items-center justify-between">
                 <span className="text-[11px] font-medium leading-tight">API key needed for {currentProvider.name}</span>
                 <button
                   type="button"
@@ -1052,24 +1237,28 @@ export function AiAssistant() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth pb-24">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth pb-28">
         {aiMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12 px-6">
-            <div className="relative mb-6">
+          <div className="flex flex-col items-center justify-start text-center pt-8 pb-6 px-4 w-full">
+            <div className="relative mb-4 mt-2">
               <div className="absolute inset-0 bg-[#f3f0e7]/10 blur-xl rounded-full animate-pulse-glow" />
-              <div className="relative w-16 h-16 rounded-2xl bg-[#342f33] border border-[#f3f0e7]/15 flex items-center justify-center shadow-xl overflow-hidden p-3">
-                <OortyLiteIcon size={36} />
+              <div className={`relative w-16 h-16 rounded-2xl ${isLight ? 'bg-white border-[#2a2529]/15' : 'bg-[#342f33] border-[#f3f0e7]/15'} flex items-center justify-center shadow-xl p-2.5`}>
+                <OortyLiteIcon size={38} />
               </div>
             </div>
-            <h3 className="text-base font-bold text-[#f3f0e7] mb-1">Oorty Lite</h3>
-            <p className="text-xs text-[#f3f0e7]/60 leading-relaxed max-w-[240px]">
-              Tag files with <span className="text-[#f3f0e7] font-mono font-semibold">@</span> · Ask anything · Build faster
+            <h3 className={`text-base font-bold mb-1 ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>Oorty Lite</h3>
+            <p className={`text-xs leading-relaxed max-w-[240px] ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'}`}>
+              Tag files with <span className={`font-mono font-semibold ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>@</span> · Ask anything · Build faster
             </p>
 
             {!aiStore.apiKey && aiStore.provider !== 'openrouter' && (
               <button
                 onClick={() => setShowSettings(true)}
-                className="mt-4 flex items-center space-x-2 bg-[#f3f0e7] text-[#2a2529] hover:bg-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+                className={`mt-4 flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 focus-visible:ring-2 focus-visible:outline-none ${
+                  isLight
+                    ? 'bg-[#2a2529] text-white hover:bg-black focus-visible:ring-[#2a2529]/50'
+                    : 'bg-[#f3f0e7] text-[#2a2529] hover:bg-white focus-visible:ring-[#f3f0e7]/50'
+                }`}
               >
                 <Key size={14} />
                 <span>Add API Key to Begin</span>
@@ -1081,7 +1270,11 @@ export function AiAssistant() {
                 <button 
                   key={suggestion}
                   onClick={() => setInput(suggestion)}
-                  className="text-left px-3.5 py-2.5 text-[11px] font-medium text-[#f3f0e7]/75 bg-[#342f33] rounded-xl hover:bg-[#3d373c] hover:text-[#f3f0e7] transition-all border border-[#f3f0e7]/10 truncate focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+                  className={`text-left px-3.5 py-2.5 text-[11px] font-medium rounded-xl transition-all border truncate focus-visible:ring-2 focus-visible:outline-none ${
+                    isLight
+                      ? 'text-[#2a2529]/80 bg-white hover:bg-[#eae6db] hover:text-[#2a2529] border-[#2a2529]/10 focus-visible:ring-[#2a2529]/30'
+                      : 'text-[#f3f0e7]/75 bg-[#342f33] hover:bg-[#3d373c] hover:text-[#f3f0e7] border-[#f3f0e7]/10 focus-visible:ring-[#f3f0e7]/50'
+                  }`}
                 >
                   {suggestion}
                 </button>
@@ -1095,44 +1288,21 @@ export function AiAssistant() {
           return true;
         }).map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full animate-fade-in`}>
-            <div className={`max-w-[100%] rounded-2xl px-4 py-3 ${
-              msg.role === 'user' 
-                ? 'bg-[#f3f0e7] text-[#2a2529] rounded-br-sm shadow-md font-medium' 
-                : msg.role === 'tool'
-                  ? 'bg-transparent w-full px-0 py-0'
-                  : 'bg-[#342f33] text-[#f3f0e7] border border-[#f3f0e7]/10 rounded-bl-sm w-full shadow-md'
-            }`}>
-              {msg.role !== 'user' ? (
-                <>
-                  {renderMessageContent(msg.content, msg)}
-                  {msg.role === 'assistant' && (() => {
-                    const modified = getModifiedFiles(msg);
-                    if (modified.length === 0) return null;
-                    return (
-                      <div className="mt-3 pt-2.5 border-t border-[#f3f0e7]/10 flex flex-wrap items-center gap-1.5 animate-fade-in">
-                        <span className="text-[10px] font-bold text-[#f3f0e7]/75 uppercase tracking-widest shrink-0">
-                          Modified ({modified.length})
-                        </span>
-                        {modified.map((file, idx) => (
-                          <div key={idx} className="flex items-center space-x-1.5 px-2 py-0.5 bg-[#231e22] border border-[#f3f0e7]/10 rounded-md shadow-sm">
-                            <FileCode size={12} className="text-[#f3f0e7]/70" />
-                            <span className="text-[10px] font-mono text-[#f3f0e7]/80">{file}</span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </>
-              ) : (
-                <div className="flex flex-col space-y-2">
+            {msg.role === 'user' ? (
+              <div className="group relative max-w-[85%] flex flex-col items-end">
+                <div className={`rounded-3xl px-4 py-2.5 font-medium shadow-sm transition-all ${
+                  isLight
+                    ? 'bg-[#2a2529] text-[#f4f0e6]'
+                    : 'bg-[#f3f0e7] text-[#2a2529]'
+                }`}>
                   {msg.attachments && msg.attachments.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-1">
+                    <div className="flex flex-wrap gap-2 mb-2">
                       {msg.attachments.map((att: any, idx: number) => (
                         att.type.startsWith('image/') ? (
-                          <img key={idx} src={att.data} alt={att.name} className="w-48 max-w-full rounded-xl object-contain border border-[#2a2529]/20" />
+                          <img key={idx} src={att.data} alt={att.name} className="w-48 max-w-full rounded-2xl object-contain border border-white/20" />
                         ) : (
-                          <div key={idx} className="flex items-center space-x-2 bg-[#2a2529]/10 px-3 py-1.5 rounded-xl border border-[#2a2529]/20">
-                            <span className="text-[11px] font-mono text-[#2a2529]">{att.name}</span>
+                          <div key={idx} className="flex items-center space-x-2 bg-black/10 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[11px] font-mono">{att.name}</span>
                           </div>
                         )
                       ))}
@@ -1140,23 +1310,109 @@ export function AiAssistant() {
                   )}
                   <div className="whitespace-pre-wrap font-sans text-[13.5px] leading-relaxed break-words">{msg.content}</div>
                 </div>
-              )}
-            </div>
+                <div className="flex items-center space-x-1.5 mt-1 mr-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => {
+                      setInput(msg.content);
+                      inputRef.current?.focus();
+                    }}
+                    className={`p-1 px-1.5 rounded-lg text-[10px] flex items-center space-x-1 transition-colors ${
+                      isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'
+                    }`}
+                    title="Edit prompt"
+                    aria-label="Edit prompt"
+                  >
+                    <Edit3 size={11} />
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    onClick={() => handleCopyText(msg.content, `user-${i}`)}
+                    className={`p-1 px-1.5 rounded-lg text-[10px] flex items-center space-x-1 transition-colors ${
+                      isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'
+                    }`}
+                    title="Copy prompt"
+                    aria-label="Copy prompt"
+                  >
+                    {copiedId === `user-${i}` ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                    <span>{copiedId === `user-${i}` ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="group relative w-full px-1 py-1">
+                <div className={`w-full bg-transparent border-none shadow-none text-[13.5px] leading-relaxed ${
+                  isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'
+                }`}>
+                  {renderMessageContent(msg.content, msg)}
+                  {msg.role === 'assistant' && (() => {
+                    const modified = getModifiedFiles(msg);
+                    if (modified.length === 0) return null;
+                    return (
+                      <div className="mt-3 pt-2.5 border-t border-[#f3f0e7]/10 flex flex-wrap items-center gap-1.5 animate-fade-in">
+                        <span className={`text-[10px] font-bold uppercase tracking-widest shrink-0 ${isLight ? 'text-[#2a2529]/75' : 'text-[#f3f0e7]/75'}`}>
+                          Modified ({modified.length})
+                        </span>
+                        {modified.map((file, idx) => (
+                          <div key={idx} className={`flex items-center space-x-1.5 px-2 py-0.5 rounded-md shadow-sm border ${
+                            isLight ? 'bg-white border-[#2a2529]/15 text-[#2a2529]' : 'bg-[#231e22] border-[#f3f0e7]/10 text-[#f3f0e7]'
+                          }`}>
+                            <FileCode size={12} className={isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'} />
+                            <span className="text-[10px] font-mono">{file}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+                {msg.role === 'assistant' && msg.content && (
+                  <div className="flex items-center space-x-2 mt-2 pt-1 border-t border-transparent group-hover:border-[#f3f0e7]/10 transition-all">
+                    <button
+                      onClick={() => handleCopyText(msg.content, `asst-${i}`)}
+                      className={`p-1 px-1.5 rounded-lg text-[10px] flex items-center space-x-1 transition-colors ${
+                        isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'
+                      }`}
+                      title="Copy response"
+                      aria-label="Copy response"
+                    >
+                      {copiedId === `asst-${i}` ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                      <span>{copiedId === `asst-${i}` ? 'Copied' : 'Copy'}</span>
+                    </button>
+                    <button
+                      onClick={() => retryLastMessage(i)}
+                      className={`p-1 px-1.5 rounded-lg text-[10px] flex items-center space-x-1 transition-colors ${
+                        isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'
+                      }`}
+                      title="Revert & edit previous prompt"
+                      aria-label="Revert & edit prompt"
+                    >
+                      <RotateCcw size={11} />
+                      <span>Revert & Edit</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
         {isAiLoading && (
-          <div className="flex justify-start w-full animate-fade-in pb-4">
+          <div className="flex justify-start w-full animate-fade-in pb-4 px-1">
             {aiStore.streamingText ? (
-              <div className="max-w-[100%] rounded-2xl px-4 py-3 bg-[#342f33] border border-[#f3f0e7]/15 shadow-md w-full border-l-2 border-l-[#f3f0e7]/50">
+              <div className={`w-full bg-transparent border-none text-[13.5px] leading-relaxed ${
+                isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'
+              }`}>
                 {renderMessageContent(aiStore.streamingText, { 
                   role: 'assistant', 
                   content: aiStore.streamingText,
                   timestamp: Date.now() 
                 } as any)}
-                <span className="inline-block w-1.5 h-4 bg-[#f3f0e7] ml-0.5 animate-pulse align-middle" />
+                <span className={`inline-block w-1.5 h-4 ml-0.5 animate-pulse align-middle ${
+                  isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]'
+                }`} />
               </div>
             ) : (
-              <div className="bg-[#342f33] border border-[#f3f0e7]/10 rounded-2xl px-4 py-3 flex items-center space-x-2.5 shadow-md">
+              <div className={`border rounded-2xl px-4 py-3 flex items-center space-x-2.5 shadow-md ${
+                isLight ? 'bg-white border-[#2a2529]/10 text-[#2a2529]' : 'bg-[#342f33] border-[#f3f0e7]/10 text-[#f3f0e7]'
+              }`}>
                 <style>{`
                   @keyframes aiSoundWave {
                     0%, 100% { height: 6px; }
@@ -1164,11 +1420,11 @@ export function AiAssistant() {
                   }
                 `}</style>
                 <div className="flex items-center space-x-1 h-5">
-                  <div className="w-1 bg-[#f3f0e7] rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite]" style={{ animationDelay: '0ms' }} />
-                  <div className="w-1 bg-[#f3f0e7] rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite]" style={{ animationDelay: '200ms' }} />
-                  <div className="w-1 bg-[#f3f0e7] rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite]" style={{ animationDelay: '400ms' }} />
+                  <div className={`w-1 rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite] ${isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]'}`} style={{ animationDelay: '0ms' }} />
+                  <div className={`w-1 rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite] ${isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]'}`} style={{ animationDelay: '200ms' }} />
+                  <div className={`w-1 rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite] ${isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]'}`} style={{ animationDelay: '400ms' }} />
                 </div>
-                <span className="text-xs font-semibold text-[#f3f0e7]/70 uppercase tracking-widest ml-1">Thinking...</span>
+                <span className={`text-xs font-semibold uppercase tracking-widest ml-1 ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>Thinking...</span>
               </div>
             )}
           </div>
@@ -1272,15 +1528,13 @@ export function AiAssistant() {
             ))}
           </div>
         )}
-        <div className="flex items-end space-x-2 bg-[#342f33] border border-[#f3f0e7]/15 rounded-2xl px-2 py-1.5 focus-within:border-[#f3f0e7]/40 transition-all shadow-inner">
-          <button 
-            onClick={() => fileInputRef.current?.click()} 
-            className="p-2 text-[#f3f0e7]/70 hover:text-[#f3f0e7] rounded-xl transition-all flex-shrink-0 active:scale-95 mb-0.5 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
-            aria-label="Attach files"
-            title="Attach files"
-          >
-            <Plus size={20} />
-          </button>
+        {/* Oorty Modern Pill Capsule Container (Image 10) */}
+        <div className={`relative rounded-[28px] p-3 shadow-xl border transition-all duration-200 ${
+          isLight
+            ? 'bg-[#eae6db] border-[#2a2529]/15 focus-within:border-[#2a2529]/40 focus-within:shadow-2xl'
+            : 'bg-[#252125] border-[#f3f0e7]/15 focus-within:border-[#f3f0e7]/35 focus-within:shadow-2xl'
+        }`}>
+          {/* Top text area */}
           <textarea
             ref={inputRef}
             rows={1}
@@ -1298,31 +1552,132 @@ export function AiAssistant() {
                 }
               }
             }}
-            placeholder="Build something incredible..."
+            placeholder="Type your message here..."
             aria-label="AI prompt input"
-            className="flex-1 min-w-0 bg-transparent py-2.5 text-sm text-[#f3f0e7] placeholder-[#f3f0e7]/40 focus:outline-none resize-none max-h-32 leading-relaxed"
+            className={`w-full bg-transparent px-2 pt-0.5 pb-2 text-[14px] leading-relaxed resize-none outline-none font-sans max-h-32 ${
+              isLight
+                ? 'text-[#2a2529] placeholder-[#2a2529]/45'
+                : 'text-[#f3f0e7] placeholder-[#f3f0e7]/40'
+            }`}
           />
-          <div className="flex items-center pr-1 pb-1 space-x-1">
-            {isAiLoading ? (
+
+          {/* Bottom Capsule Bar: Toolbar on Left, Animated Action Button on Right */}
+          <div className="flex items-center justify-between px-1 pt-1 border-t border-transparent">
+            {/* Left Toolbar */}
+            <div className="flex items-center space-x-2.5">
               <button
-                onClick={() => aiStore.abortChat()}
-                className="p-2 bg-[#f3f0e7]/20 border border-[#f3f0e7]/30 text-[#f3f0e7] hover:bg-[#f3f0e7]/30 rounded-xl transition-all flex-shrink-0 active:scale-90 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
-                aria-label="Stop generation"
-                title="Stop generation"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isLight ? 'text-[#2a2529]/65 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/65 hover:text-[#f3f0e7] hover:bg-white/10'
+                }`}
+                title="Attach files"
+                aria-label="Attach files"
               >
-                <Square size={16} fill="currentColor" />
+                <Paperclip size={16} />
               </button>
-            ) : (
+
               <button
-                onClick={sendMessage}
-                disabled={!input.trim() || (!currentKey && aiStore.provider !== 'openrouter')}
-                className="p-2 bg-[#f3f0e7] text-[#2a2529] hover:bg-white disabled:opacity-20 rounded-xl transition-all flex-shrink-0 active:scale-90 shadow-md focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
-                aria-label="Send message"
-                title="Send message"
+                type="button"
+                onClick={() => {
+                  alert('Web grounding & live documentation retrieval context is active.');
+                }}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isLight ? 'text-[#2a2529]/65 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/65 hover:text-[#f3f0e7] hover:bg-white/10'
+                }`}
+                title="Web context grounding"
+                aria-label="Web context grounding"
               >
-                <Send size={16} />
+                <Globe size={16} />
               </button>
-            )}
+
+              {/* Vertical Divider with subtle purple/theme tint */}
+              <div className={`w-[1px] h-4 mx-0.5 ${isLight ? 'bg-[#2a2529]/20' : 'bg-purple-400/30'}`} />
+
+              <button
+                type="button"
+                onClick={() => setShowSettings(true)}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isLight ? 'text-[#2a2529]/65 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/65 hover:text-[#f3f0e7] hover:bg-white/10'
+                }`}
+                title="Model configurations"
+                aria-label="Model configurations"
+              >
+                <Settings2 size={16} />
+              </button>
+
+              {/* Vertical Divider */}
+              <div className={`w-[1px] h-4 mx-0.5 ${isLight ? 'bg-[#2a2529]/20' : 'bg-purple-400/30'}`} />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setInput(prev => prev ? (prev.endsWith(' ') ? `${prev}@` : `${prev} @`) : '@');
+                  inputRef.current?.focus();
+                }}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isLight ? 'text-[#2a2529]/65 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/65 hover:text-[#f3f0e7] hover:bg-white/10'
+                }`}
+                title="Tag file context (@)"
+                aria-label="Tag file context"
+              >
+                <FolderCode size={16} />
+              </button>
+            </div>
+
+            {/* Right Action Button: Mic smoothly animating into Send or Stop */}
+            <div className="flex items-center">
+              {isAiLoading ? (
+                <button
+                  type="button"
+                  onClick={() => aiStore.abortChat()}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform ${
+                    isLight ? 'bg-[#2a2529] text-white hover:bg-black' : 'bg-white text-black hover:bg-gray-100'
+                  }`}
+                  aria-label="Stop generation"
+                  title="Stop generation"
+                >
+                  <Square size={13} fill="currentColor" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (input.trim()) {
+                      sendMessage();
+                    } else {
+                      toggleVoiceInput();
+                    }
+                  }}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center shadow-md active:scale-90 transition-all duration-300 ${
+                    isLight
+                      ? 'bg-[#2a2529] text-white hover:bg-black'
+                      : 'bg-white text-black hover:bg-gray-100'
+                  }`}
+                  aria-label={input.trim() ? "Send message" : "Voice dictation"}
+                  title={input.trim() ? "Send message" : "Voice dictation"}
+                >
+                  <div className="relative w-4 h-4 flex items-center justify-center">
+                    <Send
+                      size={14}
+                      className={`absolute transition-all duration-300 ease-out ${
+                        input.trim()
+                          ? 'opacity-100 scale-100 rotate-0 pointer-events-auto'
+                          : 'opacity-0 scale-50 -rotate-45 pointer-events-none'
+                      }`}
+                    />
+                    <Mic
+                      size={15}
+                      className={`absolute transition-all duration-300 ease-out ${
+                        input.trim()
+                          ? 'opacity-0 scale-50 rotate-45 pointer-events-none'
+                          : `opacity-100 scale-100 rotate-0 pointer-events-auto ${isListening ? 'text-red-500 animate-pulse' : ''}`
+                      }`}
+                    />
+                  </div>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

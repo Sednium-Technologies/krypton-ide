@@ -80,17 +80,21 @@ export default function App() {
       useIdeStore.getState().setActiveFont(config.activeFont || '');
 
       // Load all stores from disk in parallel
-      await Promise.all([
-        useProjectsStore.getState().loadFromDisk(),
-        useAiStore.getState().loadFromDisk(),
-        useAuthStore.getState().loadFromDisk(),
-        useExtensionsStore.getState().loadFromDisk(),
-        useHarnessStore.getState().loadHarnessConfig(),
+      await Promise.race([
+        Promise.all([
+          useProjectsStore.getState().loadFromDisk(),
+          useAiStore.getState().loadFromDisk(),
+          useAuthStore.getState().loadFromDisk(),
+          useExtensionsStore.getState().loadFromDisk(),
+          useHarnessStore.getState().loadHarnessConfig(),
+        ]),
+        new Promise((r) => setTimeout(r, 3500)),
       ]);
     } catch (e) {
       console.error('[App] Boot error:', e);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -159,15 +163,22 @@ export default function App() {
     useIdeStore.getState().setActiveFont(config.activeFont || '');
 
     // Load stores
-    await Promise.all([
-      useProjectsStore.getState().loadFromDisk(),
-      useAiStore.getState().loadFromDisk(),
-      useAuthStore.getState().loadFromDisk(),
-      useExtensionsStore.getState().loadFromDisk(),
-      useHarnessStore.getState().loadHarnessConfig(),
-    ]);
-
-    setIsLoading(false);
+    try {
+      await Promise.race([
+        Promise.all([
+          useProjectsStore.getState().loadFromDisk(),
+          useAiStore.getState().loadFromDisk(),
+          useAuthStore.getState().loadFromDisk(),
+          useExtensionsStore.getState().loadFromDisk(),
+          useHarnessStore.getState().loadHarnessConfig(),
+        ]),
+        new Promise((r) => setTimeout(r, 3500)),
+      ]);
+    } catch (e) {
+      console.error('[App] Storage ready load error:', e);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   // ── Global Theme Injector ──

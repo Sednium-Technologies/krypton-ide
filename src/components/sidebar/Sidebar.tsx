@@ -7,6 +7,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { GitPanel } from './GitPanel';
 import { ExtensionsPanel } from './ExtensionsPanel';
 import { ExtensionViewPanel } from './ExtensionViewPanel';
+import { SearchPanel } from './SearchPanel';
 import { Files, Search, GitBranch, Bot, Puzzle, Settings } from 'lucide-react';
 
 export function Sidebar() {
@@ -39,10 +40,10 @@ export function Sidebar() {
 
   return (
     <div className={`flex h-full flex-col transition-colors ${isLight ? 'bg-[#f4f0e6] text-[#2a2529]' : 'bg-[#2a2529] text-[#f3f0e7]'}`}>
-      {/* Show category header ONLY in mobile portrait, and NOT when explorer/ai/extension-view (which have their own dedicated headers) */}
-      {!isSideNav && sidebarView !== 'ai' && sidebarView !== 'extension-view' && sidebarView !== 'explorer' && (
-        <div className={`px-3 py-2 text-xs font-bold uppercase tracking-wider border-b flex items-center justify-between ${
-          isLight ? 'text-[#2a2529] border-[#2a2529]/10' : 'text-[#f3f0e7] border-[#f3f0e7]/10'
+      {/* Show category header ONLY in mobile portrait, and NOT when extension-view */}
+      {!isSideNav && sidebarView !== 'extension-view' && (
+        <div className={`px-3 py-2 text-xs font-bold uppercase tracking-wider border-b flex items-center justify-between shrink-0 ${
+          isLight ? 'text-[#2a2529] border-[#2a2529]/10 bg-[#f4f0e6]' : 'text-[#f3f0e7] border-[#f3f0e7]/10 bg-[#231e22]'
         }`}>
           <span className={`text-[11px] font-bold ${isLight ? 'text-[#2a2529]/75' : 'text-[#f3f0e7]/75'}`}>{titles[sidebarView] || sidebarView}</span>
           <div role="tablist" aria-label="Sidebar view switcher" className="flex items-center space-x-1">
@@ -76,7 +77,8 @@ export function Sidebar() {
       )}
       
       <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
-        {(sidebarView === 'explorer' || sidebarView === 'search') && <FileExplorer autoFocusSearch={sidebarView === 'search'} />}
+        {sidebarView === 'explorer' && <FileExplorer />}
+        {sidebarView === 'search' && <SearchPanel />}
         {sidebarView === 'git' && <GitPanel />}
         {sidebarView === 'ai' && <AiAssistant />}
         {sidebarView === 'extensions' && <ExtensionsPanel />}

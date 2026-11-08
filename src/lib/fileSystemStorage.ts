@@ -16,6 +16,10 @@ export interface SavedModel {
   model: string;
   apiKey: string;
   baseUrl?: string;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  reasoningEffort?: 'none' | 'low' | 'medium' | 'high';
+  thinkingBudget?: number;
 }
 
 export interface KryptonConfig {

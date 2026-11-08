@@ -714,7 +714,7 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
           {/* Terminal (Mobile Portrait Bottom Panel) */}
           {isTerminalOpen && !isSideNav && !isTerminalFullScreen && (
             <div 
-              className="flex flex-col z-20 border-t border-[#f3f0e7]/10 flex-shrink-0 bg-[#2a2529] overflow-hidden"
+              className="flex flex-col z-20 border-t border-x border-[#f3f0e7]/15 rounded-t-[28px] shadow-2xl flex-shrink-0 bg-[#2a2529] overflow-hidden"
               style={{ height: `${terminalHeight}px` }}
             >
               <BottomPanel 
