@@ -6,8 +6,6 @@ import { useAiStore } from '../../store/useAiStore';
 import { useProjectsStore } from '../../store/useProjectsStore';
 import { useIdeStore } from '../../store/useIdeStore';
 import { usePocketStore } from '../../store/usePocketStore';
-import { readSystemPrompt } from '../../lib/fileSystemStorage';
-import DEFAULT_OORTY_LITE_PROMPT from '../../config/prompts/oorty_lite.txt?raw';
 
 export function AgentSettingsPanel() {
   const [activeTab, setActiveTab] = useState<'pocket' | 'skills' | 'mcp' | 'models'>('pocket');

@@ -9,6 +9,7 @@ import {
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth as firebaseAuth, googleProvider } from '../../lib/firebase';
 import { getCustomCss, applyCustomCss } from '../../lib/customCssManager';
+import { configureOortyNative, openOortyPocketServer } from '../../lib/oortyNative';
 import { useToastStore } from '../../store/useToastStore';
 import { startDeviceFlow, type DeviceFlowSession } from '../../lib/githubOAuth';
 import { useIdeStore } from '../../store/useIdeStore';
@@ -115,6 +116,10 @@ export function SettingsPanel() {
   useEffect(() => {
     loadPackages();
   }, []);
+
+  useEffect(() => {
+    void configureOortyNative(executionMode);
+  }, [executionMode]);
 
   const loadPackages = async () => {
     setIsLoadingPackages(true);
@@ -839,17 +844,36 @@ export function SettingsPanel() {
               <p className={`text-xs ${textMuted} leading-relaxed`}>
                 Oorty Lite is the embedded, hardware-optimized harness distilled from Oorty for mobile and desktop development.
               </p>
-              <button
-                onClick={() => { triggerHaptic(); openOfficialLink('oorty'); }}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
-                  isLight
-                    ? 'bg-violet-100 hover:bg-violet-200 text-violet-800 border-violet-200'
-                    : 'bg-violet-600/30 hover:bg-violet-600/50 text-violet-200 border-violet-500/40'
-                }`}
-              >
-                <span>View Real Oorty on GitHub</span>
-                <ExternalLink size={12} />
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => { triggerHaptic(); openOfficialLink('oorty'); }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
+                    isLight
+                      ? 'bg-violet-100 hover:bg-violet-200 text-violet-800 border-violet-200'
+                      : 'bg-violet-600/30 hover:bg-violet-600/50 text-violet-200 border-violet-500/40'
+                  }`}
+                >
+                  <span>View Real Oorty on GitHub</span>
+                  <ExternalLink size={12} />
+                </button>
+                {Capacitor.isNativePlatform() && (
+                  <button
+                    onClick={async () => {
+                      triggerHaptic();
+                      const opened = await openOortyPocketServer();
+                      if (!opened) useToastStore.getState().info('Pocket Server is unavailable in this build');
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
+                      isLight
+                        ? 'bg-[#7C9B79]/15 hover:bg-[#7C9B79]/25 text-[#3f5c3d] border-[#7C9B79]/30'
+                        : 'bg-[#7C9B79]/20 hover:bg-[#7C9B79]/30 text-[#c8ddc5] border-[#7C9B79]/40'
+                    }`}
+                  >
+                    <span>Pocket Server</span>
+                    <Zap size={12} />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Oorty Lite Terminal Automation Permissions */}
