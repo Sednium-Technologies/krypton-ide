@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Bot, Send, Key, X, Sparkles, Loader2, Plus, MessageSquare, Trash2, ChevronDown, ChevronRight, BrainCircuit, FileCode, CheckCircle2, AlertCircle, Square, ClipboardList, Zap, Settings2, Paperclip, RotateCw, Check, Search, TerminalSquare, Globe, FolderCode, Mic, Copy, Edit3, RotateCcw } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useAiStore, Message, AttachedFile } from '../../store/useAiStore';
@@ -182,12 +182,27 @@ export function AiAssistant() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const matchingModels = customModelText.trim()
-    ? dynamicModels.filter(m => 
-        m.id.toLowerCase().includes(customModelText.toLowerCase()) || 
-        (m.name && m.name.toLowerCase().includes(customModelText.toLowerCase()))
-      )
-    : dynamicModels;
+  const allSelectableModels = useMemo(() => {
+    const list: { id: string; name: string; isLive: boolean }[] = [];
+    const dynamicIds = new Set(dynamicModels.map(m => m.id));
+    (currentProvider.models || []).forEach(mId => {
+      list.push({ id: mId, name: mId, isLive: dynamicIds.has(mId) });
+    });
+    dynamicModels.forEach(dm => {
+      if (!list.some(item => item.id === dm.id)) {
+        list.push({ id: dm.id, name: dm.name || dm.id, isLive: true });
+      }
+    });
+    return list;
+  }, [currentProvider.models, dynamicModels]);
+
+  const matchingModels = useMemo(() => {
+    const query = customModelText.trim().toLowerCase();
+    if (!query) return allSelectableModels;
+    return allSelectableModels.filter(m => 
+      m.id.toLowerCase().includes(query) || m.name.toLowerCase().includes(query)
+    );
+  }, [allSelectableModels, customModelText]);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -309,7 +324,9 @@ export function AiAssistant() {
   };
 
   useEffect(() => { 
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+    if (aiMessages.length > 0 || aiStore.streamingText) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+    }
   }, [aiMessages, aiStore.streamingText]);
 
   const startNewSession = () => {
@@ -705,10 +722,11 @@ export function AiAssistant() {
                   <button
                     key={provider.id}
                     onClick={() => {
+                      const nextModel = provider.defaultModel || (provider.models[0] || '');
                       aiStore.setProvider(provider.id);
-                      aiStore.setModel('');
+                      aiStore.setModel(nextModel);
                       aiStore.setBaseUrl(provider.baseUrl);
-                      setCustomModelText('');
+                      setCustomModelText(nextModel);
                       isEditingCustomModel.current = false;
                     }}
                     className={`px-3 py-2.5 rounded-xl text-xs text-center border transition-all duration-200 ${
@@ -783,20 +801,53 @@ export function AiAssistant() {
                       </span>
                     )}
                   </div>
-                  {dynamicModels.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowModelSuggestions(prev => !prev)}
-                      className={`text-[10px] font-mono transition-colors ${
-                        isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529]' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7]'
-                      }`}
-                    >
-                      {showModelSuggestions ? 'Hide list' : 'Browse all'}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => refreshModels()}
+                    disabled={isModelsLoading}
+                    className={`flex items-center space-x-1 text-[10px] disabled:opacity-40 transition-colors ${
+                      isLight ? 'text-[#2a2529]/70 hover:text-[#2a2529]' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7]'
+                    }`}
+                    title="Refresh endpoint models"
+                  >
+                    <RotateCw size={11} className={isModelsLoading ? 'animate-spin' : ''} />
+                    <span>{isModelsLoading ? 'Syncing...' : 'Sync Models'}</span>
+                  </button>
                 </div>
 
-                {/* Combobox with matching suggestions popup (Oorty style) */}
+                {/* Permanent Select Dropdown */}
+                <div className="mb-2">
+                  <select
+                    value={allSelectableModels.some(m => m.id === customModelText) ? customModelText : '__custom__'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val && val !== '__custom__') {
+                        setCustomModelText(val);
+                        aiStore.setModel(val);
+                        isEditingCustomModel.current = false;
+                      }
+                    }}
+                    className={`w-full rounded-xl px-3 py-2.5 text-xs font-mono border transition-all focus:outline-none cursor-pointer ${
+                      isLight
+                        ? 'bg-white border-[#2a2529]/20 text-[#2a2529] focus:border-[#2a2529]/50'
+                        : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] focus:border-[#f3f0e7]/40'
+                    }`}
+                  >
+                    <option value="" disabled>Select model ({allSelectableModels.length} available)...</option>
+                    {allSelectableModels.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.name || m.id}{m.isLive ? ' (Live)' : ''}
+                      </option>
+                    ))}
+                    {!allSelectableModels.some(m => m.id === customModelText) && customModelText && (
+                      <option value="__custom__">
+                        Custom Model: {customModelText}
+                      </option>
+                    )}
+                  </select>
+                </div>
+
+                {/* Search / Custom Model Input with Chevron button and suggestions popup */}
                 <div className="relative" ref={modelComboboxRef}>
                   <div className="relative flex items-center">
                     <input
@@ -818,7 +869,7 @@ export function AiAssistant() {
                           ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50' 
                           : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40'
                       }`}
-                      placeholder={dynamicModels.length > 0 ? "Type or select a model..." : "Enter custom model ID (auto-syncing live models)..."}
+                      placeholder={allSelectableModels.length > 0 ? "Type or search custom model ID..." : "Enter custom model ID..."}
                       autoComplete="off"
                       spellCheck={false}
                     />
@@ -1159,7 +1210,7 @@ export function AiAssistant() {
 
             {/* Model item list */}
             <div className="flex-1 overflow-y-auto space-y-1 py-1 pr-1 custom-scrollbar min-h-[140px] max-h-[260px]">
-              {dynamicModels
+              {allSelectableModels
                 .filter(m => !modelSearchQuery.trim() || m.id.toLowerCase().includes(modelSearchQuery.toLowerCase()) || (m.name && m.name.toLowerCase().includes(modelSearchQuery.toLowerCase())))
                 .map(m => {
                   const hasValidKey = !currentProvider.requiresKey || !!currentKey;
@@ -1169,6 +1220,7 @@ export function AiAssistant() {
                       key={m.id}
                       onClick={() => {
                         aiStore.setModel(m.id);
+                        setCustomModelText(m.id);
                         setShowQuickModelPicker(false);
                         setModelSearchQuery('');
                       }}
@@ -1188,12 +1240,12 @@ export function AiAssistant() {
                     </button>
                   );
                 })}
-              {dynamicModels.filter(m => !modelSearchQuery.trim() || m.id.toLowerCase().includes(modelSearchQuery.toLowerCase())).length === 0 && (
+              {allSelectableModels.filter(m => !modelSearchQuery.trim() || m.id.toLowerCase().includes(modelSearchQuery.toLowerCase())).length === 0 && (
                 <div className="text-center py-4 text-[11px] text-[#f3f0e7]/70">
                   No matching models found.
                 </div>
               )}
-              {modelSearchQuery.trim() && !dynamicModels.some(m => m.id.toLowerCase() === modelSearchQuery.trim().toLowerCase()) && (
+              {modelSearchQuery.trim() && !allSelectableModels.some(m => m.id.toLowerCase() === modelSearchQuery.trim().toLowerCase()) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1285,8 +1337,8 @@ export function AiAssistant() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth pb-28">
         {aiMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-start text-center pt-8 pb-6 px-4 w-full">
-            <div className="relative mb-4 mt-2">
+          <div className="flex flex-col items-center justify-start text-center pt-12 pb-6 px-4 w-full">
+            <div className="relative mb-4 mt-4">
               <div className="absolute inset-0 bg-[#f3f0e7]/10 blur-xl rounded-full animate-pulse-glow" />
               <div className={`relative w-16 h-16 rounded-2xl ${isLight ? 'bg-white border-[#2a2529]/15' : 'bg-[#342f33] border-[#f3f0e7]/15'} flex items-center justify-center shadow-xl p-2.5`}>
                 <OortyLiteIcon size={38} />

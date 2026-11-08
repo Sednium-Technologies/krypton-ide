@@ -223,7 +223,7 @@ export function NavbarOverflowDrawer() {
             }}
             aria-label="Open more tools"
             title="More tools (long press to arrange dock)"
-            className={`absolute bottom-[calc(100%+54px)] ${
+            className={`absolute bottom-[calc(100%+66px)] ${
               moreDockPosition === 'left'
                 ? 'left-3'
                 : moreDockPosition === 'center'
