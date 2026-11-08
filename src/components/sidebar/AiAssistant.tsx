@@ -138,7 +138,13 @@ function ToolResultBlock({ msg }: { msg: Message }) {
 const PROVIDERS = AI_PROVIDERS;
 
 export function AiAssistant() {
-  const { files, updateFileContent, saveFile, createFile, isAiFullscreen, setAiFullscreen, theme } = useIdeStore();
+  // Fine-grained selectors: editing a file must not re-render this whole panel.
+  const theme = useIdeStore((s) => s.theme);
+  const isAiFullscreen = useIdeStore((s) => s.isAiFullscreen);
+  const setAiFullscreen = useIdeStore((s) => s.setAiFullscreen);
+  const updateFileContent = useIdeStore((s) => s.updateFileContent);
+  const saveFile = useIdeStore((s) => s.saveFile);
+  const createFile = useIdeStore((s) => s.createFile);
   const isLight = theme === 'light';
   const aiStore = useAiStore();
   const activeProvider = aiStore.provider || DEFAULT_AI_PROVIDER;
@@ -182,19 +188,22 @@ export function AiAssistant() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const allSelectableModels = useMemo(() => {
-    const list: { id: string; name: string; isLive: boolean }[] = [];
-    const dynamicIds = new Set(dynamicModels.map(m => m.id));
-    (currentProvider.models || []).forEach(mId => {
-      list.push({ id: mId, name: mId, isLive: dynamicIds.has(mId) });
-    });
-    dynamicModels.forEach(dm => {
-      if (!list.some(item => item.id === dm.id)) {
-        list.push({ id: dm.id, name: dm.name || dm.id, isLive: true });
-      }
-    });
-    return list;
-  }, [currentProvider.models, dynamicModels]);
+  // Source of truth is the configured endpoint. No static/hardcoded model roster.
+  const allSelectableModels = useMemo(
+    () => dynamicModels.map(dm => ({ id: dm.id, name: dm.name || dm.id, isLive: true })),
+    [dynamicModels]
+  );
+
+  // When the endpoint returns models, adopt the first one only if nothing is selected.
+  // Never overwrite an actively edited buffer or an explicit user choice.
+  useEffect(() => {
+    if (dynamicModels.length === 0) return;
+    if (isEditingCustomModel.current) return;
+    if (aiStore.model && aiStore.model.trim()) return;
+    const next = dynamicModels[0].id;
+    aiStore.setModel(next);
+    setCustomModelText(next);
+  }, [dynamicModels, aiStore.model, aiStore.setModel]);
 
   const matchingModels = useMemo(() => {
     const query = customModelText.trim().toLowerCase();
@@ -281,8 +290,8 @@ export function AiAssistant() {
     let step = 0;
     const interval = setInterval(() => {
       step++;
-      const current = getModelWeightProgress(modelPath);
-      const pct = Math.min(100, Math.max(step * 25, current.percentage));
+      const current = getModelWeightProgress(modelPath, step, 4, 256 * 1024 * 1024);
+      const pct = Math.min(100, Math.max(step * 25, Math.round(current.percentage)));
       setWeightLoadingState({
         isLoading: pct < 100,
         percentage: pct,
@@ -328,6 +337,15 @@ export function AiAssistant() {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
     }
   }, [aiMessages, aiStore.streamingText]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ path?: string; name?: string }>).detail;
+      if (detail?.path) triggerWeightLoadingProgress(detail.path, detail.name || 'Local model');
+    };
+    window.addEventListener('krypton-model-loading', handler);
+    return () => window.removeEventListener('krypton-model-loading', handler);
+  }, []);
 
   const startNewSession = () => {
     const id = aiStore.createNewSession();
@@ -416,6 +434,9 @@ export function AiAssistant() {
 
   const sendMessage = async () => {
     if ((!input.trim() && attachments.length === 0) || (!aiStore.apiKey && aiStore.provider !== 'openrouter')) return;
+
+    // Read files at send time instead of subscribing the panel to every keystroke.
+    const files = useIdeStore.getState().files;
     
     const rawMentions = (input.match(/@([a-zA-Z0-9_.-]+)/g) || []).map(m => m.slice(1).replace(/[.,?!:;]+$/, ''));
     const mentions = Array.from(new Set(rawMentions));
@@ -526,6 +547,7 @@ export function AiAssistant() {
   };
 
   const applyCode = (filename: string, content: string) => {
+    const files = useIdeStore.getState().files;
     const buildPath = (nodeId: string): string => {
       const node = files[nodeId];
       if (!node || !node.parentId || nodeId === 'root') return '';
@@ -854,15 +876,27 @@ export function AiAssistant() {
                       type="text"
                       value={customModelText}
                       onChange={(e) => {
+                        // Keep the local editing buffer decoupled from the store so
+                        // holding Backspace cannot re-inject a previous selection.
                         isEditingCustomModel.current = true;
-                        const val = e.target.value;
-                        setCustomModelText(val);
-                        aiStore.setModel(val);
+                        setCustomModelText(e.target.value);
                         setShowModelSuggestions(true);
                       }}
                       onFocus={() => setShowModelSuggestions(true)}
                       onBlur={() => {
                         isEditingCustomModel.current = false;
+                        const committed = customModelText.trim();
+                        if (committed) aiStore.setModel(committed);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const committed = customModelText.trim();
+                          if (committed) aiStore.setModel(committed);
+                          setShowModelSuggestions(false);
+                          isEditingCustomModel.current = false;
+                          (e.target as HTMLInputElement).blur();
+                        }
                       }}
                       className={`w-full rounded-xl pl-4 pr-10 py-3 text-sm font-mono border transition-all focus:outline-none ${
                         isLight 
@@ -1191,9 +1225,11 @@ export function AiAssistant() {
               />
             </div>
 
-            {/* API key missing warning banner */}
+            {/* API key missing notice */}
             {currentProvider.requiresKey && !currentKey && (
-              <div className="p-2.5 mb-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-xs text-amber-800 dark:text-amber-200 flex items-center justify-between">
+              <div className={`p-2.5 mb-2 rounded-xl border flex items-center justify-between ${
+                isLight ? 'bg-[#2a2529]/5 border-[#2a2529]/15 text-[#2a2529]' : 'bg-[#f3f0e7]/5 border-[#f3f0e7]/15 text-[#f3f0e7]'
+              }`}>
                 <span className="text-[11px] font-medium leading-tight">API key needed for {currentProvider.name}</span>
                 <button
                   type="button"
@@ -1201,7 +1237,9 @@ export function AiAssistant() {
                     setShowQuickModelPicker(false);
                     setShowSettings(true);
                   }}
-                  className="px-2 py-0.5 rounded-lg bg-amber-400 text-[#2a2529] text-[10px] font-bold hover:bg-amber-300 transition-colors shrink-0 ml-2 cursor-pointer"
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-colors shrink-0 ml-2 cursor-pointer ${
+                    isLight ? 'bg-[#2a2529] text-white hover:bg-black' : 'bg-[#f3f0e7] text-[#2a2529] hover:bg-white'
+                  }`}
                 >
                   Configure
                 </button>
@@ -1221,28 +1259,31 @@ export function AiAssistant() {
                       onClick={() => {
                         aiStore.setModel(m.id);
                         setCustomModelText(m.id);
+                        isEditingCustomModel.current = false;
                         setShowQuickModelPicker(false);
                         setModelSearchQuery('');
                       }}
-                      className={`w-full text-left px-2.5 py-2 rounded-xl text-xs flex items-center justify-between transition-colors focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
+                      className={`w-full text-left px-2.5 py-2 rounded-xl text-xs flex items-center justify-between transition-colors focus-visible:ring-2 focus-visible:outline-none ${
+                        isLight ? 'focus-visible:ring-[#2a2529]/50' : 'focus-visible:ring-[#f3f0e7]/50'
+                      } ${
                         isSelected
-                          ? 'bg-[#f3f0e7]/15 text-[#f3f0e7] font-bold border border-[#f3f0e7]/20'
-                          : 'text-[#f3f0e7]/80 hover:bg-[#f3f0e7]/5 border border-transparent'
+                          ? (isLight ? 'bg-[#2a2529]/10 text-[#2a2529] font-bold border border-[#2a2529]/20' : 'bg-[#f3f0e7]/15 text-[#f3f0e7] font-bold border border-[#f3f0e7]/20')
+                          : (isLight ? 'text-[#2a2529]/80 hover:bg-[#2a2529]/5 border border-transparent' : 'text-[#f3f0e7]/80 hover:bg-[#f3f0e7]/5 border border-transparent')
                       }`}
                     >
                       <div className="flex flex-col min-w-0 pr-2">
                         <span className="truncate text-xs">{m.name || m.id}</span>
                         {m.name && m.name !== m.id && (
-                          <span className="truncate text-[9px] text-[#f3f0e7]/70 font-mono">{m.id}</span>
+                          <span className={`truncate text-[9px] font-mono ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/70'}`}>{m.id}</span>
                         )}
                       </div>
-                      {isSelected && <Check size={13} className="text-emerald-400 shrink-0" />}
+                      {isSelected && <Check size={13} className="text-emerald-600 shrink-0" />}
                     </button>
                   );
                 })}
               {allSelectableModels.filter(m => !modelSearchQuery.trim() || m.id.toLowerCase().includes(modelSearchQuery.toLowerCase())).length === 0 && (
-                <div className="text-center py-4 text-[11px] text-[#f3f0e7]/70">
-                  No matching models found.
+                <div className={`text-center py-4 text-[11px] ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>
+                  {isModelsLoading ? 'Syncing endpoint models...' : 'No models returned by this endpoint. Sync or configure a key.'}
                 </div>
               )}
               {modelSearchQuery.trim() && !allSelectableModels.some(m => m.id.toLowerCase() === modelSearchQuery.trim().toLowerCase()) && (
@@ -1252,22 +1293,29 @@ export function AiAssistant() {
                     const customName = modelSearchQuery.trim();
                     setCustomModelText(customName);
                     aiStore.setModel(customName);
+                    isEditingCustomModel.current = true;
                     setShowQuickModelPicker(false);
                     setModelSearchQuery('');
                   }}
-                  className="w-full text-left px-3 py-2.5 rounded-xl text-xs flex items-center justify-between transition-colors bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 mt-1"
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-xs flex items-center justify-between transition-colors border mt-1 ${
+                    isLight
+                      ? 'bg-[#2a2529]/5 border-[#2a2529]/15 text-[#2a2529] hover:bg-[#2a2529]/10'
+                      : 'bg-[#f3f0e7]/5 border-[#f3f0e7]/15 text-[#f3f0e7] hover:bg-[#f3f0e7]/10'
+                  }`}
                 >
                   <div className="flex flex-col min-w-0 pr-2">
-                    <span className="font-semibold text-xs text-white">Use Custom Model</span>
-                    <span className="truncate text-[10px] font-mono text-emerald-300">{modelSearchQuery.trim()}</span>
+                    <span className="font-semibold text-xs">Use Custom Model</span>
+                    <span className={`truncate text-[10px] font-mono ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>{modelSearchQuery.trim()}</span>
                   </div>
-                  <Check size={13} className="text-emerald-400 shrink-0" />
+                  <Check size={13} className="text-emerald-600 shrink-0" />
                 </button>
               )}
             </div>
 
             {/* Footer */}
-            <div className="pt-2 border-t border-[#f3f0e7]/10 flex items-center justify-between text-[10px] text-[#f3f0e7]/70">
+            <div className={`pt-2 border-t flex items-center justify-between text-[10px] ${
+              isLight ? 'border-[#2a2529]/10 text-[#2a2529]/70' : 'border-[#f3f0e7]/10 text-[#f3f0e7]/70'
+            }`}>
               <span className="font-mono">
                 {dynamicModels.length} models {isModelsLive ? 'synced' : 'loaded'}
               </span>
@@ -1276,7 +1324,9 @@ export function AiAssistant() {
                   setShowQuickModelPicker(false);
                   setShowSettings(true);
                 }}
-                className="text-[#f3f0e7]/90 hover:text-white flex items-center space-x-1 font-semibold focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none rounded p-0.5"
+                className={`flex items-center space-x-1 font-semibold focus-visible:outline-none rounded p-0.5 transition-colors ${
+                  isLight ? 'text-[#2a2529]/80 hover:text-[#2a2529] focus-visible:ring-2 focus-visible:ring-[#2a2529]/50' : 'text-[#f3f0e7]/90 hover:text-white focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50'
+                }`}
                 aria-label="Configure models in settings"
               >
                 <Settings2 size={11} />

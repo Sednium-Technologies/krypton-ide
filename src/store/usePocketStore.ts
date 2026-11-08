@@ -151,8 +151,12 @@ export const usePocketStore = create<PocketState>()((set, get) => ({
   toggleModelMemory: async (id: string, load: boolean) => {
     try {
       const { LayaSystem1 } = await import('../lib/pocket/LayaSystem1');
+      const model = get().availableModels.find(m => m.id === id);
       if (load) {
         const targetHuggingFaceId = id.includes('q4') ? 'convaiinnovations/laya-typed-decisions' : 'convaiinnovations/laya-multilingual';
+        window.dispatchEvent(new CustomEvent('krypton-model-loading', {
+          detail: { path: targetHuggingFaceId, name: model?.name || id },
+        }));
         await LayaSystem1.loadIntoMemory(targetHuggingFaceId);
         set((state) => ({
           availableModels: state.availableModels.map((m) =>

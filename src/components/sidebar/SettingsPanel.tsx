@@ -1704,7 +1704,7 @@ export function SettingsPanel() {
                   <span className={textMuted}>Author:</span>
                   <button 
                     onClick={() => { triggerHaptic(); openOfficialLink('https://github.com/CoderBhoid'); }} 
-                    className="text-cyan-400 font-bold hover:underline inline-flex items-center gap-1"
+                    className={`font-bold hover:underline inline-flex items-center gap-1 ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}
                   >
                     <span>CoderBhoid</span>
                     <ExternalLink size={11} />

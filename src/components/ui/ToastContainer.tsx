@@ -14,7 +14,7 @@ const getToastIcon = (type: ToastType, isLight: boolean) => {
       return <AlertTriangle size={16} className={isLight ? "text-amber-600 shrink-0" : "text-amber-400 shrink-0"} />;
     case 'info':
     default:
-      return <Info size={16} className={isLight ? "text-cyan-600 shrink-0" : "text-cyan-400 shrink-0"} />;
+      return <Info size={16} className={isLight ? "text-emerald-700 shrink-0" : "text-emerald-400 shrink-0"} />;
   }
 };
 

@@ -39,7 +39,15 @@ export interface ProjectLanguageInfo {
   languages: { language: string; extension: string; byte_count: number; color: string }[];
 }
 
+// File maps are replaced (not mutated) when content changes, so a WeakMap keeps
+// language analysis off the hot render path without risking stale results.
+const languageAnalysisCache = new WeakMap<object, ProjectLanguageInfo>();
+
 export const getProjectLanguages = (projectFiles: Record<string, any> = {}): ProjectLanguageInfo => {
+  if (projectFiles && typeof projectFiles === 'object') {
+    const cached = languageAnalysisCache.get(projectFiles);
+    if (cached) return cached;
+  }
   const filesList = Object.values(projectFiles || {})
     .filter((f: any) => f && f.type === 'file')
     .map((f: any) => ({ path: f.name || '', content: f.content || '' }));
@@ -90,11 +98,15 @@ export const getProjectLanguages = (projectFiles: Record<string, any> = {}): Pro
 
   const dominant = langs[0] || { language: 'TypeScript', color: '#3178c6', extension: 'ts', byte_count: 0 };
 
-  return {
+  const result: ProjectLanguageInfo = {
     dominantLanguage: dominant.language,
     dominantColor: dominant.color,
     languages: langs,
   };
+  if (projectFiles && typeof projectFiles === 'object') {
+    languageAnalysisCache.set(projectFiles, result);
+  }
+  return result;
 };
 
 // Language-specific SVG icons (memoized for fast rendering)
@@ -275,7 +287,7 @@ const templateCategories = [
     icon: <MonitorPlay size={18} />,
     templates: [
       { id: 'html-css-js', name: 'HTML / JS', desc: 'Web project with starter files', icon: <HtmlIcon size={18} />, color: 'from-amber-600 to-rose-700' },
-      { id: 'react', name: 'React', desc: 'React app with JSX & CDN', icon: <ReactIcon size={18} />, color: 'from-cyan-600 to-blue-700' },
+      { id: 'react', name: 'React', desc: 'React app with JSX & CDN', icon: <ReactIcon size={18} />, color: 'from-emerald-700 to-teal-900' },
       { id: 'vite-react', name: 'Vite + React', desc: 'Modern React app with Vite', icon: <ViteIcon size={18} />, color: 'from-sky-600 to-indigo-800' },
       { id: 'nextjs', name: 'Next.js', desc: 'Full-stack React framework', icon: <NextIcon size={18} />, color: 'from-zinc-700 to-stone-900' },
     ]
@@ -796,14 +808,14 @@ export function ProjectsDashboard() {
                 className={`krypton-hero-card group relative rounded-[26px] p-5 sm:p-6 border shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden active:scale-[0.99] ${
                   isLight
                     ? 'bg-[#e8e4d9] border-[#2a2529]/15 hover:border-[#2a2529]/35 text-[#2a2529]'
-                    : 'bg-gradient-to-br from-[#383137] via-[#2f292d] to-[#252024] border-[#f3f0e7]/15 hover:border-[#f3f0e7]/35 text-[#f3f0e7]'
+                    : 'bg-[#342f33] border-[#f3f0e7]/15 hover:border-[#f3f0e7]/35 text-[#f3f0e7]'
                 }`}
               >
                 <div 
                   className="absolute top-0 left-0 right-0 h-[3px]" 
                   style={{ 
-                    backgroundColor: '#7C9B79', 
-                    boxShadow: '0 0 8px rgba(124, 155, 121, 0.45)' 
+                    backgroundColor: continueDominantColor, 
+                    boxShadow: `0 0 8px ${continueDominantColor}55` 
                   }} 
                 />
 
@@ -812,8 +824,8 @@ export function ProjectsDashboard() {
                     <div 
                       className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md border"
                       style={{ 
-                        backgroundColor: isLight ? '#7C9B7915' : `${continueDominantColor}18`, 
-                        borderColor: isLight ? '#7C9B7935' : `${continueDominantColor}35` 
+                        backgroundColor: `${continueDominantColor}18`, 
+                        borderColor: `${continueDominantColor}35` 
                       }}
                     >
                       {renderLanguageVectorIcon(continueLangAnalysis.dominantLanguage || continueProject.template, 28)}
@@ -1015,8 +1027,8 @@ export function ProjectsDashboard() {
                   <div 
                     className="absolute top-0 left-0 right-0 h-[3px]" 
                     style={{ 
-                      backgroundColor: '#7C9B79', 
-                      boxShadow: '0 0 8px rgba(124, 155, 121, 0.45)' 
+                      backgroundColor: dominantColor, 
+                      boxShadow: `0 0 8px ${dominantColor}55` 
                     }} 
                   />
 
@@ -1027,8 +1039,8 @@ export function ProjectsDashboard() {
                         <div 
                           className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md border"
                           style={{ 
-                            backgroundColor: isLight ? '#7C9B7915' : `${dominantColor}15`, 
-                            borderColor: isLight ? '#7C9B7930' : `${dominantColor}30` 
+                            backgroundColor: `${dominantColor}15`, 
+                            borderColor: `${dominantColor}30` 
                           }}
                         >
                           {renderLanguageVectorIcon(langAnalysis.dominantLanguage || project.template, 24)}

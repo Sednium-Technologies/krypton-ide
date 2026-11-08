@@ -33,6 +33,15 @@ function useObjectUrl(html: string | null): string | null {
   return url;
 }
 
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
+}
+
 export function LivePreview({ onClose }: LivePreviewProps) {
   const { files, activeFileId, theme } = useIdeStore();
   const isLight = theme === 'light';
@@ -70,6 +79,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   }, [showConsole]);
 
   const activeFile = activeFileId ? files[activeFileId] : null;
+  const previewFiles = useDebouncedValue(files, 300);
 
   // Determine project type
   const hasHtmlFile = Object.values(files).some(
@@ -170,6 +180,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   // For HTML projects, build the preview
   const previewHtml = useMemo(() => {
     if (!hasHtmlFile) return null;
+    const files = previewFiles;
 
     const htmlFile = Object.values(files).find(
       f => f.type === 'file' && f.name.toLowerCase() === 'index.html'
@@ -235,7 +246,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
     }
 
     return html;
-  }, [files, hasHtmlFile, importMapScript]);
+  }, [previewFiles, hasHtmlFile, importMapScript]);
   const previewSrc = useObjectUrl(previewHtml);
 
   // For code execution, run on mount
@@ -291,6 +302,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   // Build React project preview
   const reactPreviewHtml = useMemo(() => {
     if (!hasReactProject) return null;
+    const files = previewFiles;
 
     // Gather all CSS files
     const allCss = Object.values(files)
@@ -402,7 +414,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
       '</body>\n</html>';
 
     return html;
-  }, [files, hasReactProject, refreshKey, importMapScript, packageJsonDeps]);
+  }, [previewFiles, hasReactProject, refreshKey, importMapScript, packageJsonDeps]);
   const reactPreviewSrc = useObjectUrl(reactPreviewHtml);
 
   // Build Markdown preview 
@@ -833,7 +845,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
             </div>
             <iframe
               key={refreshKey}
-              src={previewSrc}
+              src={previewSrc ?? undefined}
               title="Live Preview"
               sandbox="allow-scripts allow-modals allow-forms"
               className="w-full flex-1 border-none bg-white"
@@ -843,7 +855,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
           previewSrc ? (
             <iframe
               key={refreshKey}
-              src={previewSrc}
+              src={previewSrc ?? undefined}
               title="Live Preview"
               sandbox="allow-scripts allow-modals allow-forms"
               className="w-full h-full border-none"

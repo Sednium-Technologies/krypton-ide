@@ -1,7 +1,6 @@
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import React, { useEffect, useCallback, useState, useRef, lazy, Suspense } from 'react';
 import { ProjectsDashboard } from './components/projects/ProjectsDashboard';
 import { FolderPicker } from './components/projects/FolderPicker';
-import { IdeLayout } from './components/layout/IdeLayout';
 import { KryptonLoader } from './components/ui/KryptonLoader';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { ToastContainer } from './components/ui/ToastContainer';
@@ -32,6 +31,9 @@ import {
   readFontFile,
   type KryptonConfig,
 } from './lib/fileSystemStorage';
+
+// Monaco, xterm, and the full editor surface are only needed after a project opens.
+const IdeLayout = lazy(() => import('./components/layout/IdeLayout').then((m) => ({ default: m.IdeLayout })));
 
 export default function App() {
   useFileWatcher();
@@ -279,9 +281,10 @@ export default function App() {
       document.documentElement.classList.add('is-android');
     }
 
-    // Status bar: dark theme by default
-    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
-    StatusBar.setBackgroundColor({ color: '#2a2529' }).catch(() => {});
+    // Status bar: honor the persisted theme (Ivory by default) to avoid a dark FOUC
+    const initialLight = useIdeStore.getState().theme === 'light';
+    StatusBar.setStyle({ style: initialLight ? Style.Light : Style.Dark }).catch(() => {});
+    StatusBar.setBackgroundColor({ color: initialLight ? '#f3f0e7' : '#2a2529' }).catch(() => {});
 
     // Splash screen: hide after app renders
     SplashScreen.hide().catch(() => {});
@@ -455,7 +458,15 @@ export default function App() {
       {!currentProjectId ? (
         <ProjectsDashboard />
       ) : (
-        <IdeLayout onBackToProjects={handleBackToProjects} />
+        <Suspense
+          fallback={
+            <div className={`fixed inset-0 flex items-center justify-center ${theme === 'light' ? 'bg-[#f3f0e7] text-[#2a2529]' : 'bg-[#2a2529] text-[#f3f0e7]'}`}>
+              <KryptonLoader text="Opening Editor..." size="lg" />
+            </div>
+          }
+        >
+          <IdeLayout onBackToProjects={handleBackToProjects} />
+        </Suspense>
       )}
     </ErrorBoundary>
   );
