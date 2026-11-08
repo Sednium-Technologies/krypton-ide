@@ -170,8 +170,17 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
 
   // Readme HTML
   const readmeHtml = useMemo(() => {
-    const raw = details?.readme || (extension as any)?.readme;
-    if (!raw || typeof raw !== 'string') return null;
+    let raw = details?.readme || (extension as any)?.readme || '';
+    
+    // Check if original metadata contains hardware requirements/tags
+    const originalText = `${details?.displayName || ''} ${(extension as any)?.displayName || ''} ${details?.description || ''} ${(details?.categories || []).join(' ')}`;
+    const hasHardwareInfo = /(gpu acceleration|gpu|adreno|mali|vulkan)/i.test(originalText);
+    
+    if (hasHardwareInfo && !/hardware requirements/i.test(raw)) {
+      raw += '\n\n### Hardware Requirements\n- Requires hardware acceleration / GPU rendering (Adreno / Mali architecture supported).\n';
+    }
+
+    if (!raw || typeof raw !== 'string' || !raw.trim()) return null;
     try {
       marked.setOptions({ breaks: true, gfm: true });
       const parsed = marked.parse(raw);
@@ -180,7 +189,7 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
       console.warn('Failed to parse extension readme:', e);
       return null;
     }
-  }, [details?.readme, extension]);
+  }, [details, extension]);
 
   // Changelog HTML
   const changelogHtml = useMemo(() => {
@@ -255,7 +264,8 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
 
   if (!isOpen || !extension) return null;
 
-  const displayName = details?.displayName || (extension as any).displayName || extension.name;
+  const rawDisplayName = details?.displayName || (extension as any).displayName || extension.name;
+  const displayName = rawDisplayName.replace(/\s*[\(\[]?\b(GPU acceleration|GPU|Adreno\/?Mali|Adreno|Mali|Vulkan)\b[\)\]]?/gi, '').trim();
   const publisher = details?.publisher || extension.publisher || namespace;
   const description = details?.description || extension.description;
   const iconUrl = details?.iconUrl || (extension as any).iconUrl;
@@ -268,9 +278,11 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
     ? formatRating((extension as any).rating)
     : 'N/A';
   const license = details?.license || (extension as any).license || 'Open Source';
-  const categories = details?.categories?.length
+  const rawCategories = details?.categories?.length
     ? details.categories
     : (extension as any).categories || [(extension as any).category || 'Other'];
+  const categories = (Array.isArray(rawCategories) ? rawCategories : [rawCategories])
+    .filter(c => typeof c === 'string' && !/^(gpu|adreno|mali|vulkan|hardware|acceleration|gpu acceleration|adreno\/mali)$/i.test(c.trim()));
 
   return (
     <AnimatePresence>
@@ -338,14 +350,10 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className={`text-lg font-bold truncate ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>{displayName}</h2>
-                  {details?.verified && (
-                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-300 text-[10px] font-medium border border-teal-500/30">
-                      <CheckCircle2 size={10} />
-                      <span>Verified</span>
-                    </span>
-                  )}
                   {isNativeInstalled && (
-                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-medium border border-emerald-500/30">
+                    <span className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-medium border ${
+                      isLight ? 'bg-[#7C9B79]/15 text-[#7C9B79] border-[#7C9B79]/30' : 'bg-[#7C9B79]/20 text-[#7C9B79] border-[#7C9B79]/30'
+                    }`}>
                       <CheckCircle2 size={10} />
                       <span>Native Host</span>
                     </span>
@@ -491,7 +499,7 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
               onClick={() => setActiveTab('overview')}
               className={`flex items-center space-x-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors ${
                 activeTab === 'overview'
-                  ? (isLight ? 'border-teal-600 text-teal-700 font-bold' : 'border-teal-400 text-teal-300 font-bold')
+                  ? (isLight ? 'border-[#7C9B79] text-[#7C9B79] font-bold' : 'border-[#f3f0e7] text-[#f3f0e7] font-bold')
                   : (isLight ? 'border-transparent text-[#2a2529]/70 hover:text-[#2a2529]' : 'border-transparent text-[#f3f0e7]/70 hover:text-[#f3f0e7]')
               }`}
             >
@@ -503,7 +511,7 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
               onClick={() => setActiveTab('changelog')}
               className={`flex items-center space-x-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors ${
                 activeTab === 'changelog'
-                  ? (isLight ? 'border-teal-600 text-teal-700 font-bold' : 'border-teal-400 text-teal-300 font-bold')
+                  ? (isLight ? 'border-[#7C9B79] text-[#7C9B79] font-bold' : 'border-[#f3f0e7] text-[#f3f0e7] font-bold')
                   : (isLight ? 'border-transparent text-[#2a2529]/70 hover:text-[#2a2529]' : 'border-transparent text-[#f3f0e7]/70 hover:text-[#f3f0e7]')
               }`}
             >
@@ -515,7 +523,7 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
               onClick={() => setActiveTab('features')}
               className={`flex items-center space-x-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors ${
                 activeTab === 'features'
-                  ? (isLight ? 'border-teal-600 text-teal-700 font-bold' : 'border-teal-400 text-teal-300 font-bold')
+                  ? (isLight ? 'border-[#7C9B79] text-[#7C9B79] font-bold' : 'border-[#f3f0e7] text-[#f3f0e7] font-bold')
                   : (isLight ? 'border-transparent text-[#2a2529]/70 hover:text-[#2a2529]' : 'border-transparent text-[#f3f0e7]/70 hover:text-[#f3f0e7]')
               }`}
             >

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Trash2,
@@ -19,8 +19,11 @@ import {
   Sparkles,
   Search,
   Play,
+  FolderUp,
 } from 'lucide-react';
 import { useProjectsStore } from '../../store/useProjectsStore';
+import { useIdeStore } from '../../store/useIdeStore';
+import { LanguageIcon } from '../sidebar/LanguageIcon';
 import { type ProjectTemplate } from '../../lib/projectTemplates';
 import { useAuthStore } from '../../store/useAuthStore';
 import { createRepo, listRepos, pullRepo, type GitHubRepo } from '../../lib/githubService';
@@ -29,6 +32,70 @@ import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { readConfig, saveConfigNow } from '../../lib/fileSystemStorage';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
+
+export interface ProjectLanguageInfo {
+  dominantLanguage: string;
+  dominantColor: string;
+  languages: { language: string; extension: string; byte_count: number; color: string }[];
+}
+
+export const getProjectLanguages = (projectFiles: Record<string, any> = {}): ProjectLanguageInfo => {
+  const filesList = Object.values(projectFiles || {})
+    .filter((f: any) => f && f.type === 'file')
+    .map((f: any) => ({ path: f.name || '', content: f.content || '' }));
+
+  const EXT_LANG_MAP: Record<string, { lang: string; color: string; ext: string }> = {
+    rs: { lang: 'Rust', color: '#dea584', ext: 'rs' },
+    ts: { lang: 'TypeScript', color: '#3178c6', ext: 'ts' },
+    tsx: { lang: 'TypeScript', color: '#3178c6', ext: 'tsx' },
+    js: { lang: 'JavaScript', color: '#f1e05a', ext: 'js' },
+    jsx: { lang: 'JavaScript', color: '#f1e05a', ext: 'jsx' },
+    py: { lang: 'Python', color: '#3572A5', ext: 'py' },
+    kt: { lang: 'Kotlin', color: '#7C9B79', ext: 'kt' },
+    java: { lang: 'Java', color: '#b07219', ext: 'java' },
+    html: { lang: 'HTML', color: '#e34c26', ext: 'html' },
+    css: { lang: 'CSS', color: '#7C9B79', ext: 'css' },
+    scss: { lang: 'SCSS', color: '#c6538c', ext: 'scss' },
+    json: { lang: 'JSON', color: '#cbcb41', ext: 'json' },
+    c: { lang: 'C', color: '#555555', ext: 'c' },
+    cpp: { lang: 'C++', color: '#f34b7d', ext: 'cpp' },
+    go: { lang: 'Go', color: '#00ADD8', ext: 'go' },
+    sh: { lang: 'Shell', color: '#89e051', ext: 'sh' },
+    md: { lang: 'Markdown', color: '#083fa1', ext: 'md' },
+  };
+
+  const volumeMap = new Map<string, { bytes: number; lines: number; ext: string; color: string }>();
+
+  for (const f of filesList) {
+    const ext = f.path.split('.').pop()?.toLowerCase() || '';
+    const info = EXT_LANG_MAP[ext];
+    if (!info) continue;
+
+    const content = f.content || '';
+    const bytes = new TextEncoder().encode(content).length;
+    const lines = content ? content.split('\n').length : 1;
+
+    const existing = volumeMap.get(info.lang) || { bytes: 0, lines: 0, ext: info.ext, color: info.color };
+    existing.bytes += bytes;
+    existing.lines += lines;
+    volumeMap.set(info.lang, existing);
+  }
+
+  const langs = Array.from(volumeMap.entries()).map(([lang, stat]) => ({
+    language: lang,
+    extension: stat.ext,
+    byte_count: stat.bytes,
+    color: stat.color,
+  })).sort((a, b) => b.byte_count - a.byte_count);
+
+  const dominant = langs[0] || { language: 'TypeScript', color: '#3178c6', extension: 'ts', byte_count: 0 };
+
+  return {
+    dominantLanguage: dominant.language,
+    dominantColor: dominant.color,
+    languages: langs,
+  };
+};
 
 // Language-specific SVG icons (memoized for fast rendering)
 const AndroidIcon = React.memo(({ size = 24 }: { size?: number }) => (
@@ -129,6 +196,68 @@ const MarkdownIcon = React.memo(({ size = 24 }: { size?: number }) => (
   </svg>
 ));
 
+const TsIcon = React.memo(({ size = 24 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none">
+    <rect width="24" height="24" rx="4" fill="#3178C6" />
+    <path d="M12 7.5v1.8H8.5V18H6.5V9.3H3V7.5h9zm9 4.3c-.3-.5-.8-.8-1.5-.8-.8 0-1.3.4-1.3 1 0 .6.4.9 1.4 1.3 1.6.6 2.4 1.3 2.4 2.6 0 1.5-1.2 2.6-3 2.6-1.4 0-2.4-.6-2.9-1.6l1.5-1c.3.6.8.9 1.4.9.7 0 1.1-.3 1.1-.8 0-.5-.4-.8-1.4-1.2-1.6-.6-2.4-1.3-2.4-2.6 0-1.4 1.1-2.4 2.8-2.4 1.2 0 2.2.5 2.7 1.4l-1.4 1z" fill="white" />
+  </svg>
+));
+
+const JsIcon = React.memo(({ size = 24 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none">
+    <rect width="24" height="24" rx="4" fill="#F7DF1E" />
+    <path d="M7 17.5c0 1.2.7 1.8 1.8 1.8 1.1 0 1.7-.6 1.7-1.5v-7.1H8.7v6.8c0 .3-.1.5-.4.5s-.4-.2-.4-.5V10.7H6v6.8zm7.5.3c-.6.6-1.5.9-2.5.9-1.7 0-2.8-1-2.8-2.7 0-1.6 1.1-2.6 2.6-2.6.8 0 1.4.3 1.8.8l-1.1 1.2c-.2-.3-.5-.5-.8-.5-.6 0-.9.4-.9 1.1 0 .7.4 1.1 1 1.1.4 0 .7-.2.9-.5l1 1.2z" fill="#000" />
+  </svg>
+));
+
+const CssIcon = React.memo(({ size = 24 }: { size?: number }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none">
+    <path d="M4.136 3L5.918 20.162 11.99 22l6.082-1.838L19.864 3H4.136z" fill="#264DE4"/>
+    <path d="M12 4.808v15.37l4.918-1.49L18.31 4.808H12z" fill="#2965F1"/>
+    <path d="M12 9.098H8.724l.2 2.098h3.076v2.196H9.124l.2 2.098H12v2.108l3.15-.87.45-5.132.2-2.398H12z" fill="#fff"/>
+  </svg>
+));
+
+export const renderLanguageVectorIcon = (extOrLang: string, size = 16) => {
+  const norm = (extOrLang || '').toLowerCase();
+  switch (norm) {
+    case 'rs':
+    case 'rust':
+      return <RustIcon size={size} />;
+    case 'ts':
+    case 'tsx':
+    case 'typescript':
+      return <TsIcon size={size} />;
+    case 'js':
+    case 'jsx':
+    case 'javascript':
+      return <JsIcon size={size} />;
+    case 'py':
+    case 'python':
+      return <PythonIcon size={size} />;
+    case 'kt':
+    case 'kotlin':
+      return <KotlinIcon size={size} />;
+    case 'java':
+      return <JavaIcon size={size} />;
+    case 'html':
+      return <HtmlIcon size={size} />;
+    case 'css':
+    case 'scss':
+      return <CssIcon size={size} />;
+    case 'c':
+      return <CIcon size={size} />;
+    case 'cpp':
+    case 'c++':
+      return <CppIcon size={size} />;
+    case 'md':
+    case 'markdown':
+      return <MarkdownIcon size={size} />;
+    default:
+      return <FileCode2 size={size} className="text-[#f3f0e7]/70" />;
+  }
+};
+
 const templateCategories = [
   {
     id: 'mobile',
@@ -136,8 +265,8 @@ const templateCategories = [
     icon: <Smartphone size={18} />,
     templates: [
       { id: 'android-java', name: 'Android (Java)', desc: 'Standard Android app with Java & XML', icon: <AndroidIcon size={18} />, color: 'from-amber-600 to-amber-800' },
-      { id: 'android-kotlin', name: 'Android (Kotlin)', desc: 'Modern Android app with Kotlin', icon: <KotlinIcon size={18} />, color: 'from-purple-600 to-indigo-800' },
-      { id: 'android-compose', name: 'Android (Compose)', desc: 'Jetpack Compose native UI', icon: <ComposeIcon size={18} />, color: 'from-amber-500 to-indigo-700' },
+      { id: 'android-kotlin', name: 'Android (Kotlin)', desc: 'Modern Android app with Kotlin', icon: <KotlinIcon size={18} />, color: 'from-emerald-700 to-teal-900' },
+      { id: 'android-compose', name: 'Android (Compose)', desc: 'Jetpack Compose native UI', icon: <ComposeIcon size={18} />, color: 'from-sky-600 to-blue-700' },
     ]
   },
   {
@@ -146,9 +275,9 @@ const templateCategories = [
     icon: <MonitorPlay size={18} />,
     templates: [
       { id: 'html-css-js', name: 'HTML / JS', desc: 'Web project with starter files', icon: <HtmlIcon size={18} />, color: 'from-amber-600 to-rose-700' },
-      { id: 'react', name: 'React', desc: 'React app with JSX & CDN', icon: <ReactIcon size={18} />, color: 'from-amber-500 to-indigo-800' },
-      { id: 'vite-react', name: 'Vite + React', desc: 'Modern React app with Vite', icon: <ViteIcon size={18} />, color: 'from-purple-600 to-amber-700' },
-      { id: 'nextjs', name: 'Next.js', desc: 'Full-stack React framework', icon: <NextIcon size={18} />, color: 'from-amber-700 to-stone-900' },
+      { id: 'react', name: 'React', desc: 'React app with JSX & CDN', icon: <ReactIcon size={18} />, color: 'from-cyan-600 to-blue-700' },
+      { id: 'vite-react', name: 'Vite + React', desc: 'Modern React app with Vite', icon: <ViteIcon size={18} />, color: 'from-sky-600 to-indigo-800' },
+      { id: 'nextjs', name: 'Next.js', desc: 'Full-stack React framework', icon: <NextIcon size={18} />, color: 'from-zinc-700 to-stone-900' },
     ]
   },
   {
@@ -156,8 +285,8 @@ const templateCategories = [
     name: 'Backend & APIs',
     icon: <Server size={18} />,
     templates: [
-      { id: 'python-fastapi', name: 'FastAPI', desc: 'High-performance Python API', icon: <FastApiIcon size={18} />, color: 'from-teal-600 to-amber-700' },
-      { id: 'nodejs-express', name: 'Node + Express', desc: 'Express.js backend server', icon: <NodeIcon size={18} />, color: 'from-amber-700 to-stone-900' },
+      { id: 'python-fastapi', name: 'FastAPI', desc: 'High-performance Python API', icon: <FastApiIcon size={18} />, color: 'from-teal-600 to-emerald-700' },
+      { id: 'nodejs-express', name: 'Node + Express', desc: 'Express.js backend server', icon: <NodeIcon size={18} />, color: 'from-emerald-700 to-stone-900' },
     ]
   },
   {
@@ -165,12 +294,12 @@ const templateCategories = [
     name: 'CLI & Scripts',
     icon: <TerminalSquare size={18} />,
     templates: [
-      { id: 'python', name: 'Python Script', desc: 'Standalone Python script', icon: <PythonIcon size={18} />, color: 'from-amber-500 to-amber-700' },
+      { id: 'python', name: 'Python Script', desc: 'Standalone Python script', icon: <PythonIcon size={18} />, color: 'from-blue-600 to-amber-600' },
       { id: 'c-cli', name: 'C Program', desc: 'Standard C program', icon: <CIcon size={18} />, color: 'from-stone-600 to-stone-800' },
       { id: 'cpp-cli', name: 'C++ Program', desc: 'Modern C++ program', icon: <CppIcon size={18} />, color: 'from-indigo-700 to-stone-900' },
       { id: 'rust-cli', name: 'Rust CLI', desc: 'Command line tool in Rust', icon: <RustIcon size={18} />, color: 'from-amber-700 to-rose-800' },
       { id: 'java-cli', name: 'Java Console', desc: 'Simple Java app', icon: <JavaIcon size={18} />, color: 'from-amber-600 to-rose-700' },
-      { id: 'kotlin-cli', name: 'Kotlin Console', desc: 'Simple Kotlin app', icon: <KotlinIcon size={18} />, color: 'from-purple-600 to-amber-700' },
+      { id: 'kotlin-cli', name: 'Kotlin Console', desc: 'Simple Kotlin app', icon: <KotlinIcon size={18} />, color: 'from-emerald-600 to-teal-800' },
     ]
   },
   {
@@ -178,31 +307,34 @@ const templateCategories = [
     name: 'Blank',
     icon: <FileText size={18} />,
     templates: [
-      { id: 'markdown', name: 'Markdown', desc: 'Documentation project', icon: <MarkdownIcon size={18} />, color: 'from-purple-600 to-amber-700' },
+      { id: 'markdown', name: 'Markdown', desc: 'Documentation project', icon: <MarkdownIcon size={18} />, color: 'from-slate-600 to-zinc-800' },
       { id: 'blank', name: 'Blank', desc: 'Empty workspace', icon: <FolderOpen size={18} />, color: 'from-stone-600 to-stone-800' },
     ]
   }
 ];
 
-const TemplateCard = React.memo(({ t, isSelected, onSelect }: { t: any; isSelected: boolean; onSelect: (id: ProjectTemplate) => void }) => (
-  <button
-    type="button"
-    onClick={() => onSelect(t.id)}
-    className={`flex items-start space-x-3 p-3 rounded-2xl border text-left transition-colors ${
-      isSelected
-        ? 'border-[#f3f0e7] bg-[#f3f0e7]/15 font-semibold'
-        : 'border-[#f3f0e7]/10 bg-[#32303a]/60 hover:bg-[#32303a]'
-    }`}
-  >
-    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${t.color} flex items-center justify-center flex-shrink-0 shadow-md`}>
-      {t.icon}
-    </div>
-    <div className="min-w-0 flex-1">
-      <div className="font-bold text-xs text-[#f3f0e7] truncate">{t.name}</div>
-      <div className="text-[10px] text-[#f3f0e7]/50 line-clamp-1">{t.desc}</div>
-    </div>
-  </button>
-));
+const TemplateCard = React.memo(({ t, isSelected, onSelect }: { t: any; isSelected: boolean; onSelect: (id: ProjectTemplate) => void }) => {
+  const isLight = useIdeStore((state) => state.theme === 'light');
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(t.id)}
+      className={`flex items-start space-x-3 p-3 rounded-2xl border text-left transition-colors ${
+        isSelected
+          ? (isLight ? 'border-[#2a2529] bg-[#2a2529]/10 font-semibold' : 'border-[#f3f0e7] bg-[#f3f0e7]/15 font-semibold')
+          : (isLight ? 'border-[#2a2529]/10 bg-white/70 hover:bg-white' : 'border-[#f3f0e7]/10 bg-[#32303a]/60 hover:bg-[#32303a]')
+      }`}
+    >
+      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${t.color} flex items-center justify-center flex-shrink-0 shadow-md`}>
+        {t.icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className={`font-bold text-xs truncate ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>{t.name}</div>
+        <div className={`text-[10px] line-clamp-1 ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>{t.desc}</div>
+      </div>
+    </button>
+  );
+});
 
 const templateOptions = templateCategories.flatMap(c => c.templates);
 
@@ -510,6 +642,56 @@ export function ProjectsDashboard() {
     }
   }, [showCloneRepo, githubToken]);
 
+  const theme = useIdeStore((state) => state.theme);
+  const isLight = theme === 'light';
+  const directoryInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportProject = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const core = (Capacitor as any).Plugins?.KryptonCore;
+        if (core && typeof core.pickDirectory === 'function') {
+          const res = await core.pickDirectory();
+          if (res?.path) {
+            const folderName = res.path.split('/').filter(Boolean).pop() || 'Imported_Project';
+            const id = createProject(folderName, 'blank', res.path);
+            openProject(id);
+            return;
+          }
+        }
+      }
+      directoryInputRef.current?.click();
+    } catch (e) {
+      console.error('Import project error:', e);
+    }
+  };
+
+  const handleDirectorySelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const firstRel = (files[0] as any).webkitRelativePath || files[0].name;
+    const rootName = firstRel.split('/')[0] || 'Imported_Project';
+
+    const projectFiles: Record<string, any> = {};
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const relPath = (file as any).webkitRelativePath || file.name;
+      const cleanPath = relPath.startsWith(rootName + '/') ? relPath.slice(rootName.length + 1) : relPath;
+      if (!cleanPath) continue;
+      const content = await file.text();
+      projectFiles[cleanPath] = {
+        name: cleanPath.split('/').pop() || cleanPath,
+        type: 'file',
+        content,
+      };
+    }
+
+    const projectId = createProject(rootName, 'blank');
+    useProjectsStore.getState().updateProjectFiles(projectId, projectFiles);
+    openProject(projectId);
+  };
+
   const handleRename = (id: string) => {
     if (editName.trim()) {
       renameProject(id, editName.trim());
@@ -525,7 +707,9 @@ export function ProjectsDashboard() {
   };
 
   return (
-    <div className="h-full w-full bg-[#2a2529] text-[#f3f0e7] flex flex-col relative overflow-y-auto min-h-screen select-none">
+    <div className={`h-full w-full flex flex-col relative overflow-y-auto min-h-screen select-none ${
+      isLight ? 'bg-[#f3f0e7] text-[#2a2529]' : 'bg-[#2a2529] text-[#f3f0e7]'
+    }`}>
       {/* Ambient Background Glows */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-[#f3f0e7]/[0.05] blur-[120px] animate-ambient-drift" />
@@ -547,10 +731,10 @@ export function ProjectsDashboard() {
               />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold tracking-tight text-[#f3f0e7]">
+              <h1 className={`text-2xl font-extrabold tracking-tight ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>
                 Kryptonide
               </h1>
-              <p className="text-xs text-[#f3f0e7]/60 font-medium">
+              <p className={`text-xs font-medium ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'}`}>
                 {googleUser ? `Welcome, ${googleUser.name.split(' ')[0]}` : 'Mobile IDE'}
               </p>
             </div>
@@ -558,15 +742,29 @@ export function ProjectsDashboard() {
 
           <div className="flex items-center space-x-2">
             <button
+              onClick={handleImportProject}
+              className={`p-3 rounded-2xl border active:scale-95 transition-all shadow-md flex items-center space-x-1.5 ${
+                isLight ? 'bg-white border-[#2a2529]/15 text-[#2a2529] hover:bg-[#e8e4d9]' : 'bg-[#342f33] border-[#f3f0e7]/10 text-[#f3f0e7] hover:bg-[#3d373c]'
+              }`}
+              title="Import Project"
+            >
+              <FolderUp size={20} />
+              <span className="hidden sm:inline text-xs font-bold">Import</span>
+            </button>
+            <button
               onClick={() => setShowCloneRepo(true)}
-              className="p-3 rounded-2xl bg-[#342f33] border border-[#f3f0e7]/10 text-[#f3f0e7] hover:bg-[#3d373c] active:scale-95 transition-all shadow-md"
+              className={`p-3 rounded-2xl border active:scale-95 transition-all shadow-md ${
+                isLight ? 'bg-white border-[#2a2529]/15 text-[#2a2529] hover:bg-[#e8e4d9]' : 'bg-[#342f33] border-[#f3f0e7]/10 text-[#f3f0e7] hover:bg-[#3d373c]'
+              }`}
               title="Clone from GitHub"
             >
               <Github size={20} />
             </button>
             <button
               onClick={() => setShowNewProject(true)}
-              className="px-4 py-3 rounded-2xl bg-[#f3f0e7] text-[#2a2529] font-bold text-sm flex items-center space-x-2 shadow-lg shadow-[#f3f0e7]/10 hover:bg-white active:scale-95 transition-all"
+              className={`px-4 py-3 rounded-2xl font-bold text-sm flex items-center space-x-2 shadow-lg active:scale-95 transition-all ${
+                isLight ? 'bg-[#2a2529] text-white hover:bg-black shadow-black/10' : 'bg-[#f3f0e7] text-[#2a2529] hover:bg-white shadow-[#f3f0e7]/10'
+              }`}
             >
               <Plus size={18} strokeWidth={2.5} />
               <span>New</span>
@@ -578,77 +776,130 @@ export function ProjectsDashboard() {
       {/* Content */}
       <div className="flex-1 px-6 pb-24 relative z-10">
         {/* Continue Working Hero Card (hidden during active search) */}
-        {continueProject && !searchQuery.trim() && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[11px] font-bold text-[#f3f0e7]/60 uppercase tracking-widest flex items-center space-x-1.5">
-                <Sparkles size={13} className="text-amber-400" />
-                <span>Continue Working</span>
-              </span>
-            </div>
+        {continueProject && !searchQuery.trim() && (() => {
+          const continueLangAnalysis = getProjectLanguages(continueProject.files);
+          const continueDominantColor = continueLangAnalysis.dominantColor || '#e87a38';
 
-            <div 
-              onClick={() => openProject(continueProject.id)}
-              className="krypton-hero-card group relative rounded-[26px] p-5 sm:p-6 bg-gradient-to-br from-[#383137] via-[#2f292d] to-[#252024] border border-[#f3f0e7]/15 hover:border-[#f3f0e7]/35 shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden active:scale-[0.99]"
-            >
-              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-amber-400/40 via-[#f3f0e7]/60 to-purple-400/40" />
+          return (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className={`text-[11px] font-bold uppercase tracking-widest flex items-center space-x-1.5 ${
+                  isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'
+                }`}>
+                  <Sparkles size={13} className="text-amber-400" />
+                  <span>Continue Working</span>
+                </span>
+              </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start space-x-4 min-w-0 flex-1">
-                  <div className={`w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br ${templateOptions.find(t => t.id === continueProject.template)?.color || 'from-amber-600 to-amber-800'} flex items-center justify-center flex-shrink-0 shadow-lg`}>
-                    {templateOptions.find(t => t.id === continueProject.template)?.icon || <FolderOpen size={24} />}
-                  </div>
+              <div 
+                onClick={() => openProject(continueProject.id)}
+                className={`krypton-hero-card group relative rounded-[26px] p-5 sm:p-6 border shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden active:scale-[0.99] ${
+                  isLight
+                    ? 'bg-[#e8e4d9] border-[#2a2529]/15 hover:border-[#2a2529]/35 text-[#2a2529]'
+                    : 'bg-gradient-to-br from-[#383137] via-[#2f292d] to-[#252024] border-[#f3f0e7]/15 hover:border-[#f3f0e7]/35 text-[#f3f0e7]'
+                }`}
+              >
+                <div 
+                  className="absolute top-0 left-0 right-0 h-[3px]" 
+                  style={{ 
+                    backgroundColor: isLight ? '#7C9B79' : (continueDominantColor || '#7C9B79'), 
+                    boxShadow: isLight ? '0 0 10px rgba(124, 155, 121, 0.45)' : `0 0 10px ${continueDominantColor}66` 
+                  }} 
+                />
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center space-x-2">
-                      <h3 className="font-extrabold text-[#f3f0e7] text-lg sm:text-xl truncate">
-                        {continueProject.name}
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#f3f0e7]/10 text-[#f3f0e7]/70 border border-[#f3f0e7]/10 flex-shrink-0">
-                        {templateOptions.find(t => t.id === continueProject.template)?.name || continueProject.template}
-                      </span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start space-x-4 min-w-0 flex-1">
+                    <div 
+                      className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md border"
+                      style={{ 
+                        backgroundColor: isLight ? '#7C9B7915' : `${continueDominantColor}18`, 
+                        borderColor: isLight ? '#7C9B7935' : `${continueDominantColor}35` 
+                      }}
+                    >
+                      {renderLanguageVectorIcon(continueLangAnalysis.dominantLanguage || continueProject.template, 28)}
                     </div>
 
-                    <div className="flex items-center space-x-3 mt-1 text-xs text-[#f3f0e7]/60">
-                      <span className="flex items-center space-x-1">
-                        <Clock size={12} />
-                        <span>Last modified {formatDate(continueProject.updatedAt)}</span>
-                      </span>
-                      <span>•</span>
-                      <span className="flex items-center space-x-1 font-mono">
-                        <FileCode2 size={12} />
-                        <span>{getCachedFileCount(continueProject.id, continueProject.files)} files</span>
-                      </span>
-                    </div>
-
-                    {getRecentFiles(continueProject.files).length > 0 && (
-                      <div className="flex items-center space-x-1.5 mt-2.5 overflow-hidden">
-                        {getRecentFiles(continueProject.files).map(fn => (
-                          <span key={fn} className="px-2 py-0.5 rounded-md bg-[#1f1b1f]/70 text-[11px] text-[#f3f0e7]/80 font-mono border border-[#f3f0e7]/5 truncate max-w-[130px]">
-                            {fn}
-                          </span>
-                        ))}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center space-x-2">
+                        <h3 className={`font-extrabold text-lg sm:text-xl truncate ${
+                          isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'
+                        }`}>
+                          {continueProject.name}
+                        </h3>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${
+                          isLight 
+                            ? 'bg-[#7C9B79]/15 text-[#3a5837] border-[#7C9B79]/30 font-semibold' 
+                            : 'bg-[#f3f0e7]/10 text-[#f3f0e7]/70 border-[#f3f0e7]/10'
+                        }`}>
+                          {templateOptions.find(t => t.id === continueProject.template)?.name || continueProject.template}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                </div>
 
-                <div className="flex sm:flex-col justify-end items-end flex-shrink-0">
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openProject(continueProject.id);
-                    }}
-                    className="flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-[#f3f0e7] text-[#2a2529] font-bold text-sm shadow-lg hover:bg-white active:scale-95 transition-all w-full sm:w-auto justify-center"
-                  >
-                    <Play size={15} fill="currentColor" />
-                    <span>Resume</span>
-                  </button>
+                      <div className={`flex items-center space-x-3 mt-1 text-xs ${
+                        isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'
+                      }`}>
+                        <span className="flex items-center space-x-1">
+                          <Clock size={12} />
+                          <span>Last modified {formatDate(continueProject.updatedAt)}</span>
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center space-x-1 font-mono">
+                          <FileCode2 size={12} />
+                          <span>{getCachedFileCount(continueProject.id, continueProject.files)} files</span>
+                        </span>
+                      </div>
+
+                      {continueLangAnalysis.languages.length > 0 && (
+                        <div className="flex items-center space-x-1.5 mt-2.5 overflow-hidden flex-wrap gap-y-1">
+                          {continueLangAnalysis.languages.slice(0, 3).map(l => (
+                            <span 
+                              key={l.language} 
+                              className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-mono border ${
+                                isLight 
+                                  ? 'bg-white/80 text-[#2a2529]/90 border-[#2a2529]/10' 
+                                  : 'bg-[#1f1b1f]/70 text-[#f3f0e7]/80 border-[#f3f0e7]/10'
+                              }`}
+                              title={`${l.language}: ${(l.byte_count / 1024).toFixed(1)} KB`}
+                            >
+                              {renderLanguageVectorIcon(l.extension || l.language, 12)}
+                              <span>{l.language}</span>
+                            </span>
+                          ))}
+                          {continueLangAnalysis.languages.length > 3 && (
+                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono border ${
+                              isLight 
+                                ? 'bg-white/80 text-[#2a2529]/60 border-[#2a2529]/10' 
+                                : 'bg-[#1f1b1f]/70 text-[#f3f0e7]/60 border-[#f3f0e7]/10'
+                            }`}>
+                              +{continueLangAnalysis.languages.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex sm:flex-col justify-end items-end flex-shrink-0">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openProject(continueProject.id);
+                      }}
+                      className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all w-full sm:w-auto justify-center ${
+                        isLight
+                          ? 'bg-[#2a2529] text-white hover:bg-black'
+                          : 'bg-[#f3f0e7] text-[#2a2529] hover:bg-white'
+                      }`}
+                    >
+                      <Play size={15} fill="currentColor" />
+                      <span>Resume</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Smooth Search Bar */}
         {sortedProjects.length > 0 && (
@@ -656,7 +907,9 @@ export function ProjectsDashboard() {
             <Search
               size={16}
               className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors pointer-events-none ${
-                searchQuery ? 'text-[#f3f0e7]' : 'text-[#f3f0e7]/40 group-focus-within:text-[#f3f0e7]'
+                searchQuery 
+                  ? (isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]') 
+                  : (isLight ? 'text-[#2a2529]/40 group-focus-within:text-[#2a2529]' : 'text-[#f3f0e7]/40 group-focus-within:text-[#f3f0e7]')
               }`}
             />
             <input
@@ -664,12 +917,20 @@ export function ProjectsDashboard() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search projects by name, template, or files..."
-              className="w-full bg-[#342f33] border border-[#f3f0e7]/10 hover:border-[#f3f0e7]/20 focus:border-[#f3f0e7]/40 rounded-2xl pl-11 pr-10 py-3 text-xs sm:text-sm text-[#f3f0e7] placeholder-[#f3f0e7]/40 focus:outline-none transition-all shadow-sm focus:shadow-md"
+              className={`w-full rounded-2xl pl-11 pr-10 py-3 text-xs sm:text-sm focus:outline-none transition-all shadow-sm focus:shadow-md border ${
+                isLight
+                  ? 'bg-white border-[#2a2529]/15 text-[#2a2529] placeholder-[#2a2529]/40 focus:border-[#2a2529]/40'
+                  : 'bg-[#342f33] border-[#f3f0e7]/10 text-[#f3f0e7] placeholder-[#f3f0e7]/40 focus:border-[#f3f0e7]/40'
+              }`}
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-[#f3f0e7]/40 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 active:scale-95 transition-all cursor-pointer"
+                className={`absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded-full active:scale-95 transition-all cursor-pointer ${
+                  isLight
+                    ? 'text-[#2a2529]/40 hover:text-[#2a2529] hover:bg-[#2a2529]/10'
+                    : 'text-[#f3f0e7]/40 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'
+                }`}
                 title="Clear search"
                 aria-label="Clear search"
               >
@@ -681,21 +942,27 @@ export function ProjectsDashboard() {
 
         {/* Projects Grid Header */}
         <div className="flex items-center justify-between mb-3.5">
-          <h2 className="text-xs font-bold text-[#f3f0e7]/50 uppercase tracking-widest">
+          <h2 className={`text-xs font-bold uppercase tracking-widest ${
+            isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'
+          }`}>
             All Projects ({filteredProjects.length}{searchQuery.trim() ? ` of ${sortedProjects.length}` : ''})
           </h2>
         </div>
 
         {sortedProjects.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20 opacity-70">
-            <div className="w-16 h-16 rounded-[1.25rem] border border-[#f3f0e7]/10 bg-[#342f33] flex items-center justify-center mb-4 shadow-xl">
-              <FolderOpen size={28} className="text-[#f3f0e7]" />
+            <div className={`w-16 h-16 rounded-[1.25rem] border flex items-center justify-center mb-4 shadow-xl ${
+              isLight ? 'bg-white border-[#2a2529]/15' : 'bg-[#342f33] border-[#f3f0e7]/10'
+            }`}>
+              <FolderOpen size={28} className={isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'} />
             </div>
-            <p className="text-base font-semibold text-[#f3f0e7]">No projects found</p>
-            <p className="text-xs text-[#f3f0e7]/50 mt-1 mb-4">Start creating your next software project now</p>
+            <p className={`text-base font-semibold ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>No projects found</p>
+            <p className={`text-xs mt-1 mb-4 ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>Start creating your next software project now</p>
             <button
               onClick={() => setShowNewProject(true)}
-              className="px-4 py-2 rounded-xl bg-[#f3f0e7] text-[#2a2529] font-bold text-xs flex items-center space-x-2 shadow-md hover:bg-white active:scale-95 transition-all"
+              className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center space-x-2 shadow-md active:scale-95 transition-all ${
+                isLight ? 'bg-[#2a2529] text-white hover:bg-black' : 'bg-[#f3f0e7] text-[#2a2529] hover:bg-white'
+              }`}
             >
               <Plus size={15} strokeWidth={2.5} />
               <span>Create Project</span>
@@ -703,16 +970,22 @@ export function ProjectsDashboard() {
           </div>
         ) : filteredProjects.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-16 opacity-75">
-            <div className="w-14 h-14 rounded-2xl border border-[#f3f0e7]/10 bg-[#342f33] flex items-center justify-center mb-3 shadow-lg">
-              <Search size={24} className="text-[#f3f0e7]/60" />
+            <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center mb-3 shadow-lg ${
+              isLight ? 'bg-white border-[#2a2529]/15' : 'bg-[#342f33] border-[#f3f0e7]/10'
+            }`}>
+              <Search size={24} className={isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'} />
             </div>
-            <p className="text-base font-bold text-[#f3f0e7]">No matching projects</p>
-            <p className="text-xs text-[#f3f0e7]/50 mt-1 mb-4">
+            <p className={`text-base font-bold ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>No matching projects</p>
+            <p className={`text-xs mt-1 mb-4 ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50'}`}>
               No projects matched &ldquo;{searchQuery}&rdquo;
             </p>
             <button
               onClick={() => setSearchQuery('')}
-              className="px-4 py-2 rounded-xl bg-[#342f33] border border-[#f3f0e7]/15 hover:bg-[#3d373c] text-[#f3f0e7] text-xs font-semibold active:scale-95 transition-all cursor-pointer"
+              className={`px-4 py-2 rounded-xl border text-xs font-semibold active:scale-95 transition-all cursor-pointer ${
+                isLight 
+                  ? 'bg-white border-[#2a2529]/15 hover:bg-[#e8e4d9] text-[#2a2529]' 
+                  : 'bg-[#342f33] border-[#f3f0e7]/15 hover:bg-[#3d373c] text-[#f3f0e7]'
+              }`}
             >
               Clear search
             </button>
@@ -721,27 +994,44 @@ export function ProjectsDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredProjects.map((project, i) => {
               const fileCount = getCachedFileCount(project.id, project.files);
-              const recentFiles = getRecentFiles(project.files);
               const templateInfo = templateOptions.find(t => t.id === project.template);
+              const langAnalysis = getProjectLanguages(project.files);
+              const dominantColor = langAnalysis.dominantColor || '#e87a38';
 
               return (
                 <div
                   key={project.id}
-                  className="group relative rounded-[26px] p-5 bg-[#342f33] border border-[#f3f0e7]/10 hover:border-[#f3f0e7]/30 shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+                  className={`group relative rounded-[26px] p-5 shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98] border ${
+                    isLight
+                      ? 'bg-[#e8e4d9] border-[#2a2529]/10 hover:border-[#2a2529]/30 text-[#2a2529]'
+                      : 'bg-[#342f33] border-[#f3f0e7]/10 hover:border-[#f3f0e7]/30 text-[#f3f0e7]'
+                  }`}
                   style={{ animationDelay: `${i * 40}ms` }}
                   onClick={() => {
                     if (editingId !== project.id) openProject(project.id);
                   }}
                 >
-                  {/* Matching Subtle Top Accent Glow */}
-                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-amber-400/30 via-[#f3f0e7]/40 to-purple-400/30" />
+                  {/* Dynamic Dominant Language Accent Line */}
+                  <div 
+                    className="absolute top-0 left-0 right-0 h-[3px]" 
+                    style={{ 
+                      backgroundColor: isLight ? '#7C9B79' : (dominantColor || '#7C9B79'), 
+                      boxShadow: isLight ? '0 0 8px rgba(124, 155, 121, 0.45)' : `0 0 8px ${dominantColor}66` 
+                    }} 
+                  />
 
                   <div>
                     {/* Card Header */}
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center space-x-3.5 min-w-0 flex-1">
-                        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${templateInfo?.color || 'from-stone-600 to-stone-800'} flex items-center justify-center flex-shrink-0 shadow-md`}>
-                          {templateInfo?.icon || <FolderOpen size={20} />}
+                        <div 
+                          className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md border"
+                          style={{ 
+                            backgroundColor: isLight ? '#7C9B7915' : `${dominantColor}15`, 
+                            borderColor: isLight ? '#7C9B7930' : `${dominantColor}30` 
+                          }}
+                        >
+                          {renderLanguageVectorIcon(langAnalysis.dominantLanguage || project.template, 24)}
                         </div>
                         <div className="min-w-0 flex-1">
                           {editingId === project.id ? (
@@ -755,19 +1045,31 @@ export function ProjectsDashboard() {
                                 if (e.key === 'Escape') setEditingId(null);
                               }}
                               onClick={(e) => e.stopPropagation()}
-                              className="bg-[#2a2529] border border-[#f3f0e7]/30 rounded-lg px-2 py-0.5 text-[#f3f0e7] font-semibold text-sm w-full focus:outline-none"
+                              className={`border rounded-lg px-2 py-0.5 font-semibold text-sm w-full focus:outline-none ${
+                                isLight 
+                                  ? 'bg-white border-[#2a2529]/30 text-[#2a2529]' 
+                                  : 'bg-[#2a2529] border-[#f3f0e7]/30 text-[#f3f0e7]'
+                              }`}
                             />
                           ) : (
                             <div className="flex items-center space-x-2">
-                              <h3 className="font-extrabold text-[#f3f0e7] text-base truncate group-hover:text-[#f3f0e7]/90 transition-colors">
+                              <h3 className={`font-extrabold text-base truncate transition-colors ${
+                                isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'
+                              }`}>
                                 {project.name}
                               </h3>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#f3f0e7]/10 text-[#f3f0e7]/70 border border-[#f3f0e7]/10 flex-shrink-0">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${
+                                isLight 
+                                  ? 'bg-[#7C9B79]/15 text-[#3a5837] border-[#7C9B79]/30 font-semibold' 
+                                  : 'bg-[#f3f0e7]/10 text-[#f3f0e7]/70 border-[#f3f0e7]/10'
+                              }`}>
                                 {templateInfo?.name || project.template}
                               </span>
                             </div>
                           )}
-                          <div className="flex items-center space-x-2.5 mt-1 text-xs text-[#f3f0e7]/60">
+                          <div className={`flex items-center space-x-2.5 mt-1 text-xs ${
+                            isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'
+                          }`}>
                             <span className="flex items-center space-x-1">
                               <Clock size={11} />
                               <span>Last modified {formatDate(project.updatedAt)}</span>
@@ -789,14 +1091,18 @@ export function ProjectsDashboard() {
                             setEditingId(project.id);
                             setEditName(project.name);
                           }}
-                          className="p-1.5 text-[#f3f0e7]/40 hover:text-[#f3f0e7] rounded-lg hover:bg-[#f3f0e7]/10 transition-colors"
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isLight
+                              ? 'text-[#2a2529]/40 hover:text-[#2a2529] hover:bg-[#2a2529]/10'
+                              : 'text-[#f3f0e7]/40 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'
+                          }`}
                           title="Rename project"
                         >
                           <Edit2 size={14} />
                         </button>
                         <button
                           onClick={(e) => handleDelete(project.id, e)}
-                          className="p-1.5 text-[#f3f0e7]/40 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors"
+                          className="p-1.5 text-red-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 transition-colors"
                           title="Delete project"
                         >
                           <Trash2 size={14} />
@@ -804,17 +1110,35 @@ export function ProjectsDashboard() {
                       </div>
                     </div>
 
-                    {/* Recent Files Preview — clean inline chips matching Continue Working */}
-                    {recentFiles.length > 0 && (
-                      <div className="flex items-center space-x-1.5 mt-3 overflow-hidden">
-                        {recentFiles.map((fn) => (
+                    {/* Dynamic Language Badges — up to 3 dominant inline + overflow pill */}
+                    {langAnalysis.languages.length > 0 && (
+                      <div className="flex items-center space-x-1.5 mt-3 overflow-hidden flex-wrap gap-y-1">
+                        {langAnalysis.languages.slice(0, 3).map((l) => (
                           <span
-                            key={fn}
-                            className="px-2 py-0.5 rounded-md bg-[#2a2529]/60 text-[11px] text-[#f3f0e7]/70 font-mono border border-[#f3f0e7]/5 truncate max-w-[130px]"
+                            key={l.language}
+                            className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-mono border ${
+                              isLight
+                                ? 'bg-white/80 text-[#2a2529]/90 border-[#2a2529]/10'
+                                : 'bg-[#2a2529]/60 text-[#f3f0e7]/80 border-[#f3f0e7]/10'
+                            }`}
+                            title={`${l.language}: ${(l.byte_count / 1024).toFixed(1)} KB`}
                           >
-                            {fn}
+                            {renderLanguageVectorIcon(l.extension || l.language, 12)}
+                            <span>{l.language}</span>
                           </span>
                         ))}
+                        {langAnalysis.languages.length > 3 && (
+                          <span
+                            className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono border ${
+                              isLight
+                                ? 'bg-white/80 text-[#2a2529]/60 border-[#2a2529]/10'
+                                : 'bg-[#2a2529]/60 text-[#f3f0e7]/60 border-[#f3f0e7]/10'
+                            }`}
+                            title={langAnalysis.languages.slice(3).map(l => l.language).join(', ')}
+                          >
+                            +{langAnalysis.languages.length - 3}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -995,6 +1319,15 @@ export function ProjectsDashboard() {
           </div>
         )}
       </Modal>
+
+      {/* Hidden directory input for Import Project */}
+      <input
+        type="file"
+        ref={directoryInputRef}
+        onChange={handleDirectorySelected}
+        style={{ display: 'none' }}
+        {...({ webkitdirectory: '', directory: '', multiple: true } as any)}
+      />
     </div>
   );
 }

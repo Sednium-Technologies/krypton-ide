@@ -1,15 +1,29 @@
 import React from 'react';
+import { useIdeStore } from '../../store/useIdeStore';
 
 interface KryptonLoaderProps {
   text?: string;
   size?: 'sm' | 'md' | 'lg';
+  isLight?: boolean;
 }
 
-export function KryptonLoader({ text, size = 'md' }: KryptonLoaderProps) {
+export function KryptonLoader({ text, size = 'md', isLight: propIsLight }: KryptonLoaderProps) {
+  const currentTheme = useIdeStore((s) => s.theme);
+  const isLight = propIsLight !== undefined 
+    ? propIsLight 
+    : (currentTheme === 'light' || (typeof document !== 'undefined' && document.documentElement.classList.contains('light')));
+
   const scaleClass = size === 'sm' ? 'scale-50' : size === 'lg' ? 'scale-110' : 'scale-75';
 
+  const spokeBg = isLight ? 'rgba(42, 37, 41, 0.08)' : 'rgba(243, 240, 231, 0.07)';
+  const spokeBorder = isLight ? 'rgba(42, 37, 41, 0.14)' : 'rgba(243, 240, 231, 0.1)';
+  const ballBg = isLight ? '#2a2529' : '#f3f0e7';
+  const ballShadow = isLight
+    ? '0 0 10px rgba(42, 37, 41, 0.45), 0 0 20px rgba(42, 37, 41, 0.2), inset 0 -3px 4px rgba(255, 255, 255, 0.4)'
+    : '0 0 10px rgba(243, 240, 231, 0.8), 0 0 20px rgba(243, 240, 231, 0.4), inset 0 -3px 4px rgba(0, 0, 0, 0.3)';
+
   return (
-    <div className="flex flex-col items-center justify-center p-4">
+    <div className="flex flex-col items-center justify-center p-4 select-none">
       <style>{`
         .krypton-loader-main {
           display: flex;
@@ -31,8 +45,8 @@ export function KryptonLoader({ text, size = 'md' }: KryptonLoaderProps) {
           width: 1.15em;
           height: 13em;
           border-radius: 50px;
-          background: rgba(243, 240, 231, 0.07);
-          border: 1px solid rgba(243, 240, 231, 0.1);
+          background: ${spokeBg};
+          border: 1px solid ${spokeBorder};
         }
 
         .krypton-spoke-track {
@@ -47,11 +61,8 @@ export function KryptonLoader({ text, size = 'md' }: KryptonLoaderProps) {
           width: 1.15em;
           height: 1.15em;
           border-radius: 50%;
-          background-color: #f3f0e7;
-          box-shadow:
-            0 0 10px rgba(243, 240, 231, 0.8),
-            0 0 20px rgba(243, 240, 231, 0.4),
-            inset 0 -3px 4px rgba(0, 0, 0, 0.3);
+          background-color: ${ballBg};
+          box-shadow: ${ballShadow};
           animation: kryptonMoveBall 3.2s ease-in-out infinite;
         }
 
@@ -100,7 +111,9 @@ export function KryptonLoader({ text, size = 'md' }: KryptonLoaderProps) {
       </div>
 
       {text && (
-        <span className="mt-6 text-xs font-bold text-[#f3f0e7]/80 uppercase tracking-widest animate-pulse">
+        <span className={`mt-6 text-xs font-bold uppercase tracking-widest animate-pulse ${
+          isLight ? 'text-[#2a2529]/90' : 'text-[#f3f0e7]/80'
+        }`}>
           {text}
         </span>
       )}

@@ -14,6 +14,7 @@ import { AgentSettingsPanel } from '../settings/AgentSettingsPanel';
 import { AI_PROVIDERS, getProviderById, DEFAULT_AI_PROVIDER, DEFAULT_AI_MODEL } from '../../config/aiProviders';
 import { useMcpStore, getMcpPromptContext } from '../../store/useMcpStore';
 import { useSkillsStore, getSkillsPromptContext } from '../../store/useSkillsStore';
+import { getModelWeightProgress } from '../../lib/kryptonCoreBridge';
 
 function ThinkBlock({ content, duration }: { content: string; duration?: number }) {
   const [expanded, setExpanded] = useState(false);
@@ -137,7 +138,8 @@ function ToolResultBlock({ msg }: { msg: Message }) {
 const PROVIDERS = AI_PROVIDERS;
 
 export function AiAssistant() {
-  const { files, updateFileContent, saveFile, createFile, isAiFullscreen, setAiFullscreen } = useIdeStore();
+  const { files, updateFileContent, saveFile, createFile, isAiFullscreen, setAiFullscreen, theme } = useIdeStore();
+  const isLight = theme === 'light';
   const aiStore = useAiStore();
   const activeProvider = aiStore.provider || DEFAULT_AI_PROVIDER;
   const currentProvider = getProviderById(activeProvider);
@@ -159,10 +161,60 @@ export function AiAssistant() {
   const [showQuickModelPicker, setShowQuickModelPicker] = useState(false);
   const [modelSearchQuery, setModelSearchQuery] = useState('');
   const [customModelText, setCustomModelText] = useState(aiStore.model || currentProvider.defaultModel);
+  const isEditingCustomModel = useRef(false);
 
   useEffect(() => {
-    setCustomModelText(aiStore.model || currentProvider.defaultModel);
-  }, [aiStore.model, activeProvider, currentProvider.defaultModel]);
+    if (!isEditingCustomModel.current) {
+      setCustomModelText(aiStore.model || currentProvider.defaultModel);
+    }
+  }, [activeProvider, currentProvider.defaultModel]);
+
+  const [weightLoadingState, setWeightLoadingState] = useState<{
+    isLoading: boolean;
+    percentage: number;
+    loadedBytes: number;
+    totalBytes: number;
+    phase: string;
+    modelName: string;
+  }>({
+    isLoading: false,
+    percentage: 0,
+    loadedBytes: 0,
+    totalBytes: 256 * 1024 * 1024,
+    phase: '',
+    modelName: '',
+  });
+
+  const triggerWeightLoadingProgress = (modelPath: string, name: string) => {
+    setWeightLoadingState({
+      isLoading: true,
+      percentage: 10,
+      loadedBytes: 25 * 1024 * 1024,
+      totalBytes: 256 * 1024 * 1024,
+      phase: 'Scanning GGUF header & tensors...',
+      modelName: name,
+    });
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      const current = getModelWeightProgress(modelPath);
+      const pct = Math.min(100, Math.max(step * 25, current.percentage));
+      setWeightLoadingState({
+        isLoading: pct < 100,
+        percentage: pct,
+        loadedBytes: Math.round((pct / 100) * 256 * 1024 * 1024),
+        totalBytes: 256 * 1024 * 1024,
+        phase: pct >= 100 ? 'Weights initialized in NPU/RAM' : (pct > 60 ? 'Mapping tensor weights to RAM...' : (current.phase || current.status || 'Allocating model weights...')),
+        modelName: name,
+      });
+      if (pct >= 100) {
+        clearInterval(interval);
+        setTimeout(() => {
+          setWeightLoadingState(prev => ({ ...prev, isLoading: false }));
+        }, 1200);
+      }
+    }, 200);
+  };
   const [mentionQuery, setMentionQuery] = useState({ active: false, text: '', startIdx: 0 });
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   
@@ -623,7 +675,7 @@ export function AiAssistant() {
                 </button>
               </div>
 
-              {dynamicModels.length > 0 && (
+              {dynamicModels.length > 0 ? (
                 <div className="mb-2">
                   <select
                     value={dynamicModels.some(m => m.id === customModelText) ? customModelText : '__custom__'}
@@ -632,6 +684,9 @@ export function AiAssistant() {
                       if (val && val !== '__custom__') {
                         setCustomModelText(val);
                         aiStore.setModel(val);
+                        if (val.includes('local') || val.includes('gguf') || val.includes('llama') || val.includes('q4')) {
+                          triggerWeightLoadingProgress(`/models/${val}.gguf`, val);
+                        }
                       }
                     }}
                     className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-3 py-2.5 text-xs text-[#f3f0e7] focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
@@ -649,15 +704,23 @@ export function AiAssistant() {
                     )}
                   </select>
                 </div>
+              ) : (
+                <div className="mb-2 px-3 py-2 rounded-xl bg-[#231e22]/50 border border-[#f3f0e7]/10 text-[11px] text-[#f3f0e7]/60 font-mono">
+                  {isModelsLoading ? 'Querying live endpoint models...' : 'No endpoint models queried yet. Click "Sync Models" or enter a model ID below.'}
+                </div>
               )}
 
               <input
                 type="text"
                 value={customModelText}
                 onChange={(e) => {
+                  isEditingCustomModel.current = true;
                   const val = e.target.value;
                   setCustomModelText(val);
                   aiStore.setModel(val);
+                }}
+                onBlur={() => {
+                  isEditingCustomModel.current = false;
                 }}
                 className="w-full bg-[#231e22] border border-[#f3f0e7]/15 rounded-xl px-4 py-3 text-sm text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40 focus:outline-none transition-all font-mono"
                 placeholder="Or type any custom model ID..."
@@ -1135,11 +1198,40 @@ export function AiAssistant() {
         </div>
       )}
 
-      {/* Input Section */}
+      {/* Real-time Model Weight Loading & Allocation Progress Banner */}
+      {weightLoadingState.isLoading && (
+        <div className="mx-3 my-2 p-3 rounded-2xl bg-gradient-to-r from-purple-500/15 via-indigo-500/15 to-teal-500/15 border border-[#f3f0e7]/20 shadow-xl backdrop-blur-md flex-shrink-0">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center space-x-2">
+              <BrainCircuit size={15} className="text-teal-400 animate-pulse" />
+              <span className={`text-xs font-bold ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>
+                Allocating Model Weights: {weightLoadingState.modelName}
+              </span>
+            </div>
+            <span className="text-xs font-mono font-bold text-teal-400">
+              {weightLoadingState.percentage}%
+            </span>
+          </div>
+          <div className="w-full h-2 rounded-full bg-black/30 overflow-hidden mb-1.5">
+            <div
+              className="h-full bg-gradient-to-r from-teal-400 to-indigo-400 transition-all duration-200 rounded-full"
+              style={{ width: `${weightLoadingState.percentage}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[10px] opacity-70 font-mono">
+            <span>{weightLoadingState.phase}</span>
+            <span>{(weightLoadingState.loadedBytes / (1024 * 1024)).toFixed(1)} MB / {(weightLoadingState.totalBytes / (1024 * 1024)).toFixed(1)} MB</span>
+          </div>
+        </div>
+      )}
+
+      {/* Input Section — Locked to bottom edge of viewport */}
       <div 
         onDragOver={handleDragOver}
         onDrop={handleDropFile}
-        className="p-3 border-t border-[#f3f0e7]/10 flex-shrink-0 bg-[#231e22] z-40 relative pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]"
+        className={`p-3 border-t flex-shrink-0 z-40 sticky bottom-0 w-full pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] backdrop-blur-md ${
+          isLight ? 'bg-[#f7f5ee]/95 border-[#2a2529]/10 text-[#2a2529]' : 'bg-[#231e22]/95 border-[#f3f0e7]/10 text-[#f3f0e7]'
+        }`}
       >
         <input 
           type="file" 

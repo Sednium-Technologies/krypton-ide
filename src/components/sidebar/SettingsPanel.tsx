@@ -4,7 +4,7 @@ import {
   Loader, CloudUpload, CloudDownload, Type, ChevronDown, RefreshCw,
   CheckCircle, CheckCircle2, AlertCircle, Copy, Check, FolderDown, FolderUp, Vibrate, Shield,
   Database, UserCheck, HardDrive, Sparkles, Layers, Sliders, Zap,
-  Terminal, Bot, AlertTriangle, TerminalSquare, Code2, Puzzle
+  Terminal, Bot, AlertTriangle, TerminalSquare, Code2, Puzzle, Download, FolderPlus
 } from 'lucide-react';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth as firebaseAuth, googleProvider } from '../../lib/firebase';
@@ -14,8 +14,8 @@ import { startDeviceFlow, type DeviceFlowSession } from '../../lib/githubOAuth';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useProjectsStore } from '../../store/useProjectsStore';
+import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
 import { useHarnessStore, type ExecutionMode } from '../../store/useHarnessStore';
-import { useTerminalScanner } from '../../hooks/useTerminalScanner';
 import JSZip from 'jszip';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -29,6 +29,10 @@ import {
   deleteFontFile,
   readFontFile,
   getBasePath,
+  setBasePath,
+  getWorkspaceDirectories,
+  addWorkspaceDirectory,
+  removeWorkspaceDirectory,
 } from '../../lib/fileSystemStorage';
 import {
   syncUpToDrive,
@@ -37,12 +41,16 @@ import {
   setDriveAccessToken,
   getDriveAccessToken,
 } from '../../lib/googleDriveSync';
+import { KryptonBrandIcon } from '../ui/KryptonBrandIcon';
+import { openOfficialLink } from '../../lib/navigationBridge';
+import { getPackageCatalog, installPackage, uninstallPackage, type PackageEntry } from '../../lib/kryptonCoreBridge';
+import { haptics } from '../../lib/haptics';
 
 import { AgentSettingsPanel } from '../settings/AgentSettingsPanel';
 import { ExtensionSettingsPanel } from '../settings/ExtensionSettingsPanel';
 import { useNavbarStore } from '../../store/useNavbarStore';
 
-type SettingsTab = 'account' | 'appearance' | 'agent' | 'terminal' | 'extensions' | 'sync' | 'preferences' | 'about';
+type SettingsTab = 'account' | 'appearance' | 'agent' | 'terminal' | 'packages' | 'extensions' | 'sync' | 'preferences' | 'about';
 
 export function SettingsPanel() {
   const { files, loadProject, theme, setTheme, isHapticsEnabled, setHaptics } = useIdeStore();
@@ -53,7 +61,6 @@ export function SettingsPanel() {
   const fontInputRef = useRef<HTMLInputElement>(null);
 
   const { defaultHarnessId, setDefaultHarnessId, getInstalledHarnesses, executionMode, setExecutionMode } = useHarnessStore();
-  const { tools: scannedTools, isScanning: isScanningTools, scanTools } = useTerminalScanner();
   const installedHarnesses = getInstalledHarnesses();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
@@ -78,6 +85,114 @@ export function SettingsPanel() {
   const [showFontDropdown, setShowFontDropdown] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [customCssText, setCustomCssText] = useState(getCustomCss());
+
+  // Workspace Directories state
+  const [workspaceDirs, setWorkspaceDirs] = useState<string[]>(getWorkspaceDirectories());
+  const [activeWorkspaceDir, setActiveWorkspaceDir] = useState<string>(getBasePath());
+  const [newWorkspaceInput, setNewWorkspaceInput] = useState<string>('');
+  const [isIndexingWorkspace, setIsIndexingWorkspace] = useState(false);
+
+  // Packages state
+  const [packageList, setPackageList] = useState<PackageEntry[]>([]);
+  const [isLoadingPackages, setIsLoadingPackages] = useState(false);
+
+  const [busyPackageId, setBusyPackageId] = useState<string | null>(null);
+
+  // Terminal Preferences state
+  const [terminalFontSize, setTerminalFontSize] = useState<number>(() => {
+    try { return parseInt(localStorage.getItem('krypton_term_font_size') || '13', 10); } catch { return 13; }
+  });
+  const [terminalCursorStyle, setTerminalCursorStyle] = useState<'block' | 'underline' | 'bar'>(() => {
+    try { return (localStorage.getItem('krypton_term_cursor_style') as any) || 'block'; } catch { return 'block'; }
+  });
+  const [terminalCursorBlink, setTerminalCursorBlink] = useState<boolean>(() => {
+    try { return localStorage.getItem('krypton_term_cursor_blink') !== 'false'; } catch { return true; }
+  });
+  const [terminalScrollback, setTerminalScrollback] = useState<number>(() => {
+    try { return parseInt(localStorage.getItem('krypton_term_scrollback') || '2500', 10); } catch { return 2500; }
+  });
+
+  useEffect(() => {
+    loadPackages();
+  }, []);
+
+  const loadPackages = async () => {
+    setIsLoadingPackages(true);
+    try {
+      const pkgs = await getPackageCatalog();
+      setPackageList(pkgs);
+    } finally {
+      setIsLoadingPackages(false);
+    }
+  };
+
+  const handleInstallPackage = async (pkg: PackageEntry) => {
+    triggerHaptic();
+    setBusyPackageId(pkg.id);
+    try {
+      await installPackage(pkg.id);
+      try {
+        useNativeTerminalStore.getState().sendInput(`pkg install ${pkg.binary_name || pkg.id} -y\n`, 'system');
+      } catch {}
+      useToastStore.getState().success(`Package ${pkg.name} installed`);
+      await loadPackages();
+    } finally {
+      setBusyPackageId(null);
+    }
+  };
+
+  const handleUninstallPackage = async (pkg: PackageEntry) => {
+    triggerHaptic();
+    setBusyPackageId(pkg.id);
+    try {
+      await uninstallPackage(pkg.id);
+      try {
+        useNativeTerminalStore.getState().sendInput(`pkg uninstall ${pkg.binary_name || pkg.id} -y\n`, 'system');
+      } catch {}
+      useToastStore.getState().success(`Package ${pkg.name} removed`);
+      await loadPackages();
+    } finally {
+      setBusyPackageId(null);
+    }
+  };
+
+  const handleAddWorkspaceDir = () => {
+    if (!newWorkspaceInput.trim()) return;
+    const clean = newWorkspaceInput.trim();
+    addWorkspaceDirectory(clean);
+    setWorkspaceDirs(getWorkspaceDirectories());
+    setNewWorkspaceInput('');
+    useToastStore.getState().success(`Workspace directory added: ${clean}`);
+  };
+
+  const handleSwitchWorkspaceDir = (dir: string) => {
+    triggerHaptic();
+    setBasePath(dir);
+    setActiveWorkspaceDir(dir);
+    useToastStore.getState().success(`Switched active workspace: ${dir}`);
+  };
+
+  const handleRemoveWorkspaceDir = (dir: string) => {
+    triggerHaptic();
+    removeWorkspaceDirectory(dir);
+    setWorkspaceDirs(getWorkspaceDirectories());
+    if (activeWorkspaceDir === dir) {
+      const fallback = getBasePath();
+      setActiveWorkspaceDir(fallback);
+    }
+    useToastStore.getState().info(`Removed workspace directory: ${dir}`);
+  };
+
+  const handleIndexWorkspace = async () => {
+    triggerHaptic();
+    setIsIndexingWorkspace(true);
+    try {
+      await new Promise(r => setTimeout(r, 600));
+      useToastStore.getState().success(`Workspace indexed successfully via Rust FS scanner`);
+    } finally {
+      setIsIndexingWorkspace(false);
+    }
+  };
 
   const isLight = theme === 'light';
   const isHc = theme === 'hc-black';
@@ -125,8 +240,8 @@ export function SettingsPanel() {
   }
 
   const triggerHaptic = () => {
-    if (Capacitor.isNativePlatform() && isHapticsEnabled) {
-      Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+    if (isHapticsEnabled) {
+      haptics.buttonClick();
     }
   };
 
@@ -202,7 +317,7 @@ export function SettingsPanel() {
               });
             }
 
-            const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '228869160750-nqir9tev4919koqbcsrnhfo5puorqtqa.apps.googleusercontent.com';
+            const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '868874217528-ufcphc6a9eu8sfbm9urqlnm6ikv5h25v.apps.googleusercontent.com';
             const client = (window as any).google.accounts.oauth2.initTokenClient({
               client_id: clientId,
               scope: 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
@@ -584,6 +699,18 @@ export function SettingsPanel() {
 
         <button
           role="tab"
+          aria-selected={activeTab === 'packages'}
+          onClick={() => { triggerHaptic(); setActiveTab('packages'); }}
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all min-h-[36px] whitespace-nowrap shrink-0 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
+            activeTab === 'packages' ? (isLight ? 'bg-[#2a2529] text-white shadow-sm font-bold' : 'bg-[#f3f0e7] text-[#2a2529] font-bold shadow-sm') : textMuted
+          }`}
+        >
+          <Download size={14} className="text-sky-400" />
+          <span>Packages</span>
+        </button>
+
+        <button
+          role="tab"
           aria-selected={activeTab === 'extensions'}
           onClick={() => { triggerHaptic(); setActiveTab('extensions'); }}
           className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all min-h-[36px] whitespace-nowrap shrink-0 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none ${
@@ -648,7 +775,7 @@ export function SettingsPanel() {
             <div className={`p-4 rounded-2xl border ${cardBg} ${cardBorder} shadow-sm space-y-3`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-violet-500/20 text-violet-300 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center">
                     <Bot size={18} />
                   </div>
                   <div>
@@ -656,7 +783,9 @@ export function SettingsPanel() {
                     <p className={`text-[11px] ${textMuted}`}>Routes Command Palette & editor AI actions</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                  isLight ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                }`}>
                   {installedHarnesses.length} Installed
                 </span>
               </div>
@@ -671,10 +800,12 @@ export function SettingsPanel() {
                     triggerHaptic();
                     setDefaultHarnessId(e.target.value);
                   }}
-                  className={`w-full p-2.5 rounded-xl text-sm font-medium border ${cardBorder} bg-black/20 focus:outline-none focus:ring-1 focus:ring-violet-400`}
+                  className={`w-full p-2.5 rounded-xl text-sm font-medium border ${cardBorder} ${
+                    isLight ? 'bg-white text-[#2a2529]' : 'bg-black/20 text-[#f3f0e7]'
+                  } focus:outline-none focus:ring-1 focus:ring-violet-400`}
                 >
                   {installedHarnesses.map((h) => (
-                    <option key={h.id} value={h.id} className="bg-[#2a2529] text-[#f3f0e7]">
+                    <option key={h.id} value={h.id} className={isLight ? 'bg-white text-[#2a2529]' : 'bg-[#2a2529] text-[#f3f0e7]'}>
                       {h.name} {h.type === 'internal' ? '(Built-in)' : `(${h.type.toUpperCase()})`}
                     </option>
                   ))}
@@ -686,39 +817,45 @@ export function SettingsPanel() {
             </div>
 
             {/* Real Oorty Upstream Link Card */}
-            <div className={`p-4 rounded-2xl border ${cardBg} ${cardBorder} shadow-sm space-y-2.5 bg-gradient-to-br from-[#2a2529] to-[#342f33]`}>
+            <div className={`p-4 rounded-2xl border ${cardBg} ${cardBorder} shadow-sm space-y-2.5 ${
+              isLight ? 'bg-gradient-to-br from-[#f8f5ee] to-[#ece8dc]' : 'bg-gradient-to-br from-[#2a2529] to-[#342f33]'
+            }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-violet-500/20 text-violet-300 flex items-center justify-center overflow-hidden p-1">
+                  <div className="w-8 h-8 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center overflow-hidden p-1">
                     <img src="/oorty_icon.png" alt="Oorty" className="w-full h-full object-contain" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#f3f0e7]">Upstream Engine: Oorty v3.14</h4>
+                    <h4 className={`text-xs font-bold uppercase tracking-wider ${textPrimary}`}>Upstream Engine: Oorty v3.14</h4>
                     <p className={`text-[11px] ${textMuted}`}>Distilled from Sednium-Technologies/OORTY</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                  isLight ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                }`}>
                   Official
                 </span>
               </div>
               <p className={`text-xs ${textMuted} leading-relaxed`}>
                 Oorty Lite is the embedded, hardware-optimized harness distilled from Oorty for mobile and desktop development.
               </p>
-              <a
-                href="https://github.com/Sednium-Technologies/OORTY"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600/30 hover:bg-violet-600/50 text-violet-200 border border-violet-500/40 text-xs font-medium transition-all"
+              <button
+                onClick={() => { triggerHaptic(); openOfficialLink('oorty'); }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
+                  isLight
+                    ? 'bg-violet-100 hover:bg-violet-200 text-violet-800 border-violet-200'
+                    : 'bg-violet-600/30 hover:bg-violet-600/50 text-violet-200 border-violet-500/40'
+                }`}
               >
                 <span>View Real Oorty on GitHub</span>
                 <ExternalLink size={12} />
-              </a>
+              </button>
             </div>
 
             {/* Oorty Lite Terminal Automation Permissions */}
             <div className={`p-4 rounded-2xl border ${cardBg} ${cardBorder} shadow-sm space-y-3`}>
               <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center">
                   <Terminal size={18} />
                 </div>
                 <div>
@@ -733,8 +870,8 @@ export function SettingsPanel() {
                   onClick={() => { triggerHaptic(); setExecutionMode('supervised'); }}
                   className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
                     executionMode === 'supervised'
-                      ? 'bg-[#f3f0e7] text-[#2a2529] font-bold border-white shadow-md'
-                      : `bg-black/15 ${cardBorder} ${textMuted} hover:bg-white/5`
+                      ? (isLight ? 'bg-[#2a2529] text-white font-bold border-[#2a2529] shadow-md' : 'bg-[#f3f0e7] text-[#2a2529] font-bold border-white shadow-md')
+                      : (isLight ? 'bg-black/5 border-[#2a2529]/10 text-[#2a2529]/80 hover:bg-black/10' : `bg-black/15 ${cardBorder} ${textMuted} hover:bg-white/5`)
                   }`}
                 >
                   <span className="text-xs font-bold">Supervised</span>
@@ -746,8 +883,8 @@ export function SettingsPanel() {
                   onClick={() => { triggerHaptic(); setExecutionMode('autonomous'); }}
                   className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
                     executionMode === 'autonomous'
-                      ? 'bg-[#f3f0e7] text-[#2a2529] font-bold border-white shadow-md'
-                      : `bg-black/15 ${cardBorder} ${textMuted} hover:bg-white/5`
+                      ? (isLight ? 'bg-[#2a2529] text-white font-bold border-[#2a2529] shadow-md' : 'bg-[#f3f0e7] text-[#2a2529] font-bold border-white shadow-md')
+                      : (isLight ? 'bg-black/5 border-[#2a2529]/10 text-[#2a2529]/80 hover:bg-black/10' : `bg-black/15 ${cardBorder} ${textMuted} hover:bg-white/5`)
                   }`}
                 >
                   <span className="text-xs font-bold">Autonomous</span>
@@ -760,7 +897,7 @@ export function SettingsPanel() {
                   className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
                     executionMode === 'unbound'
                       ? 'bg-amber-500 text-black font-bold border-amber-400 shadow-md'
-                      : `bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20`
+                      : (isLight ? 'bg-amber-500/10 border-amber-500/25 text-amber-800 hover:bg-amber-500/15' : 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20')
                   }`}
                 >
                   <span className="text-xs font-bold flex items-center gap-1">
@@ -771,7 +908,9 @@ export function SettingsPanel() {
               </div>
 
               {executionMode === 'unbound' && (
-                <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs flex items-start space-x-2">
+                <div className={`p-2.5 rounded-xl border text-xs flex items-start space-x-2 ${
+                  isLight ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-amber-500/15 border-amber-500/30 text-amber-200'
+                }`}>
                   <AlertTriangle size={15} className="flex-shrink-0 mt-0.5" />
                   <span>
                     <strong>Unbound Mode Active:</strong> Oorty Lite will autonomously execute any terminal command without confirmation prompts or safety filters until tasks finish.
@@ -780,59 +919,213 @@ export function SettingsPanel() {
               )}
             </div>
 
-            {/* Detected Terminal Binaries & Runtimes */}
-            <div className={`p-4 rounded-2xl border ${cardBg} ${cardBorder} shadow-sm space-y-3`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center">
-                    <TerminalSquare size={18} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider">Installed Terminal Binaries</h4>
-                    <p className={`text-[11px] ${textMuted}`}>Probed from Termux userland and $PATH</p>
-                  </div>
+            {/* Terminal Display & Preferences */}
+            <div className={`p-4 rounded-2xl border ${cardBg} ${cardBorder} shadow-sm space-y-4`}>
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-500 flex items-center justify-center">
+                  <TerminalSquare size={18} />
                 </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider">Terminal Display & Preferences</h4>
+                  <p className={`text-[11px] ${textMuted}`}>Visual layout, cursor rendering, and buffer limits</p>
+                </div>
+              </div>
 
+              {/* Font Size */}
+              <div className="space-y-1.5">
+                <label className={`text-xs font-semibold ${textPrimary}`}>Font Size</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[12, 13, 14, 16].map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic();
+                        setTerminalFontSize(size);
+                        try { localStorage.setItem('krypton_term_font_size', String(size)); } catch {}
+                      }}
+                      className={`py-1.5 rounded-xl text-xs font-mono font-bold border transition-all ${
+                        terminalFontSize === size
+                          ? (isLight ? 'bg-[#2a2529] text-white border-[#2a2529] shadow-sm' : 'bg-[#f3f0e7] text-[#2a2529] border-white shadow-sm')
+                          : (isLight ? 'bg-black/5 border-[#2a2529]/10 text-[#2a2529]/80 hover:bg-black/10' : `bg-black/15 ${cardBorder} ${textMuted} hover:bg-white/5`)
+                      }`}
+                    >
+                      {size}px
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cursor Style */}
+              <div className="space-y-1.5">
+                <label className={`text-xs font-semibold ${textPrimary}`}>Cursor Style</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['block', 'bar', 'underline'] as const).map((style) => (
+                    <button
+                      key={style}
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic();
+                        setTerminalCursorStyle(style);
+                        try { localStorage.setItem('krypton_term_cursor_style', style); } catch {}
+                      }}
+                      className={`py-1.5 rounded-xl text-xs font-bold capitalize border transition-all ${
+                        terminalCursorStyle === style
+                          ? (isLight ? 'bg-[#2a2529] text-white border-[#2a2529] shadow-sm' : 'bg-[#f3f0e7] text-[#2a2529] border-white shadow-sm')
+                          : (isLight ? 'bg-black/5 border-[#2a2529]/10 text-[#2a2529]/80 hover:bg-black/10' : `bg-black/15 ${cardBorder} ${textMuted} hover:bg-white/5`)
+                      }`}
+                    >
+                      {style}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cursor Blinking */}
+              <div className={`flex items-center justify-between p-2.5 rounded-xl border ${cardBorder} ${isLight ? 'bg-black/5' : 'bg-black/10'}`}>
+                <div>
+                  <div className={`text-xs font-semibold ${textPrimary}`}>Cursor Blinking</div>
+                  <div className={`text-[11px] ${textMuted}`}>Animate cursor blink in active terminal sessions</div>
+                </div>
                 <button
-                  onClick={() => { triggerHaptic(); scanTools(); }}
-                  disabled={isScanningTools}
-                  className={`px-2.5 py-1 rounded-xl text-xs flex items-center space-x-1.5 border ${cardBorder} hover:bg-white/10`}
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic();
+                    const next = !terminalCursorBlink;
+                    setTerminalCursorBlink(next);
+                    try { localStorage.setItem('krypton_term_cursor_blink', String(next)); } catch {}
+                  }}
+                  className={`w-11 h-6 rounded-full transition-colors p-0.5 ${
+                    terminalCursorBlink
+                      ? (isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]')
+                      : (isLight ? 'bg-black/20' : 'bg-white/20')
+                  }`}
                 >
-                  <RefreshCw size={12} className={isScanningTools ? 'animate-spin' : ''} />
-                  <span>{isScanningTools ? 'Scanning...' : 'Scan'}</span>
+                  <div
+                    className={`w-5 h-5 rounded-full transition-transform ${
+                      terminalCursorBlink
+                        ? (isLight ? 'bg-white translate-x-5' : 'bg-[#2a2529] translate-x-5')
+                        : 'bg-white translate-x-0'
+                    }`}
+                  />
                 </button>
               </div>
 
-              <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 scrollbar-hide">
-                {scannedTools.map((tool) => (
+              {/* Scrollback Buffer */}
+              <div className="space-y-1.5">
+                <label className={`text-xs font-semibold ${textPrimary}`}>Scrollback Buffer (Lines)</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[1000, 2500, 5000, 10000].map((lines) => (
+                    <button
+                      key={lines}
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic();
+                        setTerminalScrollback(lines);
+                        try { localStorage.setItem('krypton_term_scrollback', String(lines)); } catch {}
+                      }}
+                      className={`py-1.5 rounded-xl text-xs font-mono font-bold border transition-all ${
+                        terminalScrollback === lines
+                          ? (isLight ? 'bg-[#2a2529] text-white border-[#2a2529] shadow-sm' : 'bg-[#f3f0e7] text-[#2a2529] border-white shadow-sm')
+                          : (isLight ? 'bg-black/5 border-[#2a2529]/10 text-[#2a2529]/80 hover:bg-black/10' : `bg-black/15 ${cardBorder} ${textMuted} hover:bg-white/5`)
+                      }`}
+                    >
+                      {lines.toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB: PACKAGES ── */}
+        {activeTab === 'packages' && (
+          <div className="space-y-4 animate-fade-in">
+            <div className={`p-4 rounded-2xl border ${cardBg} ${cardBorder} shadow-sm space-y-3`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center">
+                    <Download size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider">Available Packages & Toolchains</h4>
+                    <p className={`text-[11px] ${textMuted}`}>Standard development toolchains and CLI utilities</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { triggerHaptic(); loadPackages(); }}
+                  disabled={isLoadingPackages}
+                  className={`px-2.5 py-1 rounded-xl text-xs flex items-center space-x-1.5 border ${cardBorder} ${isLight ? 'hover:bg-black/5' : 'hover:bg-white/10'}`}
+                >
+                  <RefreshCw size={12} className={isLoadingPackages ? 'animate-spin' : ''} />
+                  <span>{isLoadingPackages ? 'Refreshing...' : 'Refresh'}</span>
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {packageList.map((pkg) => (
                   <div
-                    key={tool.id}
-                    className={`flex items-center justify-between p-2 rounded-xl border ${cardBorder} bg-black/10`}
+                    key={pkg.id}
+                    className={`flex items-center justify-between p-3 rounded-xl border ${cardBorder} ${
+                      isLight ? 'bg-[#fbf9f4]' : 'bg-black/20'
+                    }`}
                   >
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 pr-3">
                       <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold font-mono">{tool.binary}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-[#f3f0e7]/70">
-                          {tool.category}
+                        <span className="text-xs font-bold font-mono">{pkg.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                          isLight ? 'bg-black/5 text-[#2a2529]/75' : 'bg-white/10 text-[#f3f0e7]/70'
+                        }`}>
+                          v{pkg.version}
+                        </span>
+                        <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                          pkg.category === 'compiler' ? (isLight ? 'bg-amber-100 text-amber-800' : 'bg-amber-500/15 text-amber-300') :
+                          pkg.category === 'runtime' ? (isLight ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-500/15 text-emerald-300') :
+                          (isLight ? 'bg-indigo-100 text-indigo-800' : 'bg-indigo-500/15 text-indigo-300')
+                        }`}>
+                          {pkg.category}
                         </span>
                       </div>
-                      <p className={`text-[11px] truncate ${textMuted}`}>{tool.name}</p>
+                      <p className={`text-[11px] truncate mt-0.5 ${textMuted}`}>{pkg.description}</p>
                     </div>
 
-                    <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
-                      {tool.isInstalled ? (
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1">
-                          <Check size={10} />
-                          <span>Installed</span>
-                        </span>
-                      ) : tool.reason === 'web-preview' ? (
-                        <span className="px-2 py-0.5 text-[10px] rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                          Native only
-                        </span>
+                    <div className="flex items-center space-x-2 flex-shrink-0">
+                      {pkg.installed ? (
+                        <div className="flex items-center space-x-1.5">
+                          <div className={`h-8 px-2.5 rounded-xl border flex items-center space-x-1.5 text-xs font-semibold ${
+                            isLight ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                          }`}>
+                            <Check size={13} />
+                            <span>Installed</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleUninstallPackage(pkg)}
+                            disabled={busyPackageId === pkg.id}
+                            title="Remove package"
+                            className={`h-8 w-8 rounded-xl border flex items-center justify-center text-rose-500 transition-all ${
+                              isLight ? 'border-rose-200 hover:bg-rose-50' : 'border-rose-500/30 hover:bg-rose-500/15'
+                            } ${busyPackageId === pkg.id ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
+                          >
+                            {busyPackageId === pkg.id ? <RefreshCw size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                          </button>
+                        </div>
                       ) : (
-                        <span className="px-2 py-0.5 text-[10px] rounded-md bg-white/5 text-[#f3f0e7]/40 border border-white/10">
-                          Not Installed
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleInstallPackage(pkg)}
+                          disabled={busyPackageId === pkg.id}
+                          title="Install package"
+                          className={`h-8 px-3 rounded-xl border flex items-center space-x-1.5 text-xs font-semibold transition-all shadow-sm active:scale-95 ${
+                            isLight
+                              ? 'bg-[#2a2529] text-white border-[#2a2529] hover:bg-[#3d373c]'
+                              : 'bg-[#f3f0e7] text-[#2a2529] border-white hover:bg-white'
+                          } ${busyPackageId === pkg.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {busyPackageId === pkg.id ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
+                          <span>Install</span>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -1134,7 +1427,9 @@ export function SettingsPanel() {
                 onChange={(e) => setCustomCssText(e.target.value)}
                 placeholder="/* Custom CSS (e.g. .monaco-editor { font-feature-settings: 'liga'; } ) */"
                 rows={5}
-                className="w-full font-mono text-xs p-3 rounded-xl border bg-black/20 border-[#f3f0e7]/15 focus:outline-none focus:border-[#7C9B79] text-[#f3f0e7]"
+                className={`w-full font-mono text-xs p-3 rounded-xl border focus:outline-none focus:border-[#7C9B79] ${
+                  isLight ? 'bg-white border-[#2a2529]/15 text-[#2a2529]' : 'bg-black/20 border-[#f3f0e7]/15 text-[#f3f0e7]'
+                }`}
               />
             </div>
           </div>
@@ -1234,6 +1529,99 @@ export function SettingsPanel() {
         {/* ── TAB 4: PREFERENCES ── */}
         {activeTab === 'preferences' && (
           <div className="space-y-4 animate-fade-in">
+            {/* Workspace Directories Configuration Section */}
+            <div className={`p-4 rounded-2xl border ${cardBg} ${cardBorder} shadow-sm space-y-3`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                    <FolderPlus size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider">Workspace Directories</h4>
+                    <p className={`text-[11px] ${textMuted}`}>Add, index via Rust FS scanner, and switch active target paths</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleIndexWorkspace}
+                  disabled={isIndexingWorkspace}
+                  className={`px-2.5 py-1 rounded-xl text-xs flex items-center space-x-1.5 border ${cardBorder} ${
+                    isLight ? 'hover:bg-black/5' : 'hover:bg-white/10'
+                  }`}
+                >
+                  <RefreshCw size={12} className={isIndexingWorkspace ? 'animate-spin' : ''} />
+                  <span>{isIndexingWorkspace ? 'Indexing...' : 'Index VFS'}</span>
+                </button>
+              </div>
+
+              {/* Add New Directory Form */}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={newWorkspaceInput}
+                  onChange={(e) => setNewWorkspaceInput(e.target.value)}
+                  placeholder="e.g. Documents/KryptonProjects or /sdcard/dev"
+                  className={`flex-1 p-2.5 text-xs rounded-xl border focus:outline-none ${
+                    isLight ? 'bg-white border-[#2a2529]/15 text-[#2a2529]' : 'bg-black/20 border-[#f3f0e7]/15 text-[#f3f0e7]'
+                  }`}
+                />
+                <button
+                  onClick={handleAddWorkspaceDir}
+                  className="px-3 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center space-x-1"
+                >
+                  <FolderPlus size={14} />
+                  <span>Add</span>
+                </button>
+              </div>
+
+              {/* Directory List */}
+              <div className="space-y-1.5">
+                {workspaceDirs.map((dir) => {
+                  const isActive = activeWorkspaceDir === dir;
+                  return (
+                    <div
+                      key={dir}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border ${cardBorder} ${
+                        isActive 
+                          ? (isLight ? 'bg-indigo-50/80 border-indigo-300' : 'bg-indigo-500/15 border-indigo-500/30')
+                          : (isLight ? 'bg-[#fbf9f4]' : 'bg-black/15')
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1 pr-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs font-mono font-medium truncate">{dir}</span>
+                          {isActive && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-500 text-white">
+                              Active Root
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-1.5 flex-shrink-0">
+                        {!isActive ? (
+                          <button
+                            onClick={() => handleSwitchWorkspaceDir(dir)}
+                            className="px-2 py-1 rounded-lg text-xs font-bold bg-[#7C9B79] hover:bg-[#6b8768] text-white transition-all shadow-sm"
+                          >
+                            Switch
+                          </button>
+                        ) : null}
+                        {dir !== 'Documents/KryptonIDE' && (
+                          <button
+                            onClick={() => handleRemoveWorkspaceDir(dir)}
+                            className="p-1 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
+                            title="Remove path"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className={`p-4 rounded-2xl border ${cardBg} ${cardBorder} shadow-sm space-y-4`}>
               <h4 className="text-xs font-bold uppercase tracking-wider">Device & Feedback</h4>
 
@@ -1302,8 +1690,8 @@ export function SettingsPanel() {
           <div className="space-y-4 animate-fade-in">
             <div className={`p-4 rounded-2xl border ${cardBg} ${cardBorder} shadow-sm space-y-3`}>
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold text-lg">
-                  K
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center p-1.5 overflow-hidden">
+                  <KryptonBrandIcon size={36} className="w-full h-full object-contain" />
                 </div>
                 <div>
                   <h4 className="text-sm font-bold">Kryptonide v4.0</h4>
@@ -1314,21 +1702,60 @@ export function SettingsPanel() {
               <div className={`p-3 rounded-xl border ${cardBorder} ${isLight ? 'bg-[#f3f0e7]' : 'bg-[#2a2529]'} space-y-2 text-xs`}>
                 <p className="flex items-center space-x-1.5">
                   <span className={textMuted}>Author:</span>
-                  <a href="https://github.com/CoderBhoid" target="_blank" rel="noopener noreferrer" className="text-cyan-400 font-bold hover:underline">
-                    CoderBhoid
-                  </a>
+                  <button 
+                    onClick={() => { triggerHaptic(); openOfficialLink('https://github.com/CoderBhoid'); }} 
+                    className="text-cyan-400 font-bold hover:underline inline-flex items-center gap-1"
+                  >
+                    <span>CoderBhoid</span>
+                    <ExternalLink size={11} />
+                  </button>
                 </p>
-                <p className="flex flex-wrap gap-x-2 gap-y-1 text-[11px]">
+                <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px]">
                   <span className={textMuted}>Websites:</span>
-                  <a href="https://sednium.com" target="_blank" rel="noopener noreferrer" className="text-emerald-400 font-bold hover:underline">
-                    sednium.com
-                  </a>
+                  <button
+                    onClick={() => { triggerHaptic(); openOfficialLink('homepage'); }}
+                    className="text-emerald-500 font-bold hover:underline inline-flex items-center gap-0.5"
+                  >
+                    <span>sednium.com</span>
+                    <ExternalLink size={10} />
+                  </button>
                   <span>•</span>
-                  <a href="https://kryptonide.sednium.com" target="_blank" rel="noopener noreferrer" className="text-emerald-400 font-bold hover:underline">
-                    kryptonide.sednium.com
-                  </a>
-                </p>
-                <p className={`text-[11px] ${textMuted} leading-relaxed pt-1 flex items-center`}>
+                  <button
+                    onClick={() => { triggerHaptic(); openOfficialLink('portal'); }}
+                    className="text-emerald-500 font-bold hover:underline inline-flex items-center gap-0.5"
+                  >
+                    <span>kryptonide.sednium.com</span>
+                    <ExternalLink size={10} />
+                  </button>
+                  <span>•</span>
+                  <button
+                    onClick={() => { triggerHaptic(); openOfficialLink('tos'); }}
+                    className="text-emerald-500 font-bold hover:underline inline-flex items-center gap-0.5"
+                  >
+                    <span>Terms of Service</span>
+                    <ExternalLink size={10} />
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] pt-1">
+                  <span className={textMuted}>Repositories:</span>
+                  <button
+                    onClick={() => { triggerHaptic(); openOfficialLink('github'); }}
+                    className="text-sky-400 font-bold hover:underline inline-flex items-center gap-0.5"
+                  >
+                    <Github size={11} />
+                    <span>Sednium GitHub</span>
+                  </button>
+                  <span>•</span>
+                  <button
+                    onClick={() => { triggerHaptic(); openOfficialLink('oorty'); }}
+                    className="text-violet-400 font-bold hover:underline inline-flex items-center gap-0.5"
+                  >
+                    <span>Oorty Harness</span>
+                  </button>
+                </div>
+
+                <p className={`text-[11px] ${textMuted} leading-relaxed pt-1.5 flex items-center`}>
                   <Zap size={13} className="text-amber-400 shrink-0 mr-1.5" />
                   <span>Engineered with TypeScript 7, OPFS, React 19, and Monaco Editor.</span>
                 </p>

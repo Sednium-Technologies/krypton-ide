@@ -557,7 +557,7 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
         category: 'File',
         label: file.name,
         description: 'Open file',
-        icon: <File size={16} className="text-[#f3f0e7]/70" />,
+        icon: <File size={16} className={theme === 'light' ? "text-[#2a2529]/70" : "text-[#f3f0e7]/70"} />,
         action: () => {
           openFile(file.id);
           setCommandPaletteOpen(false);
@@ -592,7 +592,21 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
     }
   };
 
+  const isLight = theme === 'light';
+
   const getCategoryBadgeClass = (category?: string) => {
+    if (isLight) {
+      switch (category) {
+        case 'AI': return 'bg-violet-100 text-violet-800 border-violet-200';
+        case 'Editor': return 'bg-amber-100 text-amber-800 border-amber-200';
+        case 'Git': return 'bg-orange-100 text-orange-800 border-orange-200';
+        case 'Terminal': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        case 'Project': return 'bg-teal-100 text-teal-800 border-teal-200';
+        case 'View': return 'bg-sky-100 text-sky-800 border-sky-200';
+        case 'Symbol': return 'bg-purple-100 text-purple-800 border-purple-200';
+        default: return 'bg-[#2a2529]/10 text-[#2a2529]/80 border-[#2a2529]/15';
+      }
+    }
     switch (category) {
       case 'AI': return 'bg-violet-500/20 text-violet-300 border-violet-500/30';
       case 'Editor': return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
@@ -608,28 +622,42 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
   return (
     <div className="fixed inset-0 z-[160] flex items-start justify-center pt-[10vh] sm:pt-[8vh] px-3">
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity" 
+        className={`absolute inset-0 transition-opacity ${
+          isLight ? 'bg-black/30 backdrop-blur-sm' : 'bg-black/60 backdrop-blur-md'
+        }`} 
         onClick={() => setCommandPaletteOpen(false)} 
       />
       
-      <div className="relative w-full max-w-xl bg-[#2a2529]/95 backdrop-blur-2xl border border-[#f3f0e7]/15 rounded-[22px] shadow-[0_25px_60px_rgba(0,0,0,0.7)] overflow-hidden text-[#f3f0e7] animate-scale-in">
+      <div className={`relative w-full max-w-xl rounded-[22px] overflow-hidden animate-scale-in ${
+        isLight
+          ? 'bg-[#fbf9f4] backdrop-blur-2xl border border-[#2a2529]/15 shadow-[0_25px_60px_rgba(0,0,0,0.18)] text-[#2a2529]'
+          : 'bg-[#2a2529]/95 backdrop-blur-2xl border border-[#f3f0e7]/15 shadow-[0_25px_60px_rgba(0,0,0,0.7)] text-[#f3f0e7]'
+      }`}>
         
         {/* Mode Indicator & Input Bar */}
-        <div className="flex items-center border-b border-[#f3f0e7]/10 px-4 py-1">
+        <div className={`flex items-center px-4 py-1 border-b ${
+          isLight ? 'border-[#2a2529]/10' : 'border-[#f3f0e7]/10'
+        }`}>
           {mode === 'commands' ? (
-            <span className="px-2 py-0.5 text-xs font-mono font-bold rounded-lg bg-violet-500/20 text-violet-300 border border-violet-500/30 flex-shrink-0 mr-1.5">
+            <span className={`px-2 py-0.5 text-xs font-mono font-bold rounded-lg flex-shrink-0 mr-1.5 border ${
+              isLight ? 'bg-violet-100 text-violet-800 border-violet-200' : 'bg-violet-500/20 text-violet-300 border-violet-500/30'
+            }`}>
               &gt; Commands
             </span>
           ) : mode === 'line' ? (
-            <span className="px-2 py-0.5 text-xs font-mono font-bold rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 flex-shrink-0 mr-1.5">
+            <span className={`px-2 py-0.5 text-xs font-mono font-bold rounded-lg flex-shrink-0 mr-1.5 border ${
+              isLight ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+            }`}>
               : Go to Line
             </span>
           ) : mode === 'symbol' ? (
-            <span className="px-2 py-0.5 text-xs font-mono font-bold rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 flex-shrink-0 mr-1.5">
+            <span className={`px-2 py-0.5 text-xs font-mono font-bold rounded-lg flex-shrink-0 mr-1.5 border ${
+              isLight ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+            }`}>
               @ Symbol
             </span>
           ) : (
-            <Search size={16} className="text-[#f3f0e7]/60 flex-shrink-0 mr-1.5" />
+            <Search size={16} className={`flex-shrink-0 mr-1.5 ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'}`} />
           )}
 
           <input
@@ -644,13 +672,17 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
               mode === 'symbol' ? 'Search functions, classes...' :
               "Search files or type '>' for commands, ':' for line, '@' for symbols..."
             }
-            className="w-full bg-transparent py-3.5 px-2 text-[#f3f0e7] text-sm sm:text-base placeholder-[#f3f0e7]/40 focus:outline-none font-sans"
+            className={`w-full bg-transparent py-3.5 px-2 text-sm sm:text-base focus:outline-none font-sans ${
+              isLight ? 'text-[#2a2529] placeholder-[#2a2529]/40' : 'text-[#f3f0e7] placeholder-[#f3f0e7]/40'
+            }`}
           />
 
           {rawQuery && (
             <button
               onClick={() => setRawQuery('')}
-              className="text-[#f3f0e7]/40 hover:text-[#f3f0e7] text-xs px-2 py-1 rounded-md"
+              className={`text-xs px-2 py-1 rounded-md transition-colors ${
+                isLight ? 'text-[#2a2529]/50 hover:text-[#2a2529]' : 'text-[#f3f0e7]/40 hover:text-[#f3f0e7]'
+              }`}
             >
               Clear
             </button>
@@ -660,7 +692,9 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
         {/* Results List */}
         <div className="max-h-[52vh] overflow-y-auto py-1.5 scrollbar-hide" role="listbox">
           {filteredItems.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-[#f3f0e7]/60">
+            <div className={`px-4 py-8 text-center text-sm ${
+              isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'
+            }`}>
               No matching {mode === 'commands' ? 'commands' : mode === 'symbol' ? 'symbols' : 'results'} found
             </div>
           ) : (
@@ -673,14 +707,18 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
                   aria-selected={isSelected}
                   className={`flex items-center justify-between px-3.5 py-2.5 mx-2 my-0.5 rounded-xl cursor-pointer transition-all ${
                     isSelected
-                      ? 'bg-[#f3f0e7] text-[#2a2529] font-medium shadow-md'
-                      : 'text-[#f3f0e7]/85 hover:bg-[#f3f0e7]/10'
+                      ? (isLight ? 'bg-[#2a2529] text-[#fbf9f4] font-medium shadow-sm' : 'bg-[#f3f0e7] text-[#2a2529] font-medium shadow-md')
+                      : (isLight ? 'text-[#2a2529] hover:bg-[#2a2529]/5' : 'text-[#f3f0e7]/85 hover:bg-[#f3f0e7]/10')
                   }`}
                   onClick={() => item.action()}
                   onMouseEnter={() => setSelectedIndex(i)}
                 >
                   <div className="flex items-center space-x-3 min-w-0 flex-1">
-                    <span className={`flex-shrink-0 ${isSelected ? 'text-[#2a2529]' : ''}`}>
+                    <span className={`flex-shrink-0 ${
+                      isSelected 
+                        ? (isLight ? 'text-[#fbf9f4]' : 'text-[#2a2529]') 
+                        : (isLight ? 'text-[#2a2529]/80' : 'text-[#f3f0e7]/70')
+                    }`}>
                       {item.icon}
                     </span>
 
@@ -688,7 +726,9 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
                       <span className="truncate text-sm font-sans">{item.label}</span>
                       {item.description && (
                         <span className={`text-xs truncate hidden sm:inline ${
-                          isSelected ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/50'
+                          isSelected 
+                            ? (isLight ? 'text-[#fbf9f4]/80' : 'text-[#2a2529]/70') 
+                            : (isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/50')
                         }`}>
                           {item.description}
                         </span>
@@ -700,7 +740,7 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
                     {item.category && mode === 'commands' && (
                       <span className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-md border ${
                         isSelected 
-                          ? 'bg-[#2a2529]/15 text-[#2a2529] border-[#2a2529]/20' 
+                          ? (isLight ? 'bg-white/20 text-[#fbf9f4] border-white/30' : 'bg-[#2a2529]/15 text-[#2a2529] border-[#2a2529]/20') 
                           : getCategoryBadgeClass(item.category)
                       }`}>
                         {item.category}
@@ -709,7 +749,9 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
 
                     {item.shortcut && (
                       <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${
-                        isSelected ? 'bg-[#2a2529]/15 text-[#2a2529]' : 'bg-[#342f33] text-[#f3f0e7]/60 border border-[#f3f0e7]/10'
+                        isSelected 
+                          ? (isLight ? 'bg-white/20 text-[#fbf9f4]' : 'bg-[#2a2529]/15 text-[#2a2529]') 
+                          : (isLight ? 'bg-[#e8e4d9] text-[#2a2529] border border-[#2a2529]/15' : 'bg-[#342f33] text-[#f3f0e7]/60 border border-[#f3f0e7]/10')
                       }`}>
                         {item.shortcut}
                       </span>
@@ -722,15 +764,17 @@ export function CommandPalette({ onRunProject, onBackToProjects }: CommandPalett
         </div>
 
         {/* Footer Quick Hints */}
-        <div className="border-t border-[#f3f0e7]/10 px-4 py-2 bg-[#231e22]/70 flex items-center justify-between text-[11px] text-[#f3f0e7]/50">
+        <div className={`border-t px-4 py-2 flex items-center justify-between text-[11px] ${
+          isLight ? 'border-[#2a2529]/10 bg-[#f3f0e7] text-[#2a2529]/70' : 'border-[#f3f0e7]/10 bg-[#231e22]/70 text-[#f3f0e7]/50'
+        }`}>
           <div className="flex items-center space-x-3 overflow-x-auto scrollbar-hide">
-            <span><kbd className="px-1 py-0.5 rounded bg-[#342f33] text-[#f3f0e7]/80">&gt;</kbd> Commands</span>
-            <span><kbd className="px-1 py-0.5 rounded bg-[#342f33] text-[#f3f0e7]/80">:</kbd> Go to Line</span>
-            <span><kbd className="px-1 py-0.5 rounded bg-[#342f33] text-[#f3f0e7]/80">@</kbd> Go to Symbol</span>
+            <span><kbd className={`px-1 py-0.5 rounded ${isLight ? 'bg-[#e8e4d9] text-[#2a2529] border border-[#2a2529]/15' : 'bg-[#342f33] text-[#f3f0e7]/80'}`}>&gt;</kbd> Commands</span>
+            <span><kbd className={`px-1 py-0.5 rounded ${isLight ? 'bg-[#e8e4d9] text-[#2a2529] border border-[#2a2529]/15' : 'bg-[#342f33] text-[#f3f0e7]/80'}`}>:</kbd> Go to Line</span>
+            <span><kbd className={`px-1 py-0.5 rounded ${isLight ? 'bg-[#e8e4d9] text-[#2a2529] border border-[#2a2529]/15' : 'bg-[#342f33] text-[#f3f0e7]/80'}`}>@</kbd> Go to Symbol</span>
           </div>
           <div className="flex items-center space-x-2 flex-shrink-0">
-            <span><kbd className="px-1 py-0.5 rounded bg-[#342f33] text-[#f3f0e7]/80">↵</kbd> Select</span>
-            <span><kbd className="px-1 py-0.5 rounded bg-[#342f33] text-[#f3f0e7]/80">Esc</kbd> Close</span>
+            <span><kbd className={`px-1 py-0.5 rounded ${isLight ? 'bg-[#e8e4d9] text-[#2a2529] border border-[#2a2529]/15' : 'bg-[#342f33] text-[#f3f0e7]/80'}`}>↵</kbd> Select</span>
+            <span><kbd className={`px-1 py-0.5 rounded ${isLight ? 'bg-[#e8e4d9] text-[#2a2529] border border-[#2a2529]/15' : 'bg-[#342f33] text-[#f3f0e7]/80'}`}>Esc</kbd> Close</span>
           </div>
         </div>
 

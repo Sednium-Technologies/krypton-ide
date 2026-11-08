@@ -457,13 +457,13 @@ export function AgentSettingsPanel() {
               <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                 <div className={`p-2 rounded-xl border ${isLight ? 'bg-[#f7f5ee] border-[#2a2529]/10' : 'bg-black/20 border-[#f3f0e7]/10'}`}>
                   <span className="opacity-60 block">CPU Big-Cores:</span>
-                  <span className="font-bold text-amber-300">
+                  <span className={`font-bold ${isLight ? 'text-amber-800' : 'text-amber-300'}`}>
                     {hardwareInfo?.bigCores ? hardwareInfo.bigCores.join(', ') : 'Pinning Enabled'}
                   </span>
                 </div>
                 <div className={`p-2 rounded-xl border ${isLight ? 'bg-[#f7f5ee] border-[#2a2529]/10' : 'bg-black/20 border-[#f3f0e7]/10'}`}>
                   <span className="opacity-60 block">GPU Acceleration:</span>
-                  <span className="font-bold text-emerald-300">
+                  <span className={`font-bold ${isLight ? 'text-emerald-800' : 'text-emerald-300'}`}>
                     {hardwareInfo?.gpuVendor || 'Adreno / Mali Detected'}
                   </span>
                 </div>

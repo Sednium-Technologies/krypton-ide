@@ -9,25 +9,21 @@
       "client_info": {
         "mobilesdk_app_id": "1:868874217528:android:b2c8b4137688b6b39adecd",
         "android_client_info": {
-          "package_name": "com.sednium.kryptonide.legacy"
+          "package_name": "com.sednium.kryptonide"
         }
       },
       "oauth_client": [
         {
-          "client_id": "228869160750-fdpk4fr81gge00ioocrdgnq28apprrj2.apps.googleusercontent.com",
-          "client_type": 3
-        },
-        {
-          "client_id": "228869160750-nqir9tev4919koqbcsrnhfo5puorqtqa.apps.googleusercontent.com",
-          "client_type": 3
-        },
-        {
-          "client_id": "228869160750-android.apps.googleusercontent.com",
+          "client_id": "868874217528-bfeg5f8isid42ufq3i56bjahl2mhmjku.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.sednium.kryptonide.legacy",
-            "certificate_hash": "f9dec6ba158532d24c5f2c9ee21ebc552da05700"
+            "package_name": "com.sednium.kryptonide",
+            "certificate_hash": "72e556d5b7a3a1633f553f3d528b093b6cad4503"
           }
+        },
+        {
+          "client_id": "868874217528-ufcphc6a9eu8sfbm9urqlnm6ikv5h25v.apps.googleusercontent.com",
+          "client_type": 3
         }
       ],
       "api_key": [
@@ -37,7 +33,57 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "868874217528-ufcphc6a9eu8sfbm9urqlnm6ikv5h25v.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:868874217528:android:31e19f62c4de2bd09adecd",
+        "android_client_info": {
+          "package_name": "com.sednium.kryptonide.legacy"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "868874217528-l4dus4qdporupnnb7s7otr33e02u29d0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sednium.kryptonide.legacy",
+            "certificate_hash": "cb55059adaa9346cd562243ad5675e4909657168"
+          }
+        },
+        {
+          "client_id": "868874217528-pcl20lu3p3dlh22frnlp7jgnott54fuc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sednium.kryptonide.legacy",
+            "certificate_hash": "f9dec6ba158532d24c5f2c9ee21ebc552da05700"
+          }
+        },
+        {
+          "client_id": "868874217528-ufcphc6a9eu8sfbm9urqlnm6ikv5h25v.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDiMTbZPv-CtDqJYwNijMJZya9Y3m7ubwU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "868874217528-ufcphc6a9eu8sfbm9urqlnm6ikv5h25v.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

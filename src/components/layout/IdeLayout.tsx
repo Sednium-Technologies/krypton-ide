@@ -65,6 +65,8 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
   const [terminalHeight, setTerminalHeight] = useState(200);
   const isTerminalOpen = useIdeStore((state) => state.isTerminalOpen);
   const setIsTerminalOpen = useIdeStore((state) => state.setIsTerminalOpen);
+  const isTerminalFullScreen = useIdeStore((state) => state.isTerminalFullScreen);
+  const setIsTerminalFullScreen = useIdeStore((state) => state.setIsTerminalFullScreen);
   const [showFileMenu, setShowFileMenu] = useState(false);
   const [showProjectTreeSheet, setShowProjectTreeSheet] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -702,13 +704,15 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
         )}
 
         {/* Editor Area */}
-        <div className="flex flex-col min-w-0 flex-1 h-full">
-          <div className="flex-1 relative min-h-0">
-            <CodeEditor />
-          </div>
+        <div className={`flex flex-col min-w-0 flex-1 h-full ${isTerminalFullScreen ? 'hidden' : ''}`}>
+          {!isTerminalFullScreen && (
+            <div className="flex-1 relative min-h-0">
+              <CodeEditor />
+            </div>
+          )}
 
           {/* Terminal (Mobile Portrait Bottom Panel) */}
-          {isTerminalOpen && !isSideNav && (
+          {isTerminalOpen && !isSideNav && !isTerminalFullScreen && (
             <div 
               className="flex flex-col z-20 border-t border-[#f3f0e7]/10 flex-shrink-0 bg-[#2a2529] overflow-hidden"
               style={{ height: `${terminalHeight}px` }}
@@ -722,6 +726,36 @@ export function IdeLayout({ onBackToProjects }: IdeLayoutProps) {
             </div>
           )}
         </div>
+
+        {/* Dedicated True Full-Screen Terminal Viewport */}
+        {isTerminalOpen && isTerminalFullScreen && (
+          <div 
+            className="fixed inset-0 z-50 flex flex-col bg-[#2a2529] overflow-hidden w-full h-full"
+            style={{ width: '100vw', height: '100vh' }}
+          >
+            <BottomPanel 
+              onClose={() => {
+                setIsTerminalFullScreen(false);
+                setIsTerminalOpen(false);
+              }} 
+              height={typeof window !== 'undefined' ? window.innerHeight : 600} 
+              setHeight={setTerminalHeight} 
+              isDockedSide={false} 
+            />
+            {/* Persistent floating swap/back action button returning to Monaco code editor */}
+            <button
+              onClick={() => {
+                hapticLight();
+                setIsTerminalFullScreen(false);
+              }}
+              className="fixed bottom-6 right-6 z-[10000] flex items-center space-x-2 px-4 py-2.5 rounded-full bg-[#f3f0e7] text-[#2a2529] font-bold text-xs shadow-2xl hover:bg-white active:scale-95 transition-all border border-[#2a2529]/15 cursor-pointer"
+              title="Return to Monaco Code Editor"
+            >
+              <Code2 size={16} />
+              <span>Back to Editor</span>
+            </button>
+          </div>
+        )}
 
         {/* Right Docked Terminal (Landscape / Desktop Split-Pane) */}
         {isTerminalOpen && isSideNav && (

@@ -21,11 +21,64 @@ import { useIdeStore } from '../../store/useIdeStore';
 import { TerminalAccessoryBar } from './TerminalAccessoryBar';
 import { TermuxBootstrapModal } from './TermuxBootstrapModal';
 
+const IVORY_TERMINAL_THEME = {
+  background: '#f3f0e7',
+  foreground: '#2a2529',
+  cursor: '#2a2529',
+  cursorAccent: '#f3f0e7',
+  selectionForeground: '#2a2529',
+  selectionBackground: 'rgba(42, 37, 41, 0.25)',
+  black: '#2a2529',
+  red: '#d32f2f',
+  green: '#2e7d32',
+  yellow: '#b45309',
+  blue: '#1976d2',
+  magenta: '#7b1fa2',
+  cyan: '#0288d1',
+  white: '#e8e4d9',
+  brightBlack: '#686066',
+  brightRed: '#ef5350',
+  brightGreen: '#4caf50',
+  brightYellow: '#f59e0b',
+  brightBlue: '#42a5f5',
+  brightMagenta: '#ab47bc',
+  brightCyan: '#26c6da',
+  brightWhite: '#ffffff',
+};
+
+const DARK_TERMINAL_THEME = {
+  background: '#2a2529',
+  foreground: '#f3f0e7',
+  cursor: '#f3f0e7',
+  cursorAccent: '#2a2529',
+  selectionForeground: '#ffffff',
+  selectionBackground: 'rgba(243, 240, 231, 0.3)',
+  black: '#2a2529',
+  red: '#f87171',
+  green: '#4ade80',
+  yellow: '#f3f0e7',
+  blue: '#88c0d0',
+  magenta: '#9b8ec4',
+  cyan: '#88c0d0',
+  white: '#f3f0e7',
+  brightBlack: '#4e474d',
+  brightRed: '#ffa198',
+  brightGreen: '#b4d29a',
+  brightYellow: '#d4b57b',
+  brightBlue: '#9dcde4',
+  brightMagenta: '#b3a5db',
+  brightCyan: '#9dcde4',
+  brightWhite: '#ffffff',
+};
+
 export function TerminalPanel() {
   const terminalRef = useRef<HTMLDivElement>(null);
   const termInstance = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+
+  const theme = useIdeStore((s) => s.theme);
+  const isLight = theme === 'light';
 
   // Zustand Store
   const activeTab = useNativeTerminalStore((s) => s.activeTab);
@@ -68,6 +121,13 @@ export function TerminalPanel() {
     checkBootstrapStatus();
   }, [checkBootstrapStatus]);
 
+  // Dynamically update terminal ANSI theme on theme change
+  useEffect(() => {
+    if (termInstance.current) {
+      termInstance.current.options.theme = isLight ? IVORY_TERMINAL_THEME : DARK_TERMINAL_THEME;
+    }
+  }, [isLight]);
+
   // Safe fit helper
   const safeFitAndResize = useCallback(() => {
     const container = terminalRef.current;
@@ -93,30 +153,7 @@ export function TerminalPanel() {
     const container = terminalRef.current;
 
     const term = new Terminal({
-      theme: {
-        background: '#2a2529',
-        foreground: '#f3f0e7',
-        cursor: '#f3f0e7',
-        cursorAccent: '#2a2529',
-        selectionForeground: '#ffffff',
-        selectionBackground: 'rgba(243, 240, 231, 0.3)',
-        black: '#2a2529',
-        red: '#f87171',
-        green: '#4ade80',
-        yellow: '#f3f0e7',
-        blue: '#88c0d0',
-        magenta: '#9b8ec4',
-        cyan: '#88c0d0',
-        white: '#f3f0e7',
-        brightBlack: '#4e474d',
-        brightRed: '#ffa198',
-        brightGreen: '#b4d29a',
-        brightYellow: '#d4b57b',
-        brightBlue: '#9dcde4',
-        brightMagenta: '#b3a5db',
-        brightCyan: '#9dcde4',
-        brightWhite: '#ffffff',
-      },
+      theme: isLight ? IVORY_TERMINAL_THEME : DARK_TERMINAL_THEME,
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
       fontSize: 13,
       cursorBlink: true,
@@ -390,13 +427,11 @@ export function TerminalPanel() {
             <button
               type="button"
               onClick={() => setIsBootstrapModalOpen(true)}
-              className="flex items-center space-x-1 px-2 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-xs font-semibold rounded-md border border-emerald-500/30 transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:outline-none"
+              className="p-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/15 rounded-md transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:outline-none"
               title="Install Full Termux Subsystem"
               aria-label="Install Termux subsystem"
             >
-              <Sparkles size={12} className="text-emerald-400" />
-              <span className="hidden sm:inline">Install Termux</span>
-              <span className="sm:hidden">Install</span>
+              <Download size={14} />
             </button>
           ) : (
             <button

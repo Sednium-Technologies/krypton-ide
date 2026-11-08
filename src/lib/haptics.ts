@@ -10,11 +10,25 @@ function isHapticsAllowed(): boolean {
   }
 }
 
+async function invokeNativeHaptic(type: 'click' | 'tick' | 'heavy' | 'double_click'): Promise<boolean> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const core = (Capacitor as any).Plugins?.KryptonCore;
+      if (core && typeof core.triggerHaptic === 'function') {
+        await core.triggerHaptic({ type });
+        return true;
+      }
+    } catch {}
+  }
+  return false;
+}
+
 /**
  * Light impact haptic feedback (soft tick)
  */
 export async function hapticLight(): Promise<void> {
   if (!isHapticsAllowed()) return;
+  if (await invokeNativeHaptic('tick')) return;
   if (Capacitor.isNativePlatform()) {
     try {
       await Haptics.impact({ style: ImpactStyle.Light });
@@ -31,6 +45,7 @@ export async function hapticLight(): Promise<void> {
  */
 export async function hapticMedium(): Promise<void> {
   if (!isHapticsAllowed()) return;
+  if (await invokeNativeHaptic('click')) return;
   if (Capacitor.isNativePlatform()) {
     try {
       await Haptics.impact({ style: ImpactStyle.Medium });
@@ -47,6 +62,7 @@ export async function hapticMedium(): Promise<void> {
  */
 export async function hapticSuccess(): Promise<void> {
   if (!isHapticsAllowed()) return;
+  if (await invokeNativeHaptic('double_click')) return;
   if (Capacitor.isNativePlatform()) {
     try {
       await Haptics.notification({ type: NotificationType.Success });
@@ -63,6 +79,7 @@ export async function hapticSuccess(): Promise<void> {
  */
 export async function hapticWarning(): Promise<void> {
   if (!isHapticsAllowed()) return;
+  if (await invokeNativeHaptic('heavy')) return;
   if (Capacitor.isNativePlatform()) {
     try {
       await Haptics.notification({ type: NotificationType.Warning });
@@ -79,6 +96,7 @@ export async function hapticWarning(): Promise<void> {
  */
 export async function hapticError(): Promise<void> {
   if (!isHapticsAllowed()) return;
+  if (await invokeNativeHaptic('heavy')) return;
   if (Capacitor.isNativePlatform()) {
     try {
       await Haptics.notification({ type: NotificationType.Error });
@@ -95,6 +113,7 @@ export async function hapticError(): Promise<void> {
  */
 export async function hapticSelection(): Promise<void> {
   if (!isHapticsAllowed()) return;
+  if (await invokeNativeHaptic('tick')) return;
   if (Capacitor.isNativePlatform()) {
     try {
       await Haptics.selectionChanged();
@@ -109,3 +128,16 @@ export async function hapticSelection(): Promise<void> {
     } catch {}
   }
 }
+
+export const haptics = {
+  light: hapticLight,
+  medium: hapticMedium,
+  success: hapticSuccess,
+  warning: hapticWarning,
+  error: hapticError,
+  selection: hapticSelection,
+  buttonClick: hapticLight,
+  tap: hapticLight,
+  impact: hapticMedium,
+};
+

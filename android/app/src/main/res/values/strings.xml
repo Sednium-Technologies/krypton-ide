@@ -4,6 +4,6 @@
     <string name="title_activity_main">Kryptonide</string>
     <string name="package_name">com.sednium.kryptonide.legacy</string>
     <string name="custom_url_scheme">com.sednium.kryptonide.legacy</string>
-    <string name="server_client_id">228869160750-fdpk4fr81gge00ioocrdgnq28apprrj2.apps.googleusercontent.com</string>
-    <string name="default_web_client_id">228869160750-fdpk4fr81gge00ioocrdgnq28apprrj2.apps.googleusercontent.com</string>
+    <string name="server_client_id">868874217528-ufcphc6a9eu8sfbm9urqlnm6ikv5h25v.apps.googleusercontent.com</string>
+    <string name="default_web_client_id">868874217528-ufcphc6a9eu8sfbm9urqlnm6ikv5h25v.apps.googleusercontent.com</string>
 </resources>

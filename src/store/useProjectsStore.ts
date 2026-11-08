@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { FileNode } from './useIdeStore';
+import { useIdeStore, type FileNode } from './useIdeStore';
 import {
   saveProjectMeta,
   writeProjectFiles,
@@ -120,6 +120,10 @@ export const useProjectsStore = create<ProjectsState>()(
     },
 
     deleteProject: (id) => {
+      const targetProject = get().projects[id];
+      const folderPath = targetProject?.folderPath;
+      const isCurrentProject = get().currentProjectId === id;
+
       set((state) => {
         const { [id]: _, ...rest } = state.projects;
         return {
@@ -128,8 +132,15 @@ export const useProjectsStore = create<ProjectsState>()(
         };
       });
 
-      // Delete from disk
-      deleteProjectFolder(id).catch(e => console.error('[Projects] Delete error:', e));
+      // If the deleted project was currently open in editor, clear workspace files
+      if (isCurrentProject) {
+        try {
+          useIdeStore.getState().loadProject({});
+        } catch {}
+      }
+
+      // Delete completely from disk, local storage, and filesystem
+      deleteProjectFolder(id, folderPath).catch(e => console.error('[Projects] Delete error:', e));
     },
 
     renameProject: (id, newName) => {

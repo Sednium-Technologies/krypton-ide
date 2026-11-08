@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SlidersHorizontal, ChevronRight, ChevronDown, ChevronUp, MoreHorizontal, Command } from 'lucide-react';
 import { useNavbarStore } from '../../store/useNavbarStore';
@@ -85,6 +85,8 @@ export function NavbarOverflowDrawer() {
   const isOverflowOpen = useNavbarStore((state) => state.isOverflowOpen);
   const setOverflowOpen = useNavbarStore((state) => state.setOverflowOpen);
   const setCustomizerOpen = useNavbarStore((state) => state.setCustomizerOpen);
+  const moreDockPosition = useNavbarStore((state) => state.moreDockPosition);
+  const setMoreDockPosition = useNavbarStore((state) => state.setMoreDockPosition);
   const tools = useNavbarStore((state) => state.tools);
   const pinnedIds = useNavbarStore((state) => state.pinnedIds);
   const pinnedCount = useNavbarStore((state) => state.pinnedCount);
@@ -95,18 +97,38 @@ export function NavbarOverflowDrawer() {
   const isSidebarOpen = useIdeStore((state) => state.isSidebarOpen);
   const isLight = theme === 'light';
 
+  const [isDockArranging, setIsDockArranging] = useState(false);
+  const moreLongPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressedRef = useRef(false);
+
+  const startMoreLongPress = () => {
+    isLongPressedRef.current = false;
+    if (moreLongPressTimer.current) clearTimeout(moreLongPressTimer.current);
+    moreLongPressTimer.current = setTimeout(() => {
+      isLongPressedRef.current = true;
+      hapticMedium();
+      setIsDockArranging(true);
+    }, 2200);
+  };
+
+  const cancelMoreLongPress = () => {
+    if (moreLongPressTimer.current) {
+      clearTimeout(moreLongPressTimer.current);
+      moreLongPressTimer.current = null;
+    }
+  };
+
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOverflowOpen) {
-        setOverflowOpen(false);
+      if (e.key === 'Escape') {
+        if (isDockArranging) setIsDockArranging(false);
+        else if (isOverflowOpen) setOverflowOpen(false);
       }
     };
-    if (isOverflowOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
+    window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOverflowOpen, setOverflowOpen]);
+  }, [isOverflowOpen, isDockArranging, setOverflowOpen]);
 
   // Compute pinned and overflow tools
   const pinnedSlice = pinnedIds.slice(0, pinnedCount);
@@ -181,17 +203,33 @@ export function NavbarOverflowDrawer() {
           {/* Perched More Tab */}
           <button
             onClick={() => {
+              if (isLongPressedRef.current) {
+                isLongPressedRef.current = false;
+                return;
+              }
               hapticLight();
               setOverflowOpen(!isOverflowOpen);
             }}
+            onTouchStart={startMoreLongPress}
+            onTouchEnd={cancelMoreLongPress}
+            onTouchCancel={cancelMoreLongPress}
+            onMouseDown={startMoreLongPress}
+            onMouseUp={cancelMoreLongPress}
+            onMouseLeave={cancelMoreLongPress}
             onContextMenu={(e) => {
               e.preventDefault();
               hapticMedium();
-              setCustomizerOpen(true);
+              setIsDockArranging(true);
             }}
             aria-label="Open more tools"
-            title="More tools (long press to customize)"
-            className={`absolute bottom-full mb-[-1px] right-3 z-40 w-[124px] h-[30px] flex items-center justify-between px-2.5 rounded-t-xl border-t border-x border-b-0 active:scale-95 transition-all cursor-pointer select-none group shadow-[0_-3px_10px_rgba(0,0,0,0.06)] ${
+            title="More tools (long press to arrange dock)"
+            className={`absolute bottom-full mb-[-1px] ${
+              moreDockPosition === 'left'
+                ? 'left-3'
+                : moreDockPosition === 'center'
+                ? 'left-1/2 -translate-x-1/2'
+                : 'right-3'
+            } z-40 w-[124px] h-[30px] flex items-center justify-between px-2.5 rounded-t-xl border-t border-x border-b-0 active:scale-95 transition-all cursor-pointer select-none group shadow-[0_-3px_10px_rgba(0,0,0,0.06)] ${
               isLight
                 ? 'bg-[#f4f0e6] border-[#2a2529]/12 text-[#2a2529] hover:bg-[#eae5d8]'
                 : 'bg-[#231e22] border-[#f3f0e7]/12 text-[#f3f0e7] hover:bg-[#2c262b]'
@@ -233,32 +271,100 @@ export function NavbarOverflowDrawer() {
         </nav>
       </div>
 
-      {/* 2. Slide-up More Drawer as an Overlay Sitting Perfectly Above the Persistent Navbar */}
+      {/* Dock Arrangement Mode HUD */}
+      <AnimatePresence>
+        {isDockArranging && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 15 }}
+            className={`fixed bottom-[64px] inset-x-4 z-50 p-3 rounded-2xl border shadow-2xl flex items-center justify-between backdrop-blur-xl ${
+              isLight
+                ? 'bg-white/95 border-[#2a2529]/20 text-[#2a2529]'
+                : 'bg-[#2a2529]/95 border-[#f3f0e7]/20 text-[#f3f0e7]'
+            }`}
+          >
+            <div className="flex flex-col">
+              <span className="text-xs font-bold uppercase tracking-wider">Dock Arrangement</span>
+              <span className="text-[10px] opacity-60">Snap More tab to slot:</span>
+            </div>
+            <div className="flex items-center space-x-1 bg-black/10 p-1 rounded-xl">
+              {(['left', 'center', 'right'] as const).map((pos) => (
+                <button
+                  key={pos}
+                  onClick={() => {
+                    hapticLight();
+                    setMoreDockPosition(pos);
+                  }}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold capitalize transition-all active:scale-95 ${
+                    moreDockPosition === pos
+                      ? (isLight ? 'bg-[#2a2529] text-white shadow' : 'bg-[#f3f0e7] text-[#2a2529] shadow')
+                      : 'opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  {pos}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                hapticLight();
+                setIsDockArranging(false);
+              }}
+              className={`px-3 py-1 text-xs font-bold rounded-lg border ${
+                isLight ? 'border-[#2a2529]/20 hover:bg-[#2a2529]/10' : 'border-[#f3f0e7]/20 hover:bg-[#f3f0e7]/10'
+              }`}
+            >
+              Done
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 2. Slide-up More Drawer: Compact Floating Menu Anchored Above Dock (Zero Lateral X Drift, No Half-Screen Takeover) */}
       <AnimatePresence>
         {isOverflowOpen && (
-          <motion.aside
-            key="more-drawer-modal"
-            role="dialog"
-            aria-label="More navigation tools"
-            aria-modal="true"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 30 }}
-            transition={{
-              type: 'spring',
-              stiffness: 450,
-              damping: 34,
-            }}
-            className={`fixed inset-x-0 z-50 flex flex-col select-none rounded-t-2xl border-t shadow-[0_-16px_40px_rgba(0,0,0,0.6)] ${
-              isLight
-                ? 'bg-[#f4f0e6] border-[#2a2529]/12 text-[#2a2529]'
-                : 'bg-[#231e22] border-[#f3f0e7]/12 text-[#f3f0e7]'
-            }`}
-            style={{
-              bottom: '56px',
-              maxHeight: 'calc(80vh - 56px)',
-            }}
-          >
+          <>
+            {/* Scrim backdrop for click-outside dismissal */}
+            <motion.div
+              key="more-drawer-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setOverflowOpen(false)}
+              className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
+            />
+
+            <motion.aside
+              key="more-drawer-modal"
+              role="dialog"
+              aria-label="More navigation tools"
+              aria-modal="true"
+              initial={{ opacity: 0, scaleY: 0.85, y: 12 }}
+              animate={{ opacity: 1, scaleY: 1, y: 0 }}
+              exit={{ opacity: 0, scaleY: 0.85, y: 12 }}
+              transition={{
+                type: 'spring',
+                stiffness: 420,
+                damping: 32,
+                mass: 0.7,
+              }}
+              style={{
+                bottom: '62px',
+                transformOrigin: 'bottom center',
+              }}
+              className={`fixed z-50 w-[280px] flex flex-col select-none rounded-2xl border shadow-[0_12px_40px_rgba(0,0,0,0.35)] overflow-hidden ${
+                moreDockPosition === 'left'
+                  ? 'left-3'
+                  : moreDockPosition === 'center'
+                  ? 'left-1/2 -translate-x-1/2'
+                  : 'right-3'
+              } ${
+                isLight
+                  ? 'bg-[#f4f0e6] border-[#2a2529]/15 text-[#2a2529]'
+                  : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7]'
+              }`}
+            >
               {/* 1. Header Bar */}
               <div
                 className={`flex items-center justify-between px-4 py-3 border-b flex-shrink-0 ${
@@ -422,8 +528,9 @@ export function NavbarOverflowDrawer() {
                 )}
               </div>
             </motion.aside>
-          )}
-        </AnimatePresence>
+          </>
+        )}
+      </AnimatePresence>
     </>
   );
 }

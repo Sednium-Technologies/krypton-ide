@@ -30,6 +30,7 @@ export interface NavToolDefinition {
 interface NavbarPersistedConfig {
   pinnedIds: string[];
   pinnedCount: number;
+  moreDockPosition?: 'left' | 'center' | 'right';
 }
 
 const STORAGE_KEY = 'krypton-navbar-config';
@@ -142,16 +143,20 @@ function loadStoredConfig(): NavbarPersistedConfig {
           return true;
         });
         const validCount = Math.min(6, Math.max(2, parsed.pinnedCount));
+        const validDock = (parsed.moreDockPosition === 'left' || parsed.moreDockPosition === 'center' || parsed.moreDockPosition === 'right')
+          ? parsed.moreDockPosition
+          : 'right';
         return {
           pinnedIds: validPinnedIds,
           pinnedCount: validCount,
+          moreDockPosition: validDock,
         };
       }
     }
   } catch (err) {
     console.warn('Failed to parse navbar config from localStorage:', err);
   }
-  return { pinnedIds: [...DEFAULT_PINNED_IDS], pinnedCount: DEFAULT_PINNED_COUNT };
+  return { pinnedIds: [...DEFAULT_PINNED_IDS], pinnedCount: DEFAULT_PINNED_COUNT, moreDockPosition: 'right' };
 }
 
 function saveConfig(config: NavbarPersistedConfig) {
@@ -167,10 +172,12 @@ export interface NavbarState {
   tools: Record<string, NavToolDefinition>;
   pinnedIds: string[];
   pinnedCount: number;
+  moreDockPosition: 'left' | 'center' | 'right';
   isOverflowOpen: boolean;
   isCustomizerOpen: boolean;
 
   // Actions
+  setMoreDockPosition: (pos: 'left' | 'center' | 'right') => void;
   setPinnedCount: (count: number) => void;
   swapPositions: (indexA: number, indexB: number) => void;
   reorderPinned: (newOrder: string[]) => void;
@@ -191,8 +198,16 @@ export const useNavbarStore = create<NavbarState>((set, get) => ({
   tools: { ...BUILTIN_TOOLS },
   pinnedIds: initialConfig.pinnedIds,
   pinnedCount: initialConfig.pinnedCount,
+  moreDockPosition: initialConfig.moreDockPosition || 'right',
   isOverflowOpen: false,
   isCustomizerOpen: false,
+
+  setMoreDockPosition: (pos: 'left' | 'center' | 'right') => {
+    set((state) => {
+      saveConfig({ pinnedIds: state.pinnedIds, pinnedCount: state.pinnedCount, moreDockPosition: pos });
+      return { moreDockPosition: pos };
+    });
+  },
 
   setPinnedCount: (count: number) => {
     const clamped = Math.min(6, Math.max(2, Math.round(count)));

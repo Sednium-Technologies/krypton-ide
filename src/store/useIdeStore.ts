@@ -40,6 +40,7 @@ interface IdeState {
   cursorPosition: CursorPosition;
   isPreviewOpen: boolean;
   isTerminalOpen: boolean;
+  isTerminalFullScreen: boolean;
   isCommandPaletteOpen: boolean;
   aiMessages: { role: 'user' | 'assistant' | 'system'; content: string }[];
   isAiLoading: boolean;
@@ -70,6 +71,7 @@ interface IdeState {
   setCursorPosition: (pos: CursorPosition) => void;
   setPreviewOpen: (open: boolean) => void;
   setIsTerminalOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  setIsTerminalFullScreen: (fullscreen: boolean | ((prev: boolean) => boolean)) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setHaptics: (val: boolean) => void;
   setRunTarget: (target: 'java' | 'wasm' | 'js') => void;
@@ -155,11 +157,12 @@ export const useIdeStore = create<IdeState>()(
     sidebarView: 'explorer',
     activeExtensionView: null,
     isSidebarOpen: false,
-    theme: 'vs-dark',
+    theme: 'light',
     activeFont: '',
     cursorPosition: { line: 1, col: 1 },
     isPreviewOpen: false,
     isTerminalOpen: false,
+    isTerminalFullScreen: false,
     isCommandPaletteOpen: false,
     aiMessages: [],
     isAiLoading: false,
@@ -353,6 +356,9 @@ export const useIdeStore = create<IdeState>()(
     setPreviewOpen: (open) => set({ isPreviewOpen: open }),
     setIsTerminalOpen: (open) => set((state) => ({
       isTerminalOpen: typeof open === 'function' ? open(state.isTerminalOpen) : open,
+    })),
+    setIsTerminalFullScreen: (fullscreen) => set((state) => ({
+      isTerminalFullScreen: typeof fullscreen === 'function' ? fullscreen(state.isTerminalFullScreen) : fullscreen,
     })),
     setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
 

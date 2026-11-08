@@ -29,12 +29,7 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
     return `krypton_dynamic_models_v3_${provider}${urlKey}${keyFingerprint}`;
   }, [provider, apiKey, customBaseUrl]);
 
-  const loadFallbackModels = useCallback(() => {
-    const p = getProviderById(provider);
-    return (p?.models || []).map((id) => ({ id, name: id }));
-  }, [provider]);
-
-  // Read cache or fallback synchronously on key/provider change
+  // Read live cached models on key/provider change
   useEffect(() => {
     const cacheKey = getCacheKey();
     try {
@@ -50,11 +45,9 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
       }
     } catch {}
 
-    // Fallback if no cache exists
-    const fallback = loadFallbackModels();
-    setModels(fallback);
+    setModels([]);
     setIsLive(false);
-  }, [getCacheKey, loadFallbackModels]);
+  }, [getCacheKey]);
 
   const fetchModelsFromApi = useCallback(async (isManual: boolean = false) => {
     const p = getProviderById(provider);
@@ -63,10 +56,9 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
 
     // Check if key is needed
     if (requiresKey && !cleanKey && provider !== 'openrouter' && provider !== 'ollama' && provider !== 'custom') {
-      const fallback = loadFallbackModels();
-      setModels(fallback);
+      setModels([]);
       setIsLive(false);
-      setError('API key required to fetch live models');
+      setError('API key required to fetch live endpoint models');
       return;
     }
 
@@ -198,8 +190,8 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
         return a.id.localeCompare(b.id);
       });
 
-      // Use strictly live models if successfully returned from the endpoint; only fall back if empty
-      const finalModels = formattedModels.length > 0 ? formattedModels : loadFallbackModels();
+      // Use strictly live models returned from the endpoint
+      const finalModels = formattedModels;
       const now = Date.now();
 
       setModels(finalModels);
@@ -207,13 +199,15 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
       setLastUpdated(now);
 
       // Save to localStorage cache with key fingerprint
-      try {
-        const cacheEntry: CachedModelsData = {
-          models: finalModels,
-          timestamp: now,
-        };
-        localStorage.setItem(getCacheKey(), JSON.stringify(cacheEntry));
-      } catch {}
+      if (finalModels.length > 0) {
+        try {
+          const cacheEntry: CachedModelsData = {
+            models: finalModels,
+            timestamp: now,
+          };
+          localStorage.setItem(getCacheKey(), JSON.stringify(cacheEntry));
+        } catch {}
+      }
 
     } catch (err: any) {
       console.warn(`[useDynamicModels] Failed to fetch live models for ${provider}:`, err.message);
@@ -234,7 +228,7 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
       } catch {}
 
       if (!hasCached) {
-        setModels(loadFallbackModels());
+        setModels([]);
         setIsLive(false);
       }
 
@@ -245,7 +239,7 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
       setIsLoading(false);
       clearTimeout(timeoutId);
     }
-  }, [provider, apiKey, customBaseUrl, getCacheKey, loadFallbackModels]);
+  }, [provider, apiKey, customBaseUrl, getCacheKey]);
 
   // Instant trigger when apiKey, provider, or customBaseUrl changes
   useEffect(() => {
@@ -253,10 +247,9 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
     const requiresKey = p?.requiresKey ?? true;
     const cleanKey = (apiKey || '').trim();
 
-    // If key required and not present, load fallback and don't query
+    // If key required and not present, don't query
     if (requiresKey && !cleanKey && provider !== 'openrouter' && provider !== 'ollama' && provider !== 'custom') {
-      const fallback = loadFallbackModels();
-      setModels(fallback);
+      setModels([]);
       setIsLive(false);
       return;
     }
@@ -267,7 +260,7 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [provider, apiKey, customBaseUrl, fetchModelsFromApi, loadFallbackModels]);
+  }, [provider, apiKey, customBaseUrl, fetchModelsFromApi]);
 
   // Periodic Auto-Update Over Time (checks every 30 minutes in background)
   useEffect(() => {

@@ -64,7 +64,10 @@ export function BottomPanel({ onClose, height, setHeight, isDockedSide = false }
   const dragTranslateYRef = useRef(0);
   const lastTapRef = useRef(0);
 
-  const [isFloating, setIsFloating] = useState(false);
+  const isTerminalFullScreen = useIdeStore((s) => s.isTerminalFullScreen);
+  const setIsTerminalFullScreen = useIdeStore((s) => s.setIsTerminalFullScreen);
+
+  const [isFloating, setIsFloating] = useState(true);
   const [floatPos, setFloatPos] = useState({ x: 30, y: 70 });
   const [floatSize, setFloatSize] = useState({
     width: Math.min(680, typeof window !== 'undefined' ? window.innerWidth - 60 : 580),
@@ -199,10 +202,23 @@ export function BottomPanel({ onClose, height, setHeight, isDockedSide = false }
   return (
     <div 
       ref={panelRef}
-      className={`flex h-full flex-col bg-[#2a2529] text-[#f3f0e7] ${
-        isFloating ? 'rounded-2xl border border-[#f3f0e7]/20 shadow-2xl' : 'will-change-transform'
+      className={`flex flex-col bg-[#2a2529] text-[#f3f0e7] ${
+        isTerminalFullScreen
+          ? 'fixed inset-0 w-screen h-screen z-[9999] rounded-none border-0 shadow-none'
+          : isFloating
+            ? 'rounded-[28px] border border-[#f3f0e7]/20 shadow-2xl overflow-hidden'
+            : 'h-full will-change-transform'
       }`}
-      style={isFloating ? {
+      style={isTerminalFullScreen ? {
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 9999,
+      } : isFloating ? {
         position: 'fixed',
         left: `${floatPos.x}px`,
         top: `${floatPos.y}px`,
@@ -215,8 +231,8 @@ export function BottomPanel({ onClose, height, setHeight, isDockedSide = false }
         transition: (isDragging && !isDockedSide) ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
       }}
     >
-      {/* Visual Drag Handle & Swipe Bar — Hidden when side-docked or floating */}
-      {!isDockedSide && !isFloating && (
+      {/* Visual Drag Handle & Swipe Bar — Hidden when side-docked or floating or fullscreen */}
+      {!isDockedSide && !isFloating && !isTerminalFullScreen && (
         <div 
           onMouseDown={handleDragStart}
           onTouchStart={handleTouchStart}
@@ -313,6 +329,31 @@ export function BottomPanel({ onClose, height, setHeight, isDockedSide = false }
           )}
 
           <div className="flex items-center space-x-1 text-[#f3f0e7]/75 flex-shrink-0">
+            {isTerminalFullScreen && (
+              <button
+                type="button"
+                onClick={() => {
+                  hapticSelection();
+                  setIsTerminalFullScreen(false);
+                }}
+                className="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#f3f0e7] text-[#2a2529] hover:bg-white text-[11px] font-bold shadow-md transition-all active:scale-95 border border-[#2a2529]/10 mr-1 cursor-pointer"
+                title="Return to Monaco Code Editor"
+              >
+                <span>Back to Editor</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                hapticSelection();
+                setIsTerminalFullScreen(!isTerminalFullScreen);
+              }}
+              className="p-1 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 rounded focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+              title={isTerminalFullScreen ? "Exit Full Screen" : "Full Screen Mode"}
+              aria-label={isTerminalFullScreen ? "Exit Full Screen" : "Full Screen Mode"}
+            >
+              <Maximize2 size={14} />
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -323,7 +364,7 @@ export function BottomPanel({ onClose, height, setHeight, isDockedSide = false }
               title={isFloating ? "Dock terminal to bottom" : "Float terminal freely on screen"}
               aria-label={isFloating ? "Dock terminal" : "Float terminal"}
             >
-              {isFloating ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              {isFloating ? <Minimize2 size={14} /> : <Move size={14} />}
             </button>
             {!isDockedSide && !isFloating && (
               <button 

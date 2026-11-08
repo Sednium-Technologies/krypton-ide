@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+pub mod language_analyzer;
+pub use language_analyzer::{FileVolumeEntry, LanguageAnalysisResult, LanguageAnalyzer, LanguageStat};
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct IndexedFile {
     pub path: String,

@@ -22,6 +22,18 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ExtensionHostPlugin.class);
         super.onCreate(savedInstanceState);
 
+        // Ivory Mode Default Window Chrome & Status Bar (prevents cold/warm boot FOUC)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            int flags = getWindow().getDecorView().getSystemUiVisibility();
+            flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#f3f0e7"));
+            }
+            getWindow().getDecorView().setSystemUiVisibility(flags);
+            getWindow().setStatusBarColor(android.graphics.Color.parseColor("#f3f0e7"));
+        }
+
         WebView webView = getBridge() != null ? getBridge().getWebView() : null;
         if (webView != null) {
             webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);

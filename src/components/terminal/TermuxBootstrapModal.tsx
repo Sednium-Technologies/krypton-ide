@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -15,7 +15,9 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { useIdeStore } from '../../store/useIdeStore';
 import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
+import { getSyncPackageCatalog, getPackageCatalog, type PackageEntry } from '../../lib/kryptonCoreBridge';
 
 export interface TermuxBootstrapModalProps {
   isOpen: boolean;
@@ -30,6 +32,7 @@ interface ToolStatus {
 }
 
 export function TermuxBootstrapModal({ isOpen, onClose }: TermuxBootstrapModalProps) {
+  const isLight = useIdeStore((s) => s.theme === 'light');
   const {
     bootstrapStatus,
     bootstrapProgress,
@@ -37,10 +40,12 @@ export function TermuxBootstrapModal({ isOpen, onClose }: TermuxBootstrapModalPr
     checkBootstrapStatus,
     installBootstrap,
   } = useNativeTerminalStore();
+  const [catalog, setCatalog] = useState<PackageEntry[]>(() => getSyncPackageCatalog());
 
   useEffect(() => {
     if (isOpen) {
       checkBootstrapStatus();
+      getPackageCatalog().then(setCatalog).catch(() => {});
     }
   }, [isOpen, checkBootstrapStatus]);
 
@@ -60,38 +65,20 @@ export function TermuxBootstrapModal({ isOpen, onClose }: TermuxBootstrapModalPr
 
   const isInstalled = bootstrapStatus?.installed ?? false;
 
-  const tools: ToolStatus[] = [
-    {
-      name: 'Python 3',
-      command: 'python3',
-      description: 'CPython runtime & pip package manager',
-      isInstalled: bootstrapStatus?.hasPython ?? false,
-    },
-    {
-      name: 'Rust & Cargo',
-      command: 'rustc, cargo',
-      description: 'Rust compiler, cargo build & crates',
-      isInstalled: bootstrapStatus?.hasRust ?? false,
-    },
-    {
-      name: 'C/C++ Clang',
-      command: 'clang',
-      description: 'LLVM Clang compiler toolchain & make',
-      isInstalled: bootstrapStatus?.hasClang ?? false,
-    },
-    {
-      name: 'Node.js & npm',
-      command: 'node',
-      description: 'V8 JavaScript runtime & package manager',
-      isInstalled: bootstrapStatus?.hasNode ?? false,
-    },
-    {
-      name: 'Git',
-      command: 'git',
-      description: 'Distributed version control system',
-      isInstalled: isInstalled,
-    },
-  ];
+  const tools: ToolStatus[] = catalog.map((pkg: PackageEntry) => {
+    let installed = false;
+    if (pkg.id === 'python3') installed = bootstrapStatus?.hasPython ?? false;
+    else if (pkg.id === 'rust') installed = bootstrapStatus?.hasRust ?? false;
+    else if (pkg.id === 'clang') installed = bootstrapStatus?.hasClang ?? false;
+    else if (pkg.id === 'nodejs') installed = bootstrapStatus?.hasNode ?? false;
+    else if (pkg.id === 'git') installed = isInstalled;
+    return {
+      name: pkg.name,
+      command: pkg.binary_name,
+      description: pkg.description,
+      isInstalled: installed || pkg.installed,
+    };
+  });
 
   if (typeof document === 'undefined') return null;
 
@@ -133,12 +120,14 @@ export function TermuxBootstrapModal({ isOpen, onClose }: TermuxBootstrapModalPr
                         <CheckCircle2 size={11} className="mr-0.5" /> Ready
                       </span>
                     ) : (
-                      <span className="inline-flex items-center space-x-1 text-[11px] font-medium text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                        Installation Available
+                      <span className={`inline-flex items-center space-x-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${
+                        isLight ? 'text-[#2a2529]/70 bg-[#2a2529]/5 border-[#2a2529]/15' : 'text-[#f3f0e7]/70 bg-[#f3f0e7]/5 border-[#f3f0e7]/15'
+                      }`}>
+                        Not Installed
                       </span>
                     )}
                     {bootstrapStatus?.arch && (
-                      <span className="text-[11px] text-[#f3f0e7]/40 font-mono">
+                      <span className={`text-[11px] font-mono ${isLight ? 'text-[#2a2529]/50' : 'text-[#f3f0e7]/40'}`}>
                         {bootstrapStatus.arch}
                       </span>
                     )}
@@ -332,11 +321,7 @@ export function TermuxBootstrapModal({ isOpen, onClose }: TermuxBootstrapModalPr
                           >
                             + Install
                           </button>
-                        ) : (
-                          <span className="inline-flex items-center text-[10px] font-medium text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                            Available
-                          </span>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   ))}

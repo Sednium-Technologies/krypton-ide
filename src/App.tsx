@@ -68,14 +68,14 @@ export default function App() {
       if (!config) {
         console.warn('[App] Config missing or corrupt — writing fresh defaults');
         const freshConfig: KryptonConfig = {
-          welcomed: false, haptics: true, theme: 'krypton-warm',
+          welcomed: true, haptics: true, theme: 'light',
           activeFont: '', installedFonts: [],
           ai: { provider: '', model: '', activeSessionId: null, savedModels: [], activeModelId: undefined },
         };
         await saveConfigNow(freshConfig);
         config = freshConfig;
       }
-      useIdeStore.getState().setTheme(config.theme || 'krypton-warm');
+      useIdeStore.getState().setTheme(config.theme || 'light');
       useIdeStore.getState().setHaptics(config.haptics !== false);
       useIdeStore.getState().setActiveFont(config.activeFont || '');
 
@@ -147,14 +147,14 @@ export default function App() {
     if (!config) {
       console.warn('[App] Config missing after init — writing fresh defaults');
       const freshConfig: KryptonConfig = {
-        welcomed: false, haptics: true, theme: 'krypton-warm',
+        welcomed: true, haptics: true, theme: 'light',
         activeFont: '', installedFonts: [],
         ai: { provider: '', model: '', activeSessionId: null, savedModels: [], activeModelId: undefined },
       };
       await saveConfigNow(freshConfig);
       config = freshConfig;
     }
-    useIdeStore.getState().setTheme(config.theme || 'krypton-warm');
+    useIdeStore.getState().setTheme(config.theme || 'light');
     useIdeStore.getState().setHaptics(config.haptics !== false);
     useIdeStore.getState().setActiveFont(config.activeFont || '');
 
@@ -426,7 +426,7 @@ export default function App() {
   // ── Loading state ──
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-[#2a2529] flex items-center justify-center">
+      <div className={`fixed inset-0 flex items-center justify-center ${theme === 'light' ? 'bg-[#f3f0e7] text-[#2a2529]' : 'bg-[#2a2529] text-[#f3f0e7]'}`}>
         <KryptonLoader text="Loading Workspace..." size="lg" />
       </div>
     );

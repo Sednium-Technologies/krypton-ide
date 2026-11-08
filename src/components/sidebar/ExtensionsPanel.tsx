@@ -34,6 +34,17 @@ import {
 import { ExtensionDetailModal } from '../extensions/ExtensionDetailModal';
 import { useToastStore } from '../../store/useToastStore';
 import { getInstalledExtensions } from '../../lib/extensions/extensionRegistry';
+import { useIdeStore } from '../../store/useIdeStore';
+
+export const cleanExtensionName = (name?: string) =>
+  (name || '').replace(/\s*[\(\[]?\b(GPU acceleration|GPU|Adreno\/?Mali|Adreno|Mali|Vulkan)\b[\)\]]?/gi, '').trim() || 'Extension';
+
+export const cleanCategoryTag = (cat?: string) => {
+  if (!cat || /^(gpu|adreno|mali|vulkan|hardware|acceleration|gpu acceleration|adreno\/mali)$/i.test(cat.trim())) {
+    return 'plugin';
+  }
+  return cat;
+};
 
 function ExtensionIcon({ icon, category }: { icon?: string; category?: string }) {
   const iconProps = { size: 18 };
@@ -51,11 +62,11 @@ function ExtensionIcon({ icon, category }: { icon?: string; category?: string })
     case 'terminal':
       return <Terminal {...iconProps} className="text-emerald-400" />;
     default:
-      return <Package {...iconProps} className="text-teal-400" />;
+      return <Package {...iconProps} className="text-[#7C9B79]" />;
   }
 }
 
-function ExtensionCardIcon({ ext }: { ext: MarketplaceExtension | Extension }) {
+function ExtensionCardIcon({ ext, isLight }: { ext: MarketplaceExtension | Extension; isLight?: boolean }) {
   const [hasError, setHasError] = useState(false);
   const iconUrl = (ext as any)?.iconUrl || (ext as any)?.files?.icon;
 
@@ -65,13 +76,17 @@ function ExtensionCardIcon({ ext }: { ext: MarketplaceExtension | Extension }) {
         src={iconUrl}
         alt={ext?.name || 'Extension'}
         onError={() => setHasError(true)}
-        className="w-10 h-10 rounded-xl object-cover bg-[#231e22] border border-[#f3f0e7]/10 shrink-0 mt-0.5"
+        className={`w-10 h-10 rounded-xl object-cover shrink-0 mt-0.5 border ${
+          isLight ? 'bg-[#f4f0e6] border-[#2a2529]/10' : 'bg-[#231e22] border-[#f3f0e7]/10'
+        }`}
       />
     );
   }
 
   return (
-    <div className="w-10 h-10 rounded-xl bg-[#231e22] border border-[#f3f0e7]/10 flex items-center justify-center shrink-0 mt-0.5">
+    <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 mt-0.5 ${
+      isLight ? 'bg-[#f4f0e6] border-[#2a2529]/10' : 'bg-[#231e22] border-[#f3f0e7]/10'
+    }`}>
       <ExtensionIcon icon={(ext as any)?.icon} category={(ext as any)?.category} />
     </div>
   );
@@ -94,6 +109,8 @@ const SORT_OPTIONS = [
 ] as const;
 
 function ExtensionsPanelContent() {
+  const theme = useIdeStore((state) => state.theme);
+  const isLight = theme === 'light';
   const [mainTab, setMainTab] = useState<'marketplace' | 'installed'>('marketplace');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -270,24 +287,30 @@ function ExtensionsPanelContent() {
   const CurrentSortIcon = currentSortObj.icon;
 
   return (
-    <div className="flex h-full flex-col bg-[#2a2529] text-[#f3f0e7]">
+    <div className={`flex h-full flex-col transition-colors ${isLight ? 'bg-[#f4f0e6] text-[#2a2529]' : 'bg-[#2a2529] text-[#f3f0e7]'}`}>
       {/* Header Search & Actions */}
-      <div className="p-3 border-b border-[#f3f0e7]/10 bg-[#231e22] space-y-2.5">
+      <div className={`p-3 border-b space-y-2.5 ${isLight ? 'border-[#2a2529]/10 bg-[#e8e4d9]' : 'border-[#f3f0e7]/10 bg-[#231e22]'}`}>
         <div className="flex items-center space-x-2">
           <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-3 text-[#f3f0e7]/60" />
+            <Search size={14} className={`absolute left-3 top-3 ${isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'}`} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search Open VSX extensions & themes..."
               aria-label="Search Open VSX extensions and themes"
-              className="w-full bg-[#342f33] border border-[#f3f0e7]/15 rounded-2xl py-2 pl-9 pr-8 text-xs text-[#f3f0e7] placeholder-[#f3f0e7]/40 focus:border-teal-400/60 focus:outline-none transition-all"
+              className={`w-full rounded-2xl py-2 pl-9 pr-8 text-xs focus:outline-none transition-all border ${
+                isLight
+                  ? 'bg-white border-[#2a2529]/15 text-[#2a2529] placeholder-[#2a2529]/40 focus:border-[#7C9B79]'
+                  : 'bg-[#342f33] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/40 focus:border-[#7C9B79]'
+              }`}
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-2.5 text-[#f3f0e7]/50 hover:text-[#f3f0e7] p-0.5 rounded-full"
+                className={`absolute right-2.5 top-2.5 p-0.5 rounded-full ${
+                  isLight ? 'text-[#2a2529]/50 hover:text-[#2a2529]' : 'text-[#f3f0e7]/50 hover:text-[#f3f0e7]'
+                }`}
                 aria-label="Clear search query"
               >
                 <X size={13} />
@@ -304,23 +327,31 @@ function ExtensionsPanelContent() {
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center space-x-1.5 px-3 py-2 bg-[#342f33] hover:bg-[#453d43] border border-[#f3f0e7]/15 rounded-2xl text-xs font-semibold text-[#f3f0e7] active:scale-95 transition-all shadow-sm shrink-0 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+            className={`flex items-center space-x-1.5 px-3 py-2 border rounded-2xl text-xs font-semibold active:scale-95 transition-all shadow-sm shrink-0 focus-visible:ring-2 focus-visible:outline-none ${
+              isLight
+                ? 'bg-white hover:bg-[#ded9cc] border-[#2a2529]/15 text-[#2a2529] focus-visible:ring-[#2a2529]/30'
+                : 'bg-[#342f33] hover:bg-[#453d43] border-[#f3f0e7]/15 text-[#f3f0e7] focus-visible:ring-[#f3f0e7]/50'
+            }`}
             aria-label="Install extension from .vsix file"
             title="Install from local .vsix file"
           >
-            <Upload size={13} className="text-teal-400" />
+            <Upload size={13} className="text-[#7C9B79]" />
             <span className="hidden sm:inline">Install .vsix</span>
           </button>
         </div>
 
         {/* Dual Tab Mode Switcher: Marketplace vs Installed */}
-        <div className="flex p-1 bg-[#1c181b] rounded-2xl border border-[#f3f0e7]/10">
+        <div className={`flex p-1 rounded-2xl border ${isLight ? 'bg-[#dfdbcf] border-[#2a2529]/10' : 'bg-[#1c181b] border-[#f3f0e7]/10'}`}>
           <button
             onClick={() => setMainTab('marketplace')}
             className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
               mainTab === 'marketplace'
-                ? 'bg-[#342f33] text-teal-300 shadow-sm border border-[#f3f0e7]/10'
-                : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7]'
+                ? isLight
+                  ? 'bg-white text-[#2a2529] shadow-sm border border-[#2a2529]/10'
+                  : 'bg-[#342f33] text-[#f3f0e7] shadow-sm border border-[#f3f0e7]/10'
+                : isLight
+                  ? 'text-[#2a2529]/60 hover:text-[#2a2529]'
+                  : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7]'
             }`}
           >
             <Sparkles size={12} />
@@ -330,8 +361,12 @@ function ExtensionsPanelContent() {
             onClick={() => setMainTab('installed')}
             className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
               mainTab === 'installed'
-                ? 'bg-[#342f33] text-teal-300 shadow-sm border border-[#f3f0e7]/10'
-                : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7]'
+                ? isLight
+                  ? 'bg-white text-[#2a2529] shadow-sm border border-[#2a2529]/10'
+                  : 'bg-[#342f33] text-[#f3f0e7] shadow-sm border border-[#f3f0e7]/10'
+                : isLight
+                  ? 'text-[#2a2529]/60 hover:text-[#2a2529]'
+                  : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7]'
             }`}
           >
             <Check size={12} />
@@ -342,7 +377,7 @@ function ExtensionsPanelContent() {
 
       {/* Category Filters and Sorting (Visible in Marketplace Tab) */}
       {mainTab === 'marketplace' && (
-        <div className="border-b border-[#f3f0e7]/10 bg-[#231e22] px-2 py-1.5 flex items-center gap-1.5">
+        <div className={`border-b px-2 py-1.5 flex items-center gap-1.5 ${isLight ? 'border-[#2a2529]/10 bg-[#e8e4d9]' : 'border-[#f3f0e7]/10 bg-[#231e22]'}`}>
           {/* Category Carousel */}
           <div
             role="tablist"
@@ -360,8 +395,12 @@ function ExtensionsPanelContent() {
                   onClick={() => setActiveCategory(cat.id)}
                   className={`flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs whitespace-nowrap transition-all ${
                     isSelected
-                      ? 'bg-teal-500/20 text-teal-300 font-bold border border-teal-500/30 shadow-sm'
-                      : 'text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/5'
+                      ? isLight
+                        ? 'bg-[#7C9B79]/20 text-[#2a2529] font-bold border border-[#7C9B79]/30 shadow-sm'
+                        : 'bg-white/15 text-[#f3f0e7] font-bold border border-white/20 shadow-sm'
+                      : isLight
+                        ? 'text-[#2a2529]/70 hover:text-[#2a2529] hover:bg-black/5'
+                        : 'text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/5'
                   }`}
                 >
                   <Icon size={12} />
@@ -375,17 +414,23 @@ function ExtensionsPanelContent() {
           <div className="relative shrink-0">
             <button
               onClick={() => setShowSortDropdown(!showSortDropdown)}
-              className="flex items-center space-x-1 px-2.5 py-1 bg-[#342f33] hover:bg-[#453d43] border border-[#f3f0e7]/15 rounded-xl text-xs text-[#f3f0e7] transition-all"
+              className={`flex items-center space-x-1 px-2.5 py-1 border rounded-xl text-xs transition-all ${
+                isLight
+                  ? 'bg-white hover:bg-[#ded9cc] border-[#2a2529]/15 text-[#2a2529]'
+                  : 'bg-[#342f33] hover:bg-[#453d43] border-[#f3f0e7]/15 text-[#f3f0e7]'
+              }`}
               title="Sort extensions"
               aria-label="Sort options"
             >
-              <CurrentSortIcon size={12} className="text-teal-400" />
-              <ArrowUpDown size={11} className="text-[#f3f0e7]/50" />
+              <CurrentSortIcon size={12} className="text-[#7C9B79]" />
+              <ArrowUpDown size={11} className={isLight ? 'text-[#2a2529]/50' : 'text-[#f3f0e7]/50'} />
             </button>
 
             {showSortDropdown && (
-              <div className="absolute right-0 mt-1 z-30 w-44 bg-[#231e22] border border-[#f3f0e7]/20 rounded-2xl p-1 shadow-2xl space-y-0.5">
-                <div className="px-2.5 py-1 text-[10px] font-bold text-[#f3f0e7]/50 uppercase tracking-wider">
+              <div className={`absolute right-0 mt-1 z-30 w-44 border rounded-2xl p-1 shadow-2xl space-y-0.5 ${
+                isLight ? 'bg-white border-[#2a2529]/15 text-[#2a2529]' : 'bg-[#231e22] border-[#f3f0e7]/20 text-[#f3f0e7]'
+              }`}>
+                <div className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${isLight ? 'text-[#2a2529]/50' : 'text-[#f3f0e7]/50'}`}>
                   Sort By
                 </div>
                 {SORT_OPTIONS.map((opt) => {
@@ -400,13 +445,17 @@ function ExtensionsPanelContent() {
                       }}
                       className={`w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-xl text-xs text-left transition-all ${
                         isSelected
-                          ? 'bg-teal-500/20 text-teal-300 font-bold'
-                          : 'text-[#f3f0e7]/80 hover:bg-[#f3f0e7]/10'
+                          ? isLight
+                            ? 'bg-[#7C9B79]/15 text-[#2a2529] font-bold'
+                            : 'bg-white/15 text-[#f3f0e7] font-bold'
+                          : isLight
+                            ? 'text-[#2a2529]/80 hover:bg-black/5'
+                            : 'text-[#f3f0e7]/80 hover:bg-[#f3f0e7]/10'
                       }`}
                     >
                       <OptIcon size={13} />
                       <span className="flex-1">{opt.label}</span>
-                      {isSelected && <Check size={12} className="text-teal-300" />}
+                      {isSelected && <Check size={12} className="text-[#7C9B79]" />}
                     </button>
                   );
                 })}
@@ -463,6 +512,7 @@ function ExtensionsPanelContent() {
                       isActiveTheme={isActive}
                       progress={progress}
                       hasLogs={(installLogs?.[extId]?.length || 0) > 0}
+                      isLight={isLight}
                       onClick={() => handleOpenDetail(ext)}
                       onInstall={(e) => handleInstallClick(e, ext)}
                       onApplyTheme={(e) => handleApplyThemeClick(e, ext as any)}
@@ -480,12 +530,14 @@ function ExtensionsPanelContent() {
           /* Installed Extensions View */
           <div className="p-3">
             {allInstalledList.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-[#f3f0e7]/50 space-y-3">
-                <Package size={36} className="opacity-40 text-teal-400" />
+              <div className={`flex flex-col items-center justify-center py-16 space-y-3 ${isLight ? 'text-[#2a2529]/50' : 'text-[#f3f0e7]/50'}`}>
+                <Package size={36} className="opacity-40 text-[#7C9B79]" />
                 <p className="text-sm font-medium">No plugins installed yet</p>
                 <button
                   onClick={() => setMainTab('marketplace')}
-                  className="px-4 py-2 bg-[#f3f0e7] text-[#231e22] rounded-xl text-xs font-bold hover:bg-white transition-all shadow-md"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md ${
+                    isLight ? 'bg-[#2a2529] text-white hover:bg-[#3d373c]' : 'bg-[#f3f0e7] text-[#231e22] hover:bg-white'
+                  }`}
                 >
                   Explore Marketplace
                 </button>
@@ -494,34 +546,44 @@ function ExtensionsPanelContent() {
               <div className="space-y-2">
                 {allInstalledList.map((ext) => {
                   const isActive = isThemeActive(ext);
+                  const cleanName = cleanExtensionName(ext.name);
+                  const cleanCat = cleanCategoryTag(ext.category);
 
                   return (
                     <div
                       key={ext.id}
                       onClick={() => handleOpenDetail(ext)}
-                      className="p-3.5 rounded-2xl bg-[#342f33] border border-[#f3f0e7]/20 shadow-md hover:border-[#f3f0e7]/40 transition-all cursor-pointer group"
+                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer group ${
+                        isLight
+                          ? 'bg-white/90 border-[#2a2529]/12 shadow-sm hover:border-[#2a2529]/25 hover:bg-white'
+                          : 'bg-[#342f33] border-[#f3f0e7]/20 shadow-md hover:border-[#f3f0e7]/35'
+                      }`}
                     >
                       <div className="flex items-start space-x-3">
-                        <ExtensionCardIcon ext={ext} />
+                        <ExtensionCardIcon ext={ext} isLight={isLight} />
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2">
-                            <span className="font-bold text-[#f3f0e7] text-sm truncate group-hover:text-teal-300 transition-colors">
-                              {ext.name}
+                            <span className={`font-bold text-sm truncate transition-colors ${
+                              isLight ? 'text-[#2a2529] group-hover:text-[#7C9B79]' : 'text-[#f3f0e7] group-hover:text-white'
+                            }`}>
+                              {cleanName}
                             </span>
-                            <Check size={14} className="text-emerald-400 shrink-0" />
+                            <Check size={14} className="text-[#7C9B79] shrink-0" />
                           </div>
 
-                          <div className="text-xs text-[#f3f0e7]/70 mt-0.5">
+                          <div className={`text-xs mt-0.5 ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>
                             {ext.publisher} {ext.version ? `• v${ext.version}` : ''}
                           </div>
-                          <p className="text-xs text-[#f3f0e7]/80 mt-1 line-clamp-2 leading-relaxed">
+                          <p className={`text-xs mt-1 line-clamp-2 leading-relaxed ${isLight ? 'text-[#2a2529]/80' : 'text-[#f3f0e7]/80'}`}>
                             {ext.description}
                           </p>
 
                           <div className="flex items-center space-x-3 mt-2">
-                            <span className="text-[10px] text-stone-700 dark:text-[#f3f0e7]/80 bg-stone-200/80 dark:bg-[#231e22] border border-stone-300 dark:border-white/5 px-2 py-0.5 rounded-md font-mono">
-                              {ext.category}
+                            <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono border ${
+                              isLight ? 'text-[#2a2529]/80 bg-[#e8e4d9]/80 border-[#2a2529]/10' : 'text-[#f3f0e7]/80 bg-[#231e22] border-white/5'
+                            }`}>
+                              {cleanCat}
                             </span>
 
                             {(installLogs?.[ext.id]?.length || 0) > 0 && (
@@ -530,7 +592,9 @@ function ExtensionsPanelContent() {
                                   e.stopPropagation();
                                   setSelectedLogsId(ext.id);
                                 }}
-                                className="text-[10px] text-teal-700 dark:text-teal-300 hover:text-teal-800 dark:hover:text-teal-200 flex items-center space-x-1 font-mono underline cursor-pointer"
+                                className={`text-[10px] hover:underline flex items-center space-x-1 font-mono cursor-pointer ${
+                                  isLight ? 'text-[#7C9B79]' : 'text-[#7C9B79]'
+                                }`}
                               >
                                 <Terminal size={10} />
                                 <span>Logs</span>
@@ -544,7 +608,7 @@ function ExtensionsPanelContent() {
                           {ext.category === 'theme' && !isActive && (
                             <button
                               onClick={(e) => handleApplyThemeClick(e, ext)}
-                              className="px-3 py-1.5 bg-[#f3f0e7] text-[#2a2529] hover:bg-white text-xs rounded-xl font-bold transition-all active:scale-95 shadow-md flex items-center space-x-1"
+                              className="px-3 py-1.5 bg-[#7C9B79] text-white hover:bg-[#7C9B79]/90 text-xs rounded-xl font-bold transition-all active:scale-95 shadow-md flex items-center space-x-1"
                             >
                               <Palette size={12} />
                               <span>Apply</span>
@@ -561,7 +625,9 @@ function ExtensionsPanelContent() {
                               e.stopPropagation();
                               uninstallExtension(ext.id);
                             }}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#f3f0e7]/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                              isLight ? 'text-[#2a2529]/60 hover:text-red-500 hover:bg-red-500/10' : 'text-[#f3f0e7]/60 hover:text-red-400 hover:bg-red-500/10'
+                            }`}
                             title={`Uninstall ${ext.name}`}
                           >
                             <Trash2 size={14} />
@@ -628,11 +694,13 @@ function ExtensionsPanelContent() {
       )}
 
       {/* Footer Status */}
-      <div className="border-t border-[#f3f0e7]/10 px-3 py-2 bg-[#231e22] flex items-center justify-between">
-        <p className="text-[10px] text-[#f3f0e7]/70 font-medium">
+      <div className={`border-t px-3 py-2 flex items-center justify-between ${
+        isLight ? 'border-[#2a2529]/10 bg-[#e8e4d9]' : 'border-[#f3f0e7]/10 bg-[#231e22]'
+      }`}>
+        <p className={`text-[10px] font-medium ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>
           {installedList.length} installed • Open VSX live catalog
         </p>
-        <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" title="Connected to Open VSX" />
+        <span className="inline-block w-2 h-2 rounded-full bg-[#7C9B79]" title="Connected to Open VSX" />
       </div>
     </div>
   );
@@ -647,6 +715,7 @@ interface ExtensionCardProps {
   isActiveTheme: boolean;
   progress?: { stage: string; percent: number; status: string };
   hasLogs: boolean;
+  isLight?: boolean;
   onClick: () => void;
   onInstall: (e: React.MouseEvent) => void;
   onApplyTheme: (e: React.MouseEvent) => void;
@@ -659,13 +728,17 @@ function ExtensionCard({
   isActiveTheme,
   progress,
   hasLogs,
+  isLight,
   onClick,
   onInstall,
   onApplyTheme,
   onViewLogs,
 }: ExtensionCardProps) {
   const isInstalling = progress?.status === 'installing';
-  const displayName = (ext as any)?.displayName || ext?.name || 'Extension';
+  const rawDisplayName = (ext as any)?.displayName || ext?.name || 'Extension';
+  const displayName = cleanExtensionName(rawDisplayName);
+  const rawCategory = (ext as any).category || ((ext as any).categories?.[0]) || 'plugin';
+  const category = cleanCategoryTag(rawCategory);
   const publisher = (ext as any)?.namespace || ext?.publisher || 'Community';
   const downloads = (ext as any)?.downloadCount
     ? formatDownloadCount((ext as any).downloadCount)
@@ -680,51 +753,61 @@ function ExtensionCard({
     <div
       onClick={onClick}
       className={`p-3.5 rounded-2xl border transition-all cursor-pointer group ${
-        isInstalled
-          ? 'bg-[#342f33] border-[#f3f0e7]/20 shadow-md'
-          : 'bg-[#342f33]/60 border-[#f3f0e7]/10 hover:border-[#f3f0e7]/30 hover:bg-[#342f33]/80'
+        isLight
+          ? isInstalled
+            ? 'bg-white/90 border-[#2a2529]/15 shadow-sm hover:border-[#2a2529]/30'
+            : 'bg-white/70 border-[#2a2529]/10 hover:border-[#2a2529]/25 hover:bg-white'
+          : isInstalled
+            ? 'bg-[#342f33] border-[#f3f0e7]/20 shadow-md hover:border-[#f3f0e7]/35'
+            : 'bg-[#342f33]/60 border-[#f3f0e7]/10 hover:border-[#f3f0e7]/30 hover:bg-[#342f33]/80'
       }`}
     >
       <div className="flex items-start space-x-3">
-        <ExtensionCardIcon ext={ext} />
+        <ExtensionCardIcon ext={ext} isLight={isLight} />
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center space-x-2">
-            <span className="font-bold text-[#f3f0e7] text-sm truncate group-hover:text-teal-300 transition-colors">
+            <span className={`font-bold text-sm truncate transition-colors ${
+              isLight ? 'text-[#2a2529] group-hover:text-[#7C9B79]' : 'text-[#f3f0e7] group-hover:text-white'
+            }`}>
               {displayName}
             </span>
-            {isInstalled && <Check size={14} className="text-emerald-400 shrink-0" />}
+            {isInstalled && <Check size={14} className="text-[#7C9B79] shrink-0" />}
           </div>
 
-          <div className="text-xs text-[#f3f0e7]/70 mt-0.5">
+          <div className={`text-xs mt-0.5 ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>
             {publisher} {ext.version ? `• v${ext.version}` : ''}
           </div>
 
-          <p className="text-xs text-[#f3f0e7]/80 mt-1 line-clamp-2 leading-relaxed">
+          <p className={`text-xs mt-1 line-clamp-2 leading-relaxed ${isLight ? 'text-[#2a2529]/80' : 'text-[#f3f0e7]/80'}`}>
             {ext.description}
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mt-2.5">
             {downloads && (
-              <span className="flex items-center space-x-1 text-[11px] text-[#f3f0e7]/70">
-                <Download size={11} className="text-teal-400" />
+              <span className={`flex items-center space-x-1 text-[11px] ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>
+                <Download size={11} className="text-[#7C9B79]" />
                 <span>{downloads}</span>
               </span>
             )}
             {rating && (
-              <span className="flex items-center space-x-1 text-[11px] text-[#f3f0e7]/70">
+              <span className={`flex items-center space-x-1 text-[11px] ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>
                 <Star size={11} className="text-yellow-400 fill-yellow-400" />
                 <span>{rating}</span>
               </span>
             )}
-            <span className="text-[10px] text-stone-700 dark:text-[#f3f0e7]/80 bg-stone-200/80 dark:bg-[#231e22] border border-stone-300 dark:border-white/5 px-2 py-0.5 rounded-md font-mono">
-              {(ext as any).category || ((ext as any).categories?.[0]) || 'plugin'}
+            <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono border ${
+              isLight ? 'text-[#2a2529]/80 bg-[#e8e4d9]/80 border-[#2a2529]/10' : 'text-[#f3f0e7]/80 bg-[#231e22] border-white/5'
+            }`}>
+              {category}
             </span>
 
             {hasLogs && (
               <button
                 onClick={onViewLogs}
-                className="text-[10px] text-teal-700 dark:text-teal-300 hover:text-teal-800 dark:hover:text-teal-200 flex items-center space-x-1 font-mono underline cursor-pointer"
+                className={`text-[10px] hover:underline flex items-center space-x-1 font-mono cursor-pointer ${
+                  isLight ? 'text-[#7C9B79]' : 'text-[#7C9B79]'
+                }`}
               >
                 <Terminal size={10} />
                 <span>Logs</span>
@@ -734,19 +817,19 @@ function ExtensionCard({
 
           {/* Progress bar if installing */}
           {isInstalling && (
-            <div className="mt-3 pt-2 border-t border-[#f3f0e7]/10 space-y-1.5">
+            <div className={`mt-3 pt-2 border-t space-y-1.5 ${isLight ? 'border-[#2a2529]/10' : 'border-[#f3f0e7]/10'}`}>
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-teal-300 font-medium flex items-center space-x-1.5">
+                <span className="text-[#7C9B79] font-medium flex items-center space-x-1.5">
                   <Loader2 size={11} className="animate-spin" />
                   <span>{progress?.stage || 'Installing...'}</span>
                 </span>
-                <span className="font-mono text-[#f3f0e7]/75 font-bold">
+                <span className={`font-mono font-bold ${isLight ? 'text-[#2a2529]/80' : 'text-[#f3f0e7]/80'}`}>
                   {progress?.percent || 0}%
                 </span>
               </div>
-              <div className="w-full h-1.5 bg-[#231e22] rounded-full overflow-hidden">
+              <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-[#dfdbcf]' : 'bg-[#231e22]'}`}>
                 <div
-                  className="h-full bg-gradient-to-r from-teal-400 to-emerald-400 transition-all duration-300 rounded-full"
+                  className="h-full bg-[#7C9B79] transition-all duration-300 rounded-full"
                   style={{ width: `${progress?.percent || 0}%` }}
                 />
               </div>
@@ -761,7 +844,7 @@ function ExtensionCard({
               {(ext as any).category === 'theme' && !isActiveTheme && (
                 <button
                   onClick={onApplyTheme}
-                  className="px-3 py-1.5 bg-[#f3f0e7] text-[#2a2529] hover:bg-white text-xs rounded-xl font-bold transition-all active:scale-95 shadow-md flex items-center space-x-1"
+                  className="px-3 py-1.5 bg-[#7C9B79] text-white hover:bg-[#7C9B79]/90 text-xs rounded-xl font-bold transition-all active:scale-95 shadow-md flex items-center space-x-1"
                 >
                   <Palette size={12} />
                   <span>Apply</span>
@@ -774,7 +857,9 @@ function ExtensionCard({
                 </span>
               )}
               {!isActiveTheme && (ext as any).category !== 'theme' && (
-                <span className="px-2.5 py-1 bg-[#231e22] text-[#f3f0e7]/60 text-xs rounded-xl font-medium border border-[#f3f0e7]/10">
+                <span className={`px-2.5 py-1 text-xs rounded-xl font-medium border ${
+                  isLight ? 'bg-[#e8e4d9] text-[#2a2529]/70 border-[#2a2529]/10' : 'bg-[#231e22] text-[#f3f0e7]/60 border-[#f3f0e7]/10'
+                }`}>
                   Installed
                 </span>
               )}
@@ -783,7 +868,9 @@ function ExtensionCard({
             <button
               onClick={onInstall}
               disabled={isInstalling}
-              className="px-3.5 py-1.5 bg-[#f3f0e7] text-[#2a2529] hover:bg-white disabled:opacity-50 text-xs rounded-xl font-bold transition-all active:scale-95 shadow-md flex items-center space-x-1.5"
+              className={`px-3.5 py-1.5 disabled:opacity-50 text-xs rounded-xl font-bold transition-all active:scale-95 shadow-md flex items-center space-x-1.5 ${
+                isLight ? 'bg-[#2a2529] text-white hover:bg-[#3d373c]' : 'bg-[#f3f0e7] text-[#2a2529] hover:bg-white'
+              }`}
             >
               {isInstalling ? (
                 <>

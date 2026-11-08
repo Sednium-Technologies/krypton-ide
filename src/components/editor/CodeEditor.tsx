@@ -806,6 +806,38 @@ export function CodeEditor() {
         });
         hapticSelection();
       });
+
+      // Tap-to-Accept Ghost Text Autocompletion
+      const onGhostTextPointer = (e: Event) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+        const isGhost = target.closest('.ghost-text, .ghost-text-decoration, .suggest-preview-text, [class*="ghost-text"]');
+        if (isGhost) {
+          e.preventDefault();
+          e.stopPropagation();
+          try {
+            editor.trigger('inlineSuggest', 'editor.action.inlineSuggest.commit', null);
+            editor.getAction('editor.action.inlineSuggest.commit')?.run();
+            hapticLight();
+          } catch (err) {
+            console.warn('Inline suggest commit error:', err);
+          }
+        }
+      };
+
+      containerDOMNode.addEventListener('pointerdown', onGhostTextPointer, true);
+      containerDOMNode.addEventListener('click', onGhostTextPointer, true);
+
+      editor.onMouseDown((e: any) => {
+        const targetEl = e.event?.browserEvent?.target as HTMLElement | null;
+        if (targetEl && targetEl.closest('.ghost-text, .ghost-text-decoration, .suggest-preview-text, [class*="ghost-text"]')) {
+          e.event.preventDefault?.();
+          e.event.stopPropagation?.();
+          editor.trigger('inlineSuggest', 'editor.action.inlineSuggest.commit', null);
+          editor.getAction('editor.action.inlineSuggest.commit')?.run();
+          hapticLight();
+        }
+      });
     }
 
     // Defer heavy non-critical configuration to non-blocking microtask
@@ -1339,18 +1371,6 @@ export function CodeEditor() {
                   style={{ bottom: keyboardHeight > 0 ? '0px' : 'calc(56px + env(safe-area-inset-bottom, 0px))' }}
                 >
                   <div className="flex items-center justify-center px-1 text-[#f3f0e7]/50 flex-shrink-0"><KeyboardIcon size={15}/></div>
-                  {/* Send to Oorty Lite button */}
-                  <button 
-                    onClick={(e) => { 
-                      e.preventDefault(); 
-                      handleSendToOortyLite();
-                      hapticLight();
-                    }} 
-                    className="flex-shrink-0 bg-[#342f33] hover:bg-[#453d43] active:bg-[#f3f0e7] active:text-[#2a2529] text-[#f3f0e7] min-w-[40px] h-[38px] flex items-center justify-center rounded-xl transition-all border border-[#f3f0e7]/15 select-none touch-manipulation shadow-md"
-                    title="Send to Oorty Lite"
-                  >
-                    <OortyLiteIcon size={16} />
-                  </button>
                   {/* Undo / Redo buttons */}
                   <button 
                     onClick={(e) => { 

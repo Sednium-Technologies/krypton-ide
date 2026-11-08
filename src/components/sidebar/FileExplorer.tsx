@@ -50,6 +50,9 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
   const renameFile = useIdeStore((state) => state.renameFile);
   const saveFile = useIdeStore((state) => state.saveFile);
   const updateFileContent = useIdeStore((state) => state.updateFileContent);
+  const theme = useIdeStore((state) => state.theme);
+  const isLight = theme === 'light';
+
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -58,7 +61,39 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; isFolder: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nativeFileInputRef = useRef<HTMLInputElement>(null);
+  const folderImportInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportProject = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const core = (Capacitor as any).Plugins?.KryptonCore;
+        if (core && typeof core.pickDirectory === 'function') {
+          const res = await core.pickDirectory();
+          if (res?.path) {
+            toast.success(`Imported directory: ${res.path}`);
+            return;
+          }
+        }
+      }
+      folderImportInputRef.current?.click();
+    } catch (e) {
+      console.error('Import directory failed:', e);
+    }
+  };
+
+  const handleImportFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i];
+      const rel = (f as any).webkitRelativePath || f.name;
+      const text = await f.text();
+      createFile(rel, null, 'file', text);
+    }
+    toast.success(`Imported ${fileList.length} files into workspace`);
+  };
 
   useEffect(() => {
     if (autoFocusSearch) {
@@ -627,7 +662,12 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
     return false;
   };
 
-  const renderNode = (nodeId: string, depth: number = 0) => {
+  const renderNode = (
+    nodeId: string, 
+    depth: number = 0, 
+    isLast: boolean = false, 
+    ancestorLines: boolean[] = []
+  ) => {
     const node = files[nodeId];
     if (!node) return null;
     if (nodeId !== 'root' && SYSTEM_EXCLUDED_FILES.has(node.name)) return null;
@@ -661,14 +701,57 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
           onContextMenu={(e) => handleContextMenu(nodeId, e)}
         >
           {depth > 0 && (
-            <div 
-              className="absolute left-0 top-1/2 w-2.5 h-[1px] bg-[#f3f0e7]/10"
-              style={{ left: `${depth * 14 - 4}px` }}
-            />
+            <>
+              {/* Ancestor vertical spine guide lines */}
+              {ancestorLines.map((hasLine, lvl) => {
+                if (!hasLine) return null;
+                return (
+                  <svg
+                    key={lvl}
+                    className="absolute pointer-events-none select-none overflow-visible"
+                    style={{ left: `${lvl * 14 + 10}px`, top: 0, width: 14, height: '100%' }}
+                    viewBox="0 0 14 32"
+                    preserveAspectRatio="none"
+                    fill="none"
+                  >
+                    <line
+                      x1="1"
+                      y1="-6"
+                      x2="1"
+                      y2="36"
+                      stroke={isLight ? 'rgba(42,37,41,0.22)' : 'rgba(243,240,231,0.22)'}
+                      strokeWidth="1.2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                );
+              })}
+
+              {/* Current level guide curve & vertical spine */}
+              <svg
+                className="absolute pointer-events-none select-none overflow-visible"
+                style={{ left: `${(depth - 1) * 14 + 10}px`, top: 0, width: 14, height: '100%' }}
+                viewBox="0 0 14 32"
+                preserveAspectRatio="none"
+                fill="none"
+              >
+                <path
+                  d={
+                    isLast
+                      ? "M 1 -6 V 10 Q 1 16 7 16 H 14"
+                      : "M 1 -6 V 36 M 1 6 Q 1 16 7 16 H 14"
+                  }
+                  stroke={isLight ? 'rgba(42,37,41,0.25)' : 'rgba(243,240,231,0.25)'}
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+              </svg>
+            </>
           )}
 
           <div className="flex items-center flex-1 min-w-0">
-            <span className="mr-1.5 w-4 flex-shrink-0 flex items-center justify-center text-[#f3f0e7]/70">
+            <span className={`mr-1.5 w-4 flex-shrink-0 flex items-center justify-center ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>
               {isFolder && (
                 isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
               )}
@@ -696,7 +779,9 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
                   if (e.key === 'Escape') setRenamingId(null);
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className="flex-1 min-w-0 bg-[#231e22] border border-[#f3f0e7]/30 rounded-lg px-2 py-0.5 text-xs text-[#f3f0e7] focus:outline-none"
+                className={`flex-1 min-w-0 rounded-lg px-2 py-0.5 text-xs focus:outline-none border ${
+                  isLight ? 'bg-white border-[#2a2529]/30 text-[#2a2529]' : 'bg-[#231e22] border-[#f3f0e7]/30 text-[#f3f0e7]'
+                }`}
               />
             ) : (
               <span className="truncate font-medium">{node.name}</span>
@@ -710,7 +795,7 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
                 <>
                   <button 
                     onClick={(e) => handleCreateFile(nodeId, 'file', e)} 
-                    className="p-1 hover:bg-[#f3f0e7]/10 rounded-lg text-[#f3f0e7]/70 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none" 
+                    className={`p-1 rounded-lg focus-visible:outline-none ${isLight ? 'hover:bg-[#2a2529]/10 text-[#2a2529]/70' : 'hover:bg-[#f3f0e7]/10 text-[#f3f0e7]/70'}`} 
                     title="New File"
                     aria-label="New file in folder"
                   >
@@ -718,7 +803,7 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
                   </button>
                   <button 
                     onClick={(e) => handleCreateFile(nodeId, 'folder', e)} 
-                    className="p-1 hover:bg-[#f3f0e7]/10 rounded-lg text-[#f3f0e7]/70 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none" 
+                    className={`p-1 rounded-lg focus-visible:outline-none ${isLight ? 'hover:bg-[#2a2529]/10 text-[#2a2529]/70' : 'hover:bg-[#f3f0e7]/10 text-[#f3f0e7]/70'}`} 
                     title="New Folder"
                     aria-label="New folder in folder"
                   >
@@ -729,7 +814,7 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
               {nodeId !== 'root' && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); setContextMenu({ visible: true, x: e.clientX, y: e.clientY, nodeId }); }}
-                  className="p-1 hover:bg-[#f3f0e7]/10 rounded-lg text-[#f3f0e7]/70 focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none" 
+                  className={`p-1 rounded-lg focus-visible:outline-none ${isLight ? 'hover:bg-[#2a2529]/10 text-[#2a2529]/70' : 'hover:bg-[#f3f0e7]/10 text-[#f3f0e7]/70'}`} 
                   title="More actions"
                   aria-label={`More actions for ${node.name}`}
                 >
@@ -741,13 +826,18 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
         </div>
         
         {isFolder && isExpanded && node.children && (
-          <div className="border-l border-[#f3f0e7]/10 ml-3 pl-1">
-            {node.children
-              .filter(childId => {
+          <div className="relative">
+            {(() => {
+              const visibleChildren = node.children.filter(childId => {
                 const child = files[childId];
                 return child && !SYSTEM_EXCLUDED_FILES.has(child.name);
-              })
-              .map(childId => renderNode(childId, depth + 1))}
+              });
+              return visibleChildren.map((childId, index) => {
+                const isLastChild = index === visibleChildren.length - 1;
+                const nextAncestorLines = depth > 0 ? [...ancestorLines, !isLast] : [];
+                return renderNode(childId, depth + 1, isLastChild, nextAncestorLines);
+              });
+            })()}
           </div>
         )}
       </div>
@@ -755,17 +845,29 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className={`flex flex-col h-full ${isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'}`}>
       {/* Quick Action Toolbar (changelog Sec. 7) */}
-      <div className="px-3 py-2.5 border-b border-[#f3f0e7]/10 bg-[#231e22]">
+      <div className={`px-3 py-2.5 border-b ${isLight ? 'border-[#2a2529]/10 bg-[#f3f0e7]' : 'border-[#f3f0e7]/10 bg-[#231e22]'}`}>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-[#f3f0e7]/75 tracking-wider uppercase">
+          <span className={`text-[11px] font-bold tracking-wider uppercase ${isLight ? 'text-[#2a2529]/75' : 'text-[#f3f0e7]/75'}`}>
             Explorer
           </span>
           <div className="flex items-center space-x-1">
             <button
+              onClick={handleImportProject}
+              className={`p-1.5 rounded-lg active:scale-95 transition-all focus-visible:ring-2 focus-visible:outline-none ${
+                isLight ? 'text-[#2a2529]/70 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'
+              }`}
+              title="Import Project"
+              aria-label="Import Project"
+            >
+              <FolderUp size={15} />
+            </button>
+            <button
               onClick={handleQuickNewFile}
-              className="p-1.5 rounded-lg text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 active:scale-95 transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+              className={`p-1.5 rounded-lg active:scale-95 transition-all focus-visible:ring-2 focus-visible:outline-none ${
+                isLight ? 'text-[#2a2529]/70 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'
+              }`}
               title="New File"
               aria-label="New File"
             >
@@ -773,7 +875,9 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
             </button>
             <button
               onClick={handleQuickNewFolder}
-              className="p-1.5 rounded-lg text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 active:scale-95 transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+              className={`p-1.5 rounded-lg active:scale-95 transition-all focus-visible:ring-2 focus-visible:outline-none ${
+                isLight ? 'text-[#2a2529]/70 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'
+              }`}
               title="New Folder"
               aria-label="New Folder"
             >
@@ -781,7 +885,9 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
             </button>
             <button
               onClick={handleCollapseAll}
-              className="p-1.5 rounded-lg text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 active:scale-95 transition-all focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
+              className={`p-1.5 rounded-lg active:scale-95 transition-all focus-visible:ring-2 focus-visible:outline-none ${
+                isLight ? 'text-[#2a2529]/70 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/70 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'
+              }`}
               title="Collapse All"
               aria-label="Collapse All"
             >
@@ -874,7 +980,7 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
 
       {/* File tree */}
       <div className="py-1 flex-1 overflow-y-auto">
-        {renderNode('root')}
+        {renderNode('root', 0, true, [])}
       </div>
 
       {/* ─── Context Menu Popup ───────────────────────── */}
@@ -922,6 +1028,16 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
         isDestructive
         onConfirm={handleConfirmDelete}
         onClose={() => setDeleteTarget(null)}
+      />
+
+      {/* Hidden Folder Import Input */}
+      <input
+        type="file"
+        ref={folderImportInputRef}
+        className="hidden"
+        {...({ webkitdirectory: '', directory: '' } as any)}
+        multiple
+        onChange={handleImportFolder}
       />
     </div>
   );

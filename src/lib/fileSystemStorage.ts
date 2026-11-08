@@ -55,7 +55,7 @@ const API_KEY_FILE = 'krypton-api-key.json';
 const DEFAULT_CONFIG: KryptonConfig = {
   welcomed: false,
   haptics: true,
-  theme: 'krypton-warm',
+  theme: 'light',
   activeFont: '',
   installedFonts: [],
   ai: {
@@ -88,31 +88,70 @@ export async function flushAllWrites(): Promise<void> {
     clearTimeout(writeTimers[key]);
     delete writeTimers[key];
   }
-  // The actual pending write functions are lost when we clear timers.
-  // Instead, callers should use saveConfigNow / saveProjectNow etc.
 }
 
 // ─── Path Helpers ────────────────────────────────────────────
 
+export const DEFAULT_WORKSPACE_PATH = 'Documents/KryptonIDE';
+const WORKSPACE_DIRS_KEY = 'krypton-workspace-directories';
+
 export function getBasePath(): string {
   try {
     if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem(BASE_PATH_KEY) || '';
+      const stored = localStorage.getItem(BASE_PATH_KEY);
+      if (stored && stored.trim()) return stored;
+      // Direct workspace initialization: default to persistent workspace directory
+      localStorage.setItem(BASE_PATH_KEY, DEFAULT_WORKSPACE_PATH);
+      return DEFAULT_WORKSPACE_PATH;
     }
   } catch {}
-  return '';
+  return DEFAULT_WORKSPACE_PATH;
 }
 
 export function setBasePath(path: string): void {
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(BASE_PATH_KEY, path);
+      // Also register into workspace directories
+      addWorkspaceDirectory(path);
     }
   } catch {}
 }
 
+export function getWorkspaceDirectories(): string[] {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(WORKSPACE_DIRS_KEY);
+      if (raw) {
+        const list: string[] = JSON.parse(raw);
+        if (Array.isArray(list) && list.length > 0) return list;
+      }
+    }
+  } catch {}
+  return [DEFAULT_WORKSPACE_PATH];
+}
+
+export function addWorkspaceDirectory(dirPath: string): void {
+  if (!dirPath || !dirPath.trim()) return;
+  const clean = dirPath.trim();
+  const current = getWorkspaceDirectories();
+  if (!current.includes(clean)) {
+    current.push(clean);
+    try {
+      localStorage.setItem(WORKSPACE_DIRS_KEY, JSON.stringify(current));
+    } catch {}
+  }
+}
+
+export function removeWorkspaceDirectory(dirPath: string): void {
+  const current = getWorkspaceDirectories().filter(d => d !== dirPath);
+  try {
+    localStorage.setItem(WORKSPACE_DIRS_KEY, JSON.stringify(current.length > 0 ? current : [DEFAULT_WORKSPACE_PATH]));
+  } catch {}
+}
+
 export function isStorageInitialized(): boolean {
-  return !!getBasePath();
+  return true;
 }
 
 export function isNative(): boolean {
@@ -796,22 +835,52 @@ async function scanDirectoryToTree(dirPath: string): Promise<Record<string, File
   return Object.keys(tree).length > 1 ? tree : null;
 }
 
-export async function deleteProjectFolder(projectId: string): Promise<void> {
+export async function deleteProjectFolder(projectId: string, folderPath?: string): Promise<void> {
   const base = getBasePath();
-  if (!base) return;
 
-  const dir = `${base}/projects/${projectId}`;
+  // 1. Web & LocalStorage cleanup: purge all keys and cached sessions for this project
+  try {
+    if (base) {
+      const dir = `${base}/projects/${projectId}`;
+      const keys = webList(`${dir}/`);
+      keys.forEach(k => webDelete(k));
+      webDelete(`${dir}/project.meta.json`);
+      webDelete(`${dir}/files.json`);
+    }
 
-  if (!isNative()) {
-    // Remove all webRead keys with this prefix
-    const keys = webList(`${dir}/`);
-    keys.forEach(k => webDelete(k));
-    webDelete(`${dir}/project.meta.json`);
-    webDelete(`${dir}/files.json`);
-    return;
+    if (typeof localStorage !== 'undefined') {
+      const allKeys = Object.keys(localStorage);
+      for (const k of allKeys) {
+        if (k.includes(projectId) || (folderPath && k.includes(folderPath))) {
+          localStorage.removeItem(k);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[FS] Error cleaning local web project data:', e);
   }
 
-  await deletePathSafe(dir);
+  // 2. Native File System cleanup: recursively delete project folder and custom folderPath
+  if (isNative()) {
+    try {
+      const core = (Capacitor as any).Plugins?.KryptonCore;
+      if (core && typeof core.deleteDirectory === 'function') {
+        if (folderPath && folderPath.trim()) {
+          await core.deleteDirectory({ path: folderPath });
+        }
+        if (base) {
+          await core.deleteDirectory({ path: `${base}/projects/${projectId}` });
+        }
+      }
+    } catch {}
+
+    if (base) {
+      await deletePathSafe(`${base}/projects/${projectId}`);
+    }
+    if (folderPath && folderPath.trim()) {
+      await deletePathSafe(folderPath);
+    }
+  }
 }
 
 // ─── Fonts ───────────────────────────────────────────────────

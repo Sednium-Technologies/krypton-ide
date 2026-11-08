@@ -7,9 +7,63 @@
  */
 
 const STORAGE_KEY = 'krypton:custom-css';
-const USER_STYLE_ELEMENT_ID = 'krypton-custom-css';
+const USER_STYLE_ELEMENT_ID = 'kryptonide-custom-css';
 const EXTENSION_STYLE_ELEMENT_ID = 'krypton-extension-styles';
 const WORKSPACE_STYLE_ELEMENT_ID = 'krypton-workspace-styles';
+
+export const DEFAULT_CORE_CSS = `/* ========================================================
+   Kryptonide v4 - Core Custom Stylesheet Rules
+   Target UI Shell and Monaco Editor DOM Frame
+   ======================================================== */
+
+:root {
+  /* Core Surface Tokens (Ivory Mode) */
+  --krypton-bg: #f3f0e7;
+  --krypton-surface: #e8e4d9;
+  --krypton-card: #ffffff;
+  --krypton-border: rgba(42, 37, 41, 0.12);
+  --krypton-text: #2a2529;
+  --krypton-text-muted: rgba(42, 37, 41, 0.65);
+  --krypton-accent: #6366f1;
+}
+
+/* UI Shell Styling */
+body, #root {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Monaco Editor DOM Frame Styling */
+.monaco-editor {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.monaco-editor .margin {
+  background-color: transparent !important;
+}
+
+.monaco-editor .current-line {
+  border-radius: 4px;
+}
+
+/* Monaco Ghost Text inline suggestion styling */
+.monaco-editor .ghost-text {
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+/* Scrollbar Customization */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(42, 37, 41, 0.2);
+  border-radius: 9999px;
+}
+`;
 
 // In-memory registry for extension-contributed CSS
 const extensionStylesRegistry = new Map<string, string>();
@@ -18,9 +72,11 @@ const extensionStylesRegistry = new Map<string, string>();
 
 export function getCustomCss(): string {
   try {
-    return localStorage.getItem(STORAGE_KEY) || '';
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && saved.trim()) return saved;
+    return DEFAULT_CORE_CSS;
   } catch {
-    return '';
+    return DEFAULT_CORE_CSS;
   }
 }
 

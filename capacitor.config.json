@@ -18,13 +18,13 @@
       "resizeOnFullScreen": false
     },
     "StatusBar": {
-      "style": "DARK",
-      "backgroundColor": "#0d1117"
+      "style": "LIGHT",
+      "backgroundColor": "#f3f0e7"
     },
     "SplashScreen": {
       "launchAutoHide": true,
-      "launchShowDuration": 1500,
-      "backgroundColor": "#0d1117",
+      "launchShowDuration": 1200,
+      "backgroundColor": "#f3f0e7",
       "androidSplashResourceName": "splash",
       "showSpinner": false
     }

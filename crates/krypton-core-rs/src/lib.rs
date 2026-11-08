@@ -12,6 +12,7 @@ pub mod fs_walk;
 pub mod git;
 pub mod hardware_topology;
 pub mod jni_bridge;
+pub mod package_catalog;
 pub mod search;
 pub mod zip;
 
@@ -284,6 +285,62 @@ pub fn krypton_prune_aif_context(aif_binary: &[u8], max_tokens: usize) -> Result
     };
     aif::AifEngine::serialize_binary(&pruned_doc)
         .map_err(|e| JsValue::from_str(&e))
+}
+
+#[wasm_bindgen(js_name = kryptonGetPackageCatalog)]
+pub fn krypton_get_package_catalog() -> String {
+    let pkgs = package_catalog::PackageCatalog::get_all_packages();
+    serde_json::to_string(&pkgs).unwrap_or_else(|_| "[]".to_string())
+}
+
+#[wasm_bindgen(js_name = kryptonAnalyzeWorkspaceLanguages)]
+pub fn krypton_analyze_workspace_languages(files_json: &str) -> Result<String, JsValue> {
+    let files: Vec<fs_walk::FileVolumeEntry> = serde_json::from_str(files_json)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let result = fs_walk::LanguageAnalyzer::analyze(&files);
+    serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ModelWeightProgress {
+    pub step: u32,
+    pub total_steps: u32,
+    pub percent: f32,
+    pub phase: String,
+    pub bytes_loaded: u64,
+    pub total_bytes: u64,
+    pub ram_allocated_mb: u32,
+}
+
+#[wasm_bindgen(js_name = kryptonGetModelWeightProgress)]
+pub fn krypton_get_model_weight_progress(step: u32, total_steps: u32, total_bytes: u64) -> String {
+    let total_steps = total_steps.max(1);
+    let clamped_step = step.min(total_steps);
+    let percent = (clamped_step as f32 / total_steps as f32) * 100.0;
+    let bytes_loaded = ((total_bytes as f64) * (clamped_step as f64 / total_steps as f64)) as u64;
+    let ram_allocated_mb = (bytes_loaded / (1024 * 1024)) as u32;
+
+    let phase = if percent < 25.0 {
+        "Parsing GGUF metadata & tensor tensor descriptors...".to_string()
+    } else if percent < 60.0 {
+        "Allocating memory pages & binding thread affinities...".to_string()
+    } else if percent < 95.0 {
+        "Streaming quantized weights into RAM/NPU caches...".to_string()
+    } else {
+        "Warmup inference and context validation complete.".to_string()
+    };
+
+    let progress = ModelWeightProgress {
+        step: clamped_step,
+        total_steps,
+        percent,
+        phase,
+        bytes_loaded,
+        total_bytes,
+        ram_allocated_mb,
+    };
+
+    serde_json::to_string(&progress).unwrap_or_else(|_| "{}".to_string())
 }
 
 #[cfg(test)]
