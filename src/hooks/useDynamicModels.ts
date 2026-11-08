@@ -27,13 +27,11 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
   const getCacheKey = useCallback(() => {
     const urlKey = customBaseUrl ? `_${encodeURIComponent(customBaseUrl)}` : '';
     const keyFingerprint = apiKey ? `_${apiKey.trim().slice(-8)}` : '_nokey';
-    return `krypton_dynamic_models_v3_${provider}${urlKey}${keyFingerprint}`;
+    return `krypton_dynamic_models_v4_${provider}${urlKey}${keyFingerprint}`;
   }, [provider, apiKey, customBaseUrl]);
 
-  // Read live cached models on key/provider change, fallback to baseline catalog
+  // Read live cached models on key/provider change
   useEffect(() => {
-    const p = getProviderById(provider);
-    const baselineModels: AIModel[] = (p?.models || []).map((m) => ({ id: m, name: m }));
     const cacheKey = getCacheKey();
     try {
       const cached = localStorage.getItem(cacheKey);
@@ -48,7 +46,7 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
       }
     } catch {}
 
-    setModels(baselineModels);
+    setModels([]);
     setIsLive(false);
   }, [provider, getCacheKey]);
 
@@ -56,11 +54,10 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
     const p = getProviderById(provider);
     const requiresKey = p?.requiresKey ?? true;
     const cleanKey = (apiKey || '').trim();
-    const baselineModels: AIModel[] = (p?.models || []).map((m) => ({ id: m, name: m }));
 
     // Check if key is needed
     if (requiresKey && !cleanKey && provider !== 'openrouter' && provider !== 'ollama' && provider !== 'custom') {
-      setModels(baselineModels);
+      setModels([]);
       setIsLive(false);
       setError(null);
       return;
@@ -153,11 +150,25 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
         }
         data = nativeRes.data;
       } else {
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: provider === 'google' || provider === 'gemini' ? undefined : headers,
-          signal: controller.signal,
-        });
+        let response: Response;
+        try {
+          response = await fetch(url, {
+            method: 'GET',
+            headers: provider === 'google' || provider === 'gemini' ? undefined : headers,
+            signal: controller.signal,
+          });
+        } catch (fetchErr: any) {
+          // If browser blocked CORS on web, fallback to proxy so web testing succeeds
+          if (!Capacitor.isNativePlatform() && (fetchErr.name === 'TypeError' || String(fetchErr).includes('fetch'))) {
+            response = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, {
+              method: 'GET',
+              headers: provider === 'google' || provider === 'gemini' ? undefined : headers,
+              signal: controller.signal,
+            });
+          } else {
+            throw fetchErr;
+          }
+        }
 
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
@@ -244,7 +255,7 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
       } catch {}
 
       if (!hasCached) {
-        setModels(baselineModels.length > 0 ? baselineModels : []);
+        setModels([]);
         setIsLive(false);
       }
 
@@ -263,10 +274,9 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
     const requiresKey = p?.requiresKey ?? true;
     const cleanKey = (apiKey || '').trim();
 
-    // If key required and not present, keep baseline catalog
+    // If key required and not present, empty models list until key entered
     if (requiresKey && !cleanKey && provider !== 'openrouter' && provider !== 'ollama' && provider !== 'custom') {
-      const baselineModels: AIModel[] = (p?.models || []).map((m) => ({ id: m, name: m }));
-      setModels(baselineModels);
+      setModels([]);
       setIsLive(false);
       return;
     }

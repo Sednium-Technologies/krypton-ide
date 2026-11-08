@@ -686,8 +686,10 @@ export function AiAssistant() {
                     key={provider.id}
                     onClick={() => {
                       aiStore.setProvider(provider.id);
-                      aiStore.setModel(provider.defaultModel);
+                      aiStore.setModel('');
                       aiStore.setBaseUrl(provider.baseUrl);
+                      setCustomModelText('');
+                      isEditingCustomModel.current = false;
                     }}
                     className={`px-3 py-2.5 rounded-xl text-xs text-center border transition-all duration-200 ${
                       activeProvider === provider.id
