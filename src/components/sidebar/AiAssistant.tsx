@@ -169,6 +169,26 @@ export function AiAssistant() {
     }
   }, [activeProvider, currentProvider.defaultModel]);
 
+  const [showModelSuggestions, setShowModelSuggestions] = useState(false);
+  const modelComboboxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (modelComboboxRef.current && !modelComboboxRef.current.contains(event.target as Node)) {
+        setShowModelSuggestions(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const matchingModels = customModelText.trim()
+    ? dynamicModels.filter(m => 
+        m.id.toLowerCase().includes(customModelText.toLowerCase()) || 
+        (m.name && m.name.toLowerCase().includes(customModelText.toLowerCase()))
+      )
+    : dynamicModels;
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -756,83 +776,107 @@ export function AiAssistant() {
                         Live ({dynamicModels.length})
                       </span>
                     )}
+                    {isModelsLoading && (
+                      <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-medium text-amber-500 bg-amber-500/10 border border-amber-500/20">
+                        <RotateCw size={10} className="animate-spin" />
+                        <span>Auto-syncing...</span>
+                      </span>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => refreshModels()}
-                    disabled={isModelsLoading}
-                    className={`flex items-center space-x-1 text-[10px] disabled:opacity-40 transition-colors ${
-                      isLight ? 'text-[#2a2529]/70 hover:text-[#2a2529]' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7]'
-                    }`}
-                    title="Refresh models list"
-                  >
-                    <RotateCw size={11} className={isModelsLoading ? 'animate-spin' : ''} />
-                    <span>{isModelsLoading ? 'Syncing...' : 'Sync Models'}</span>
-                  </button>
-                </div>
-
-                {dynamicModels.length > 0 ? (
-                  <div className="mb-2">
-                    <select
-                      value={dynamicModels.some(m => m.id === customModelText) ? customModelText : '__custom__'}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val && val !== '__custom__') {
-                          setCustomModelText(val);
-                          aiStore.setModel(val);
-                          if (val.includes('local') || val.includes('gguf') || val.includes('llama') || val.includes('q4')) {
-                            triggerWeightLoadingProgress(`/models/${val}.gguf`, val);
-                          }
-                        }
-                      }}
-                      className={`w-full rounded-xl px-3 py-2.5 text-xs transition-all font-mono border focus:outline-none ${
-                        isLight 
-                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] focus:border-[#2a2529]/50' 
-                          : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] focus:border-[#f3f0e7]/40'
+                  {dynamicModels.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowModelSuggestions(prev => !prev)}
+                      className={`text-[10px] font-mono transition-colors ${
+                        isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529]' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7]'
                       }`}
                     >
-                      <option value="" disabled>Select from endpoint models ({dynamicModels.length})...</option>
-                      {dynamicModels.map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.name || m.id}
-                        </option>
-                      ))}
-                      {!dynamicModels.some(m => m.id === customModelText) && customModelText && (
-                        <option value="__custom__">
-                          Custom Model: {customModelText}
-                        </option>
-                      )}
-                    </select>
-                  </div>
-                ) : (
-                  <div className={`mb-2 px-3 py-2 rounded-xl text-[11px] font-mono border ${
-                    isLight ? 'bg-white/60 border-[#2a2529]/15 text-[#2a2529]/70' : 'bg-[#231e22]/50 border-[#f3f0e7]/10 text-[#f3f0e7]/60'
-                  }`}>
-                    {isModelsLoading ? 'Querying live endpoint models...' : 'No endpoint models queried yet. Click "Sync Models" or enter a model ID below.'}
-                  </div>
-                )}
+                      {showModelSuggestions ? 'Hide list' : 'Browse all'}
+                    </button>
+                  )}
+                </div>
 
-                <input
-                  type="text"
-                  value={customModelText}
-                  onChange={(e) => {
-                    isEditingCustomModel.current = true;
-                    const val = e.target.value;
-                    setCustomModelText(val);
-                    aiStore.setModel(val);
-                  }}
-                  onBlur={() => {
-                    isEditingCustomModel.current = false;
-                  }}
-                  className={`w-full rounded-xl px-4 py-3 text-sm font-mono border transition-all focus:outline-none ${
-                    isLight 
-                      ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50' 
-                      : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40'
-                  }`}
-                  placeholder="Or type any custom model ID..."
-                  autoComplete="off"
-                  spellCheck={false}
-                />
+                {/* Combobox with matching suggestions popup (Oorty style) */}
+                <div className="relative" ref={modelComboboxRef}>
+                  <div className="relative flex items-center">
+                    <input
+                      type="text"
+                      value={customModelText}
+                      onChange={(e) => {
+                        isEditingCustomModel.current = true;
+                        const val = e.target.value;
+                        setCustomModelText(val);
+                        aiStore.setModel(val);
+                        setShowModelSuggestions(true);
+                      }}
+                      onFocus={() => setShowModelSuggestions(true)}
+                      onBlur={() => {
+                        isEditingCustomModel.current = false;
+                      }}
+                      className={`w-full rounded-xl pl-4 pr-10 py-3 text-sm font-mono border transition-all focus:outline-none ${
+                        isLight 
+                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50' 
+                          : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40'
+                      }`}
+                      placeholder={dynamicModels.length > 0 ? "Type or select a model..." : "Enter custom model ID (auto-syncing live models)..."}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowModelSuggestions(prev => !prev)}
+                      className="absolute right-2.5 p-1 text-[#f3f0e7]/50 hover:text-[#f3f0e7] rounded-lg transition-colors"
+                      tabIndex={-1}
+                    >
+                      <ChevronDown size={14} className={`transition-transform duration-200 ${showModelSuggestions ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* Matching Suggestions Panel */}
+                  {showModelSuggestions && (
+                    <div className={`absolute top-full left-0 right-0 mt-1.5 max-h-56 overflow-y-auto rounded-2xl border shadow-2xl z-50 p-1.5 backdrop-blur-xl ${
+                      isLight 
+                        ? 'bg-[#f4f0e6]/95 border-[#2a2529]/15 shadow-black/15' 
+                        : 'bg-[#231e22]/95 border-[#f3f0e7]/15 shadow-black/60'
+                    }`}>
+                      {matchingModels.length > 0 ? (
+                        <div className="space-y-0.5">
+                          {matchingModels.map(model => (
+                            <button
+                              key={model.id}
+                              type="button"
+                              onClick={() => {
+                                setCustomModelText(model.id);
+                                aiStore.setModel(model.id);
+                                setShowModelSuggestions(false);
+                                isEditingCustomModel.current = false;
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-mono transition-all flex items-center justify-between group cursor-pointer ${
+                                customModelText === model.id
+                                  ? (isLight ? 'bg-[#2a2529] text-white font-bold' : 'bg-[#342f33] text-white font-bold border border-[#f3f0e7]/20')
+                                  : (isLight ? 'text-[#2a2529]/80 hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/80 hover:bg-[#342f33]/60')
+                              }`}
+                            >
+                              <div className="truncate pr-2">
+                                <div className="truncate font-semibold">{model.name || model.id}</div>
+                                {model.id !== model.name && (
+                                  <div className="text-[10px] opacity-60 truncate">{model.id}</div>
+                                )}
+                              </div>
+                              <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-sans">
+                                live
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="px-3 py-3 text-center text-xs opacity-60 font-mono">
+                          {isModelsLoading ? 'Auto-syncing endpoint models...' : 'No endpoint models match your search. You can still use this as a custom model.'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Advanced Model Parameters: Context, Output, Reasoning */}
