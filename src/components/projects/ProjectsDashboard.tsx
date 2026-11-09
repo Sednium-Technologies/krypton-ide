@@ -30,6 +30,7 @@ import { createRepo, listRepos, pullRepo, type GitHubRepo } from '../../lib/gith
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { readConfig, saveConfigNow } from '../../lib/fileSystemStorage';
+import { describeGoogleAuthError } from '../../lib/googleAuthError';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
 
@@ -447,7 +448,6 @@ function WelcomeScreen({ onSkip }: { onSkip: () => void }) {
 
       const result = await FirebaseAuthentication.signInWithGoogle({
         scopes: ['https://www.googleapis.com/auth/drive.appdata'],
-        useCredentialManager: false,
       } as any);
       
       const fbUser = result.user;
@@ -468,16 +468,12 @@ function WelcomeScreen({ onSkip }: { onSkip: () => void }) {
       onSkip();
     } catch (err: any) {
       console.error('Google sign-in error:', err);
-      let errorStr = '';
-      try {
-        errorStr = typeof err === 'string' ? err : (err?.message || err?.error || String(err));
-      } catch {
-        errorStr = 'Unknown sign-in error';
-      }
-      const isCancelled = errorStr.includes('cancelled') || errorStr.includes('closed_by_user') || errorStr.includes('popup_closed') || errorStr.includes('12501');
-      
-      if (!isCancelled) {
-        alert(`Google sign-in failed: ${errorStr}\n\nPlease check your internet connection and try again, or skip for now.`);
+      const authError = describeGoogleAuthError(err);
+      if (!authError.isCancelled) {
+        const details = authError.technical && authError.technical !== authError.message
+          ? `\n\nDetails: ${authError.technical}`
+          : '';
+        alert(`${authError.message}${details}`);
       }
     } finally {
       setIsLoading(false);

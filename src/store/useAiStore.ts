@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { ModelAdapters } from '../lib/ai/modelAdapters';
+import { buildReasoningPayload, usesMaxCompletionTokens } from '../lib/ai/reasoning';
 import { defaultToolRegistry } from '../lib/ai/AgentToolRegistry';
 import { getAifManager } from '../lib/ai/AifManager';
 import { LayaSystem1 } from '../lib/pocket/LayaSystem1';
@@ -30,6 +32,69 @@ const MUTATING_TOOLS = new Set([
   'run_terminal_command',
   'build_android_apk',
 ]);
+
+function parseNativePayload(data: any): any {
+  if (typeof data !== 'string') return data;
+  const trimmed = data.trim();
+  if (!trimmed) return data;
+  if (trimmed.startsWith('data:') || trimmed.startsWith('event:')) return trimmed;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
+function nativeErrorDetail(data: any): string {
+  const parsed = parseNativePayload(data);
+  if (typeof parsed === 'string') return parsed.slice(0, 1200);
+  const detail = parsed?.error?.message
+    || parsed?.message
+    || parsed?.detail
+    || JSON.stringify(parsed);
+  return String(detail ?? '').slice(0, 1200);
+}
+
+/**
+ * CapacitorHttp bypasses WebView CORS entirely. It cannot stream, so the
+ * completion is converted back into SSE for the existing parser.
+ */
+async function requestNativeCompletion(
+  provider: string,
+  providerName: string,
+  url: string,
+  headers: Record<string, string>,
+  body: any,
+  isGoogle: boolean,
+  geminiModel: string,
+  baseUrl: string
+): Promise<Response> {
+  const nativeUrl = isGoogle
+    ? `${baseUrl}/models/${geminiModel}:generateContent`
+    : url;
+  const nativeBody = isGoogle ? { ...body } : { ...body, stream: false };
+  if (isGoogle) delete nativeBody.stream;
+
+  const response = await CapacitorHttp.post({
+    url: nativeUrl,
+    headers,
+    data: nativeBody,
+    connectTimeout: 30000,
+    readTimeout: 180000,
+  });
+
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(
+      `${providerName} returned HTTP ${response.status}: ${nativeErrorDetail(response.data)}`
+    );
+  }
+
+  const sse = ModelAdapters.toSseFromResponse(provider, parseNativePayload(response.data));
+  return new Response(sse, {
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream' },
+  });
+}
 
 export interface AttachedFile {
   name: string;
@@ -363,6 +428,25 @@ export const useAiStore = create<AiState>()((set, get) => ({
       attachments
     });
 
+    // Fail with an actionable message instead of sending an invalid request.
+    if (!model || !model.trim()) {
+      addMessage(sessionId, {
+        role: 'assistant',
+        content: `**No model selected.** Choose a model for **${currentProvider?.name || provider}** before sending a message. If the model list is empty, check the API key and endpoint, then refresh the model list.`,
+        timestamp: Date.now()
+      });
+      return;
+    }
+
+    if (currentProvider?.requiresKey && !apiKey.trim()) {
+      addMessage(sessionId, {
+        role: 'assistant',
+        content: `**Missing API key.** Add a key for **${currentProvider.name}** in Settings before sending a message.`,
+        timestamp: Date.now()
+      });
+      return;
+    }
+
     // Safety: If the API key is corrupt (contains ESBuild error), clear it
     if (apiKey && apiKey.includes('Transform failed')) {
       get().setApiKey('');
@@ -424,7 +508,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
       } else {
         const rawMessage = String(error?.message || error || 'Unknown error');
         const friendlyMessage = /failed to fetch|networkerror|load failed/i.test(rawMessage)
-          ? `Could not reach ${currentProvider?.name || provider} at ${effectiveBaseUrl || 'the configured endpoint'}. Check your internet connection, API key, and base URL.`
+          ? `Could not reach ${currentProvider?.name || provider} at ${effectiveBaseUrl || 'the configured endpoint'}. Technical detail: ${rawMessage}`
           : rawMessage;
         addMessage(sessionId, {
           role: 'assistant',
@@ -477,6 +561,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
     const maxOutput = get().maxOutputTokens || 8192;
     const reasoning = get().reasoningEffort || 'none';
     const budget = get().thinkingBudget || 0;
+    const reasoningPayload = buildReasoningPayload(provider, model, reasoning, budget, maxOutput);
 
     // 2. API Call
     const isGoogle = provider === 'google' || provider === 'gemini';
@@ -506,9 +591,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
       body.tools = tools;
       body.generationConfig = {
         maxOutputTokens: maxOutput,
-        ...(reasoning !== 'none' || budget > 0
-          ? { thinkingConfig: { thinkingBudget: budget > 0 ? budget : (reasoning === 'low' ? 1024 : reasoning === 'medium' ? 4096 : 8192) } }
-          : {}),
+        ...(reasoningPayload.thinkingConfig ? { thinkingConfig: reasoningPayload.thinkingConfig } : {}),
       };
     } else if (provider === 'anthropic') {
       // Anthropic Messages API format
@@ -516,17 +599,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
         model,
         system: systemContext,
         max_tokens: maxOutput,
-        ...(reasoning !== 'none'
-          ? {
-              thinking: {
-                type: 'enabled',
-                budget_tokens: Math.min(
-                  budget > 0 ? budget : (reasoning === 'low' ? 1024 : reasoning === 'medium' ? 4096 : 8192),
-                  Math.max(1024, maxOutput - 1024)
-                ),
-              },
-            }
-          : {}),
+        ...(reasoningPayload.thinking ? { thinking: reasoningPayload.thinking } : {}),
         messages: providerMessages,
         tools: tools,
         stream: true
@@ -546,34 +619,63 @@ export const useAiStore = create<AiState>()((set, get) => ({
       };
 
       if (provider === 'openai') {
-        const isReasoningModel = model.toLowerCase().startsWith('o') || model.toLowerCase().includes('gpt-6') || model.toLowerCase().includes('reasoning') || model.toLowerCase().includes('astra');
-        if (isReasoningModel) {
+        if (usesMaxCompletionTokens(provider, model)) {
           body.max_completion_tokens = maxOutput;
-          if (reasoning !== 'none') body.reasoning_effort = reasoning;
         } else {
           body.max_tokens = maxOutput;
         }
+        if (reasoningPayload.reasoning_effort) {
+          body.reasoning_effort = reasoningPayload.reasoning_effort;
+        }
       } else if (provider === 'openrouter') {
         body.max_tokens = maxOutput;
-        if (reasoning !== 'none') body.reasoning = { effort: reasoning };
+        if (reasoningPayload.reasoning) body.reasoning = reasoningPayload.reasoning;
       } else {
-        // NVIDIA NIM, Groq, DeepSeek, Custom: pass max_tokens only; never pass unrecognized top-level fields
+        // NVIDIA NIM, Groq, DeepSeek, Moonshot, Custom: OpenAI-compatible
+        // max_tokens only. Reasoning fields vary by model, so never send
+        // unrecognized reasoning fields to providers that may reject them.
         body.max_tokens = maxOutput;
       }
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: get().abortController?.signal
-    });
+    const providerName = currentProvider?.name || provider;
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: get().abortController?.signal
+      });
+    } catch (fetchError: any) {
+      if (fetchError?.name === 'AbortError') throw fetchError;
+
+      if (!Capacitor.isNativePlatform()) {
+        throw new Error(
+          `Could not reach ${providerName} at ${effectiveBaseUrl}. The browser blocked the request (CORS) or the network is offline. Use the native Android app for this provider. Technical detail: ${String(fetchError?.message || fetchError)}`
+        );
+      }
+
+      // Android WebView fetch is subject to CORS. Retry through the native
+      // HTTP bridge, then feed a non-streaming response into the SSE parser.
+      response = await requestNativeCompletion(
+        provider,
+        providerName,
+        url,
+        headers,
+        body,
+        isGoogle,
+        geminiModel,
+        effectiveBaseUrl
+      );
+    }
 
     if (!response.ok) {
-       const errBody = await response.text();
-       let errParsed;
-       try { errParsed = JSON.parse(errBody); } catch(e) { errParsed = { message: errBody }; }
-       throw new Error(errParsed.error?.message || errParsed.message || `Request failed with status ${response.status}`);
+      const errBody = await response.text();
+      let errParsed;
+      try { errParsed = JSON.parse(errBody); } catch(e) { errParsed = { message: errBody }; }
+      const detail = errParsed?.error?.message || errParsed?.message || errParsed?.detail || errBody;
+      throw new Error(`${providerName} returned HTTP ${response.status}: ${detail}`);
     }
 
     // STREAMING READER

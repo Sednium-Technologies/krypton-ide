@@ -46,6 +46,100 @@ export const ModelAdapters = {
   },
 
   /**
+   * Converts a non-streaming completion response into the SSE shape the
+   * streaming parser already understands. Used by the native HTTP fallback,
+   * where CapacitorHttp cannot expose a readable stream.
+   */
+  toSseFromResponse(provider: string, data: any): string {
+    if (typeof data === 'string') {
+      const trimmed = data.trim();
+      if (trimmed.startsWith('data:') || trimmed.startsWith('event:')) {
+        return data.endsWith('\n\n') ? data : `${data}\n\n`;
+      }
+      try {
+        data = JSON.parse(trimmed);
+      } catch {
+        return `data: ${JSON.stringify({ choices: [{ delta: { content: trimmed } }] })}\n\n`;
+      }
+    }
+
+    const events: string[] = [];
+    const push = (payload: any) => events.push(`data: ${JSON.stringify(payload)}`);
+
+    if (provider === 'anthropic' || data?.type === 'message') {
+      const blocks = Array.isArray(data?.content) ? data.content : [];
+      let index = 0;
+      for (const block of blocks) {
+        if (block?.type === 'text' && block.text) {
+          push({
+            type: 'content_block_delta',
+            index,
+            delta: { type: 'text_delta', text: block.text },
+          });
+          index++;
+        } else if (block?.type === 'tool_use') {
+          push({
+            type: 'content_block_start',
+            index,
+            content_block: {
+              type: 'tool_use',
+              id: block.id,
+              name: block.name,
+            },
+          });
+          push({
+            type: 'content_block_delta',
+            index,
+            delta: {
+              type: 'input_json_delta',
+              partial_json: JSON.stringify(block.input || {}),
+            },
+          });
+          index++;
+        }
+      }
+      push({ type: 'message_stop' });
+      return `${events.join('\n\n')}\n\n`;
+    }
+
+    if (provider === 'google' || provider === 'gemini' || data?.candidates) {
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      for (const part of parts) {
+        if (part?.text) {
+          push({ candidates: [{ content: { parts: [{ text: part.text }] } }] });
+        }
+        if (part?.functionCall) {
+          push({ candidates: [{ content: { parts: [{ functionCall: part.functionCall }] } }] });
+        }
+      }
+      return events.length > 0 ? `${events.join('\n\n')}\n\n` : '';
+    }
+
+    const message = data?.choices?.[0]?.message || {};
+    const rawContent = message.content;
+    const content = Array.isArray(rawContent)
+      ? rawContent.map((part: any) => part?.text || '').join('')
+      : (rawContent || '');
+    const delta: any = { content };
+    if (Array.isArray(message.tool_calls)) {
+      delta.tool_calls = message.tool_calls.map((tc: any, index: number) => ({
+        index,
+        id: tc?.id,
+        type: 'function',
+        function: {
+          name: tc?.function?.name,
+          arguments: typeof tc?.function?.arguments === 'string'
+            ? tc.function.arguments
+            : JSON.stringify(tc?.function?.arguments || {}),
+        },
+      }));
+    }
+    push({ choices: [{ delta }] });
+    events.push('data: [DONE]');
+    return `${events.join('\n\n')}\n\n`;
+  },
+
+  /**
    * Normalizes a provider's message response into our internal format
    */
   normalizeResponse(provider: string, data: any): NormalizedMessage {
@@ -188,6 +282,7 @@ export const ModelAdapters = {
         if (delta?.tool_calls) {
           return {
             role: 'assistant',
+            content: delta.content || '',
             tool_calls: delta.tool_calls.map((tc: any) => ({
               id: tc.id || (tc.index !== undefined ? `call_idx_${tc.index}` : undefined),
               index: tc.index ?? 0,

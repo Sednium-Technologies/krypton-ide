@@ -6,6 +6,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { useAuthStore } from '../../store/useAuthStore';
 import { checkStoragePermission, requestStoragePermission } from '../../lib/storagePermission';
+import { describeGoogleAuthError } from '../../lib/googleAuthError';
 
 interface PermissionConsentModalProps {
   isOpen: boolean;
@@ -88,7 +89,6 @@ export function PermissionConsentModal({ isOpen, onConsent }: PermissionConsentM
       if (Capacitor.isNativePlatform()) {
         const result = await FirebaseAuthentication.signInWithGoogle({
           scopes: ['https://www.googleapis.com/auth/drive.appdata'],
-          useCredentialManager: false,
         } as any);
         if (result.user) {
           const user = {
@@ -106,14 +106,8 @@ export function PermissionConsentModal({ isOpen, onConsent }: PermissionConsentM
       }
     } catch (e: any) {
       console.warn('[PermissionConsentModal] Google Sign-In error:', e);
-      const msg: string = e?.message || String(e) || '';
-      if (msg.toLowerCase().includes('cancelled') || msg.toLowerCase().includes('canceled') || msg.includes('12501')) {
-        setGoogleLoginError('Sign-in cancelled. You can skip this and sign in later from Settings.');
-      } else if (msg.includes('10') || msg.toLowerCase().includes('developer_error') || msg.toLowerCase().includes('oauth')) {
-        setGoogleLoginError('Google Sign-In is not configured yet. Skip for now — it\'s optional.');
-      } else {
-        setGoogleLoginError('Sign-in failed. This feature is optional — you can skip it.');
-      }
+      const authError = describeGoogleAuthError(e);
+      setGoogleLoginError(authError.message);
     } finally {
       setIsLoggingIn(false);
     }

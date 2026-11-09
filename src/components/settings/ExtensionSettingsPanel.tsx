@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useExtensionHostStore } from '../../store/useExtensionHostStore';
 import { useIdeStore } from '../../store/useIdeStore';
 import { Sliders, Package, Check } from 'lucide-react';
@@ -13,9 +13,28 @@ export function ExtensionSettingsPanel() {
   const textPrimary = isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]';
   const textMuted = isLight ? 'text-[#2a2529]/75' : 'text-[#f3f0e7]/75';
 
-  const configurations = useExtensionHostStore((state) => state.getContributedConfigurations());
+  const installedExtensions = useExtensionHostStore((state) => state.installedExtensions);
   const getConfiguration = useExtensionHostStore((state) => state.getConfiguration);
   const updateConfiguration = useExtensionHostStore((state) => state.updateConfiguration);
+
+  // Derive this outside the Zustand selector. Returning a fresh array from a
+  // selector makes React 19's useSyncExternalStore loop forever.
+  const configurations = useMemo(() => {
+    const list: Array<{ extensionId: string; title: string; properties: Record<string, any> }> = [];
+    for (const ext of installedExtensions || []) {
+      const contributed = ext.manifest?.contributes?.configuration;
+      const entries = Array.isArray(contributed) ? contributed : (contributed ? [contributed] : []);
+      for (const config of entries) {
+        if (!config || typeof config !== 'object') continue;
+        list.push({
+          extensionId: ext.id,
+          title: config.title || ext.manifest?.displayName || ext.manifest?.name || ext.id,
+          properties: config.properties || {},
+        });
+      }
+    }
+    return list;
+  }, [installedExtensions]);
 
   if (configurations.length === 0) {
     return (

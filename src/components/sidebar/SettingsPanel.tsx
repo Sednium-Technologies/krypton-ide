@@ -46,6 +46,7 @@ import { KryptonBrandIcon } from '../ui/KryptonBrandIcon';
 import { openOfficialLink } from '../../lib/navigationBridge';
 import { getPackageCatalog, installPackage, uninstallPackage, type PackageEntry } from '../../lib/kryptonCoreBridge';
 import { haptics } from '../../lib/haptics';
+import { describeGoogleAuthError } from '../../lib/googleAuthError';
 
 import { AgentSettingsPanel } from '../settings/AgentSettingsPanel';
 import { ExtensionSettingsPanel } from '../settings/ExtensionSettingsPanel';
@@ -311,7 +312,6 @@ export function SettingsPanel() {
           'https://www.googleapis.com/auth/drive.appdata',
           'https://www.googleapis.com/auth/drive.file'
         ],
-        useCredentialManager: false,
       } as any);
       const token = result?.credential?.accessToken || (result as any)?.accessToken;
       if (token && googleUser) {
@@ -409,7 +409,6 @@ export function SettingsPanel() {
           'https://www.googleapis.com/auth/drive.appdata',
           'https://www.googleapis.com/auth/drive.file'
         ],
-        useCredentialManager: false,
       } as any);
 
       const user = {
@@ -422,7 +421,8 @@ export function SettingsPanel() {
       if (accessToken) setDriveAccessToken(accessToken);
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
-      useToastStore.getState().error(err?.message || 'Google Sign-In failed');
+      const authError = describeGoogleAuthError(err);
+      useToastStore.getState().error(authError.message);
     } finally {
       setIsGoogleLoading(false);
     }
