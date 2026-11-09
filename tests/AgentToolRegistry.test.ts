@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import { AgentToolRegistry } from '../src/lib/ai/AgentToolRegistry';
 import { LayaSystem1 } from '../src/lib/pocket/LayaSystem1';
-import { AifManager } from '../src/lib/ai/AifManager';
+import { AifManager, getAifManager } from '../src/lib/ai/AifManager';
 import { resolveFullPath } from '../src/lib/ai/toolActions';
 import { ModelAdapters } from '../src/lib/ai/modelAdapters';
 import { useIdeStore } from '../src/store/useIdeStore';
@@ -35,6 +35,7 @@ test('AgentToolRegistry registers built-in categories', () => {
   assert.ok(registry.getTool('aif_scratch'));
   assert.ok(registry.getTool('aif_note'));
   assert.ok(registry.getTool('aif_query'));
+  assert.ok(registry.getTool('aif_status'));
   assert.ok(registry.getTool('search_web'));
   assert.ok(registry.getTool('fetch_web_page'));
   assert.ok(registry.getTool('take_screenshot'));
@@ -201,6 +202,25 @@ test('LayaSystem1 surgical token pruning compresses repetitive logs', () => {
   const pruned = LayaSystem1.pruneCompilerLog(hugeLog, 500);
   assert.ok(pruned.length < hugeLog.length);
   assert.ok(pruned.includes('[... pruned'));
+});
+
+test('AIF project managers isolate memory and preserve prior notes', async () => {
+  const suffix = `${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+  const a = getAifManager(`test_iso_${suffix}_a`);
+  const b = getAifManager(`test_iso_${suffix}_b`);
+
+  await a.commitNote({ importance: 0.55, summary: 'Project A first note', tags: ['a'] });
+  await a.commitNote({ importance: 0.58, summary: 'Project A second note', tags: ['a'] });
+
+  const aRecall = await a.recall();
+  assert.ok(aRecall.formattedContext.includes('Recent Project Memory'));
+  assert.ok(aRecall.formattedContext.includes('Project A second note'));
+
+  const aSummary = await a.getSummary();
+  const bSummary = await b.getSummary();
+  assert.ok(aSummary.total >= 2, 'AIF must preserve earlier notes');
+  assert.strictEqual(bSummary.total, 0, 'AIF must not leak project memory');
+  assert.strictEqual(aSummary.projectId, `test_iso_${suffix}_a`);
 });
 
 test('LayaSystem1 extracts semantic tags for AIF', () => {

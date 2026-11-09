@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { ModelAdapters } from '../lib/ai/modelAdapters';
 import { defaultToolRegistry } from '../lib/ai/AgentToolRegistry';
-import { defaultAifManager } from '../lib/ai/AifManager';
+import { getAifManager } from '../lib/ai/AifManager';
 import { LayaSystem1 } from '../lib/pocket/LayaSystem1';
 import {
   readConfig,
@@ -18,6 +18,18 @@ import {
 import { DEFAULT_AI_PROVIDER, DEFAULT_AI_MODEL, getProviderById } from '../config/aiProviders';
 
 
+
+const MUTATING_TOOLS = new Set([
+  'write_file',
+  'write_new_file',
+  'edit_lines',
+  'insert_lines',
+  'patch_file',
+  'create_directory',
+  'execute_terminal_command',
+  'run_terminal_command',
+  'build_android_apk',
+]);
 
 export interface AttachedFile {
   name: string;
@@ -340,6 +352,8 @@ export const useAiStore = create<AiState>()((set, get) => ({
     const { addMessage, provider, apiKey, model, baseUrl, handleRecursiveChat } = get();
     const currentProvider = getProviderById(provider);
     const effectiveBaseUrl = (baseUrl && baseUrl.trim()) || currentProvider?.baseUrl || '';
+    const aif = getAifManager(get().currentProjectId);
+    defaultToolRegistry.setAifManager(aif);
 
     // Add user message
     addMessage(sessionId, {
@@ -362,7 +376,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
     }
 
     // 1. Arm AIF volatile scratch buffer
-    defaultAifManager.writeScratch(userPrompt);
+    aif.writeScratch(userPrompt);
 
     // 2. Evaluate Laya System 1 fast path (<50ms intent router)
     if (!attachments || attachments.length === 0) {
@@ -381,7 +395,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
     // 3. Automated Chat Boot Recall & Laya System 1 ambient status injection
     let effectiveSystemContext = systemContext;
     try {
-      const recallState = await defaultAifManager.recall();
+      const recallState = await aif.recall();
       if (recallState.formattedContext) {
         effectiveSystemContext = `${systemContext}\n\n${recallState.formattedContext}\n`;
       }
@@ -423,6 +437,8 @@ export const useAiStore = create<AiState>()((set, get) => ({
     const session = get().sessions.find(s => s.id === sessionId);
     if (!session) return;
 
+    const aif = getAifManager(get().currentProjectId);
+    defaultToolRegistry.setAifManager(aif);
     const currentProvider = getProviderById(provider);
     const effectiveBaseUrl = (baseUrl && baseUrl.trim()) || currentProvider?.baseUrl || '';
 
@@ -717,6 +733,26 @@ export const useAiStore = create<AiState>()((set, get) => ({
           timestamp: Date.now(),
           attachments: toolAttachments,
         });
+
+        if (MUTATING_TOOLS.has(tc.name)) {
+          const success = !toolOutput.startsWith('Error:') && !toolOutput.startsWith('Local execution error:');
+          const argHint =
+            typeof tc.arguments?.command === 'string'
+              ? tc.arguments.command
+              : typeof tc.arguments?.path === 'string'
+                ? tc.arguments.path
+                : typeof tc.arguments?.variant === 'string'
+                  ? tc.arguments.variant
+                  : '';
+          await aif
+            .commitNote({
+              importance: success ? 0.5 : 0.7,
+              summary: `${success ? 'Applied' : 'Failed'} ${tc.name}${argHint ? `: ${argHint}` : ''}`,
+              tags: ['tool', tc.name, success ? 'success' : 'failure'],
+              text: toolOutput.slice(0, 2000),
+            })
+            .catch(() => {});
+        }
       }
 
       // 4. Recurse
@@ -734,7 +770,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
       try {
         const textToTag = `${result.content || ''}`;
         const tags = LayaSystem1.extractSemanticTags(textToTag);
-        defaultAifManager.commitNote({
+        aif.commitNote({
           importance: 0.65,
           summary: result.content ? result.content.slice(0, 160).replace(/\n/g, ' ') : 'Oorty Lite turn completed',
           tags,

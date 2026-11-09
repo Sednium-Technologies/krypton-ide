@@ -3,6 +3,7 @@ package com.sednium.kryptonide.agent.tools
 import com.sednium.kryptonide.agent.pocket.LayaSystemOneEngine
 import com.sednium.kryptonide.terminal.PtyBridge
 import com.sednium.kryptonide.terminal.TerminalSession
+import java.io.File
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -28,11 +29,31 @@ class TerminalToolSet(
         val wrapped = "echo $startTag; $command; echo ${exitPrefix}\$?__"
 
         val pid = IntArray(1)
-        val env = mutableListOf("TERM=xterm-256color", "COLORTERM=truecolor", "KRYPTON_AGENT=1")
-        homeDir?.let { env += "HOME=$it" }
+        val prefix = "/data/data/com.sednium.kryptonide.legacy/files/usr"
+        val termuxHome = homeDir ?: "/data/data/com.sednium.kryptonide.legacy/files/home"
+        val env = mutableListOf(
+            "TERM=xterm-256color",
+            "COLORTERM=truecolor",
+            "KRYPTON_AGENT=1",
+            "PREFIX=$prefix",
+            "HOME=$termuxHome",
+            "TMPDIR=$prefix/tmp",
+            "PATH=$prefix/bin:/system/bin:/system/xbin",
+            "LD_LIBRARY_PATH=$prefix/lib",
+            "TERMUX__ROOTFS=/data/data/com.sednium.kryptonide.legacy/files",
+            "TERMUX__PREFIX=$prefix",
+            "TERMUX__HOME=$termuxHome",
+            "TERMUX_APP__DATA_DIR=/data/data/com.sednium.kryptonide.legacy",
+            "TERMUX_APP__LEGACY_DATA_DIR=/data/data/com.sednium.kryptonide.legacy",
+            "TERMUX_APP__BUILD_DATA_DIR=/data/data/com.termux",
+            "TERMUX_EXEC__EXECVE_CALL__INTERCEPT=enable",
+        )
+        val termuxExecLib = File(prefix, "lib/libtermux-exec-ld-preload.so")
+        if (termuxExecLib.exists()) env += "LD_PRELOAD=${termuxExecLib.absolutePath}"
+        val shell = File(prefix, "bin/bash").takeIf { it.canExecute() }?.absolutePath ?: "/system/bin/sh"
 
         val fd = try {
-            PtyBridge.createSubprocess("/system/bin/sh", cwd, env.toTypedArray(), pid, 60, 200)
+            PtyBridge.createSubprocess(shell, cwd, env.toTypedArray(), pid, 60, 200)
         } catch (e: Exception) {
             return ToolResult.failure("Failed to start PTY: ${e.message}")
         }

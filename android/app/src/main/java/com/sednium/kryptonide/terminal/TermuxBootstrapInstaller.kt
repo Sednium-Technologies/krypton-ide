@@ -303,8 +303,11 @@ class TermuxBootstrapInstaller(private val context: Context) {
      * that absolute prefix in shebangs and configuration. Rewrite the text
      * files in place so the userland can find its own binaries and libraries.
      *
-     * ELF binaries cannot be rewritten here because the replacement prefix is
-     * longer; they rely on `LD_LIBRARY_PATH` and the PATH exported by the PTY.
+     * ELF binaries cannot be rewritten in place because the replacement prefix
+     * is longer. The PTY exports TERMUX__PREFIX/TERMUX_APP__DATA_DIR and
+     * preloads libtermux-exec when the bootstrap provides it, which remaps
+     * exec/open paths at runtime. Without that library, binaries that inspect
+     * hardcoded /data/data/com.termux paths may still fail.
      */
     private fun relocateTermuxPrefix() {
         val replacements = mapOf(

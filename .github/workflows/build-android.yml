@@ -4,6 +4,15 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: Build variant
+        required: true
+        default: release
+        type: choice
+        options:
+          - debug
+          - release
 
 env:
   NODE_VERSION: '22'
@@ -11,8 +20,9 @@ env:
 
 jobs:
   build:
-    name: Build Debug APK
+    name: Build Android APK
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     
     steps:
       - name: Checkout code
@@ -33,9 +43,23 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools'
+          packages: >-
+            platform-tools
+            platforms;android-36
+            build-tools;36.0.0
+            cmake;3.22.1
+            ndk;27.0.12077973
+
+      # npm install triggers sharp's libvips download, which times out on
+      # hosted runners. The browser build does not execute sharp or the native
+      # ONNX runtime, so install without lifecycle scripts and keep only
+      # production dependencies. esbuild ships its platform binary through an
+      # optional package, so it still works after scripts are skipped.
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm ci --omit=dev --legacy-peer-deps --ignore-scripts
+
+      - name: Verify build toolchain
+        run: npx --no-install vite --version
 
       - name: Build web app
         run: npm run build
@@ -60,17 +84,22 @@ jobs:
           chmod +x gradlew
           ./gradlew signingReport
 
-      - name: Build Release APK
+      - name: Build APK
         working-directory: android
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'android' }}
+          BUILD_TYPE: ${{ inputs.build_type || 'release' }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            ./gradlew assembleDebug
+          else
+            ./gradlew assembleRelease
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: krypton-ide-release
-          path: android/app/build/outputs/apk/release/*.apk
+          name: krypton-ide-${{ inputs.build_type || 'release' }}
+          path: android/app/build/outputs/apk/${{ inputs.build_type || 'release' }}/*.apk
           retention-days: 30

@@ -275,6 +275,7 @@ function ToolResultBlock({ msg }: { msg: Message }) {
     : msg.name === 'aif_scratch' ? 'AIF Volatile Scratch'
     : msg.name === 'aif_note' ? 'AIF Cognitive Commit'
     : msg.name === 'aif_query' ? 'AIF Memory Query'
+    : msg.name === 'aif_status' ? 'AIF Memory Status'
     : msg.name?.startsWith('mcp_') ? `MCP: ${msg.name.replace(/^mcp_/, '')}`
     : 'Tool Result';
   return (

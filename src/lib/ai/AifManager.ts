@@ -33,10 +33,19 @@ export interface AifMemoryState {
   crust: AifBlock[];
 }
 
+function isBridgeBlock(block: AifBlock): boolean {
+  return (
+    block.importance >= 0.7 ||
+    (block.tags || []).some((tag) => tag === 'bridge' || tag === 'cross-project')
+  );
+}
+
 export class AifManager {
   private static scratchBuffer: string = '';
   private projectId: string;
   private inMemoryBlocks: AifBlock[] = [];
+  private loaded = false;
+  private loading: Promise<void> | null = null;
 
   constructor(projectId: string = 'default_project') {
     this.projectId = projectId;
@@ -93,6 +102,89 @@ export class AifManager {
     } catch {}
   }
 
+  private async ensureLoaded(): Promise<void> {
+    if (this.loaded) return;
+    if (!this.loading) {
+      this.loading = this.loadFromStorage().finally(() => {
+        this.loaded = true;
+        this.loading = null;
+      });
+    }
+    await this.loading;
+  }
+
+  private async loadFromStorage(): Promise<void> {
+    const addBlocks = (blocks: unknown): void => {
+      if (!Array.isArray(blocks)) return;
+      const ids = new Set(this.inMemoryBlocks.map((b) => b.id));
+      for (const block of blocks) {
+        if (!block || typeof block !== 'object' || !block.id || ids.has(block.id)) continue;
+        this.inMemoryBlocks.push(block as AifBlock);
+        ids.add(block.id);
+      }
+    };
+
+    try {
+      const projectPath = this.getProjectFilePath();
+      const bridgePath = this.getBridgeFilePath();
+      let projectContent: string | null = null;
+      let bridgeContent: string | null = null;
+
+      if (isNative()) {
+        projectContent = await readTextFile(projectPath);
+        bridgeContent = await readTextFile(bridgePath);
+      } else {
+        projectContent = webRead(projectPath);
+        bridgeContent = webRead(bridgePath);
+      }
+
+      if (projectContent) {
+        try { addBlocks(JSON.parse(projectContent)); } catch {}
+      }
+      if (bridgeContent) {
+        try { addBlocks(JSON.parse(bridgeContent)); } catch {}
+      }
+    } catch (e) {
+      console.warn('[AifManager] Recall disk read error:', e);
+    }
+
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const key = `krypton_aif_${this.projectId}`;
+        const stored = window.localStorage.getItem(key);
+        if (stored) {
+          try { addBlocks(JSON.parse(stored)); } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  getProjectId(): string {
+    return this.projectId;
+  }
+
+  async getSummary(): Promise<{
+    projectId: string;
+    total: number;
+    core: number;
+    ring: number;
+    crust: number;
+    bridge: number;
+    scratchActive: boolean;
+  }> {
+    await this.ensureLoaded();
+    const all = this.inMemoryBlocks;
+    return {
+      projectId: this.projectId,
+      total: all.length,
+      core: all.filter((b) => b.ring === 'INT16_CORE').length,
+      ring: all.filter((b) => b.ring === 'INT8_RING').length,
+      crust: all.filter((b) => b.ring === 'INT2_CRUST').length,
+      bridge: all.filter(isBridgeBlock).length,
+      scratchActive: Boolean(this.readScratch()),
+    };
+  }
+
   /**
    * Commits a turn cognitive note with an importance score (0.0 to 1.0).
    * 0.70 - 1.00: Red Core (INT16_CORE)
@@ -120,33 +212,30 @@ export class AifManager {
       ring,
     };
 
+    await this.ensureLoaded();
     this.inMemoryBlocks.push(block);
+
+    const projectBlocks = this.inMemoryBlocks.filter((b) => !isBridgeBlock(b));
+    const bridgeBlocks = this.inMemoryBlocks.filter(isBridgeBlock);
 
     // 1. Persist directly to .ai disk files in Kryptonide data directory (${basePath}/aif/)
     try {
       const aifDir = this.getAifDirectory();
       const projectPath = this.getProjectFilePath();
       const bridgePath = this.getBridgeFilePath();
-      const projectData = JSON.stringify(this.inMemoryBlocks, null, 2);
+      const projectData = JSON.stringify(projectBlocks, null, 2);
 
       if (isNative()) {
         await mkdirSafe(aifDir);
         await writeTextFile(projectPath, projectData);
-
-        // If high importance or tagged bridge, update bridge_nexus.ai
-        if (block.importance >= 0.70 || block.tags.some(t => t.includes('bridge') || t.includes('cross-project'))) {
-          let bridgeBlocks: AifBlock[] = [];
-          const existingBridge = await readTextFile(bridgePath);
-          if (existingBridge) {
-            try { bridgeBlocks = JSON.parse(existingBridge); } catch {}
-          }
-          if (!bridgeBlocks.some(b => b.id === block.id)) {
-            bridgeBlocks.push(block);
-            await writeTextFile(bridgePath, JSON.stringify(bridgeBlocks, null, 2));
-          }
+        if (isBridgeBlock(block)) {
+          await writeTextFile(bridgePath, JSON.stringify(bridgeBlocks, null, 2));
         }
       } else {
         webWrite(projectPath, projectData);
+        if (isBridgeBlock(block)) {
+          webWrite(bridgePath, JSON.stringify(bridgeBlocks, null, 2));
+        }
       }
     } catch (fsErr) {
       console.warn('[AifManager] Disk persistence fallback:', fsErr);
@@ -156,10 +245,7 @@ export class AifManager {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const key = `krypton_aif_${this.projectId}`;
-        const existingRaw = window.localStorage.getItem(key);
-        const existing: AifBlock[] = existingRaw ? JSON.parse(existingRaw) : [];
-        existing.push(block);
-        window.localStorage.setItem(key, JSON.stringify(existing));
+        window.localStorage.setItem(key, JSON.stringify(projectBlocks));
       }
     } catch {}
 
@@ -170,75 +256,21 @@ export class AifManager {
    * Chat Boot Recall: Retrieves Red Core blocks and cross-project bridge pointers.
    */
   async recall(): Promise<{ core: AifBlock[]; bridge: AifBlock[]; formattedContext: string }> {
-    let allBlocks = [...this.inMemoryBlocks];
-
-    // 1. Load from .ai files in ${basePath}/aif/
-    try {
-      const projectPath = this.getProjectFilePath();
-      const bridgePath = this.getBridgeFilePath();
-
-      let projectContent: string | null = null;
-      let bridgeContent: string | null = null;
-
-      if (isNative()) {
-        projectContent = await readTextFile(projectPath);
-        bridgeContent = await readTextFile(bridgePath);
-      } else {
-        projectContent = webRead(projectPath);
-        bridgeContent = webRead(bridgePath);
-      }
-
-      if (projectContent) {
-        try {
-          const parsed: AifBlock[] = JSON.parse(projectContent);
-          const ids = new Set(allBlocks.map(b => b.id));
-          for (const p of parsed) {
-            if (!ids.has(p.id)) {
-              allBlocks.push(p);
-              ids.add(p.id);
-            }
-          }
-        } catch {}
-      }
-
-      if (bridgeContent) {
-        try {
-          const parsedBridge: AifBlock[] = JSON.parse(bridgeContent);
-          const ids = new Set(allBlocks.map(b => b.id));
-          for (const b of parsedBridge) {
-            if (!ids.has(b.id)) {
-              allBlocks.push(b);
-              ids.add(b.id);
-            }
-          }
-        } catch {}
-      }
-    } catch (e) {
-      console.warn('[AifManager] Recall disk read error:', e);
-    }
-
-    // 2. Also check localStorage fallback
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const key = `krypton_aif_${this.projectId}`;
-        const stored = window.localStorage.getItem(key);
-        if (stored) {
-          const parsed: AifBlock[] = JSON.parse(stored);
-          const ids = new Set(allBlocks.map(b => b.id));
-          for (const p of parsed) {
-            if (!ids.has(p.id)) allBlocks.push(p);
-          }
-        }
-      }
-    } catch {}
-
+    await this.ensureLoaded();
+    const allBlocks = [...this.inMemoryBlocks];
     const core = allBlocks.filter(b => b.ring === 'INT16_CORE' || b.importance >= 0.70);
-    const bridge = allBlocks.filter(b => b.tags?.includes('bridge') || b.tags?.includes('cross-project'));
+    const bridge = allBlocks.filter(isBridgeBlock);
+    const recentRing = allBlocks
+      .filter(b => b.ring === 'INT8_RING' && !isBridgeBlock(b))
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .slice(-8);
 
     const lines = [
       '# AIF V4 COGNITIVE MEMORY ACTIVE STATE',
       core.length > 0 ? `## Red Core Memory (${core.length} items):` : '',
       ...core.slice(-5).map(c => `- [${c.id}] (Importance: ${c.importance.toFixed(2)}) ${c.summary}`),
+      recentRing.length > 0 ? `## Recent Project Memory (${recentRing.length} items):` : '',
+      ...recentRing.map(r => `- ${r.summary}`),
       bridge.length > 0 ? `## Cross-Project Bridge Nexus (${bridge.length} items):` : '',
       ...bridge.slice(-3).map(b => `- [Bridge] ${b.summary}`),
     ].filter(Boolean);
@@ -266,4 +298,16 @@ export class AifManager {
   }
 }
 
-export const defaultAifManager = new AifManager();
+const aifManagers = new Map<string, AifManager>();
+
+export function getAifManager(projectId?: string | null): AifManager {
+  const key = projectId && projectId.trim() ? projectId.trim() : 'default_project';
+  let manager = aifManagers.get(key);
+  if (!manager) {
+    manager = new AifManager(key);
+    aifManagers.set(key, manager);
+  }
+  return manager;
+}
+
+export const defaultAifManager = getAifManager();

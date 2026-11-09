@@ -49,6 +49,10 @@ export class AgentToolRegistry {
     this.registerBuiltinTools();
   }
 
+  setAifManager(aifManager: AifManager): void {
+    this.aif = aifManager;
+  }
+
   private registerBuiltinTools() {
     // ─── 1. Filesystem Tools ───────────────────────────────────────────
     this.registerTool({
@@ -499,6 +503,24 @@ export class AgentToolRegistry {
         try {
           const res = await this.aif.query(args.query);
           return { success: true, data: res };
+        } catch (e: any) {
+          return { success: false, error: e.message };
+        }
+      },
+    });
+
+    this.registerTool({
+      name: 'aif_status',
+      description: 'Reports the active project AIF memory rings, cross-project bridge count, and volatile scratch state.',
+      category: 'aif',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+      execute: async () => {
+        try {
+          const summary = await this.aif.getSummary();
+          return { success: true, data: summary };
         } catch (e: any) {
           return { success: false, error: e.message };
         }

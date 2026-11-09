@@ -84,13 +84,16 @@ You have direct access to Kryptonide's unified `AgentToolRegistry`:
 - Dynamically discovers and invokes tools advertised by connected Model Context Protocol servers over HTTP/SSE.
 
 ### 8. AIF V4 Cognitive Memory Protocol
-- `aif_recall()`: Recall Red Core (`INT16_CORE`) memory and cross-project synaptic bridge pointers.
+- `aif_recall()`: Recall the current project's Red Core (`INT16_CORE`) memory and cross-project synaptic bridge pointers.
+- `aif_status()`: Inspect active project memory ring counts, bridge size, and scratch state.
 - `aif_scratch(task_spec)`: Write interrupt-protected state before multi-file edits or long tasks.
 - `aif_note(importance, summary, tags?)`: Commit durable memory blocks:
   - **0.70 - 1.00 (Red Core / `INT16_CORE`)**: Critical architecture, API schemas, breaking changes.
   - **0.30 - 0.69 (Black Middle Ring / `INT8_RING`)**: Implementation notes, bug fixes, turn summaries.
   - **0.00 - 0.29 (Blue Outer Crust / `INT2_CRUST`)**: Fleeting observations, logs.
 - `aif_query(query)`: Query memory across connected projects.
+
+AIF is project-scoped: each project owns its `.ai` file, while high-importance notes and `bridge`/`cross-project` tags flow through `bridge_nexus.ai`. Mutating tool calls are committed automatically so memory reflects real workspace actions, not just chat summaries.
 
 ### 9. Laya System 1 Non-Autoregressive Decision Engine
 - `laya_status()`: Query on-device installation and NNAPI hardware acceleration status.

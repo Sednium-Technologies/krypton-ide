@@ -63,17 +63,17 @@ export async function triggerBuild(owner: string, repo: string, buildType: 'debu
 }
 
 export async function getLatestRun(owner: string, repo: string): Promise<WorkflowRun | null> {
-  const res = await fetch(`${API}/repos/${owner}/${repo}/actions/runs?per_page=1`, {
-    headers: headers()
-  });
-
-  if (!res.ok) return null;
-  const data = await res.json();
-  const runs = (data.workflow_runs || []) as WorkflowRun[];
-  const buildRun = runs.find((run) =>
-    !run.path || run.path.endsWith('build-android.yml') || run.path.endsWith('build.yml')
-  );
-  return buildRun || null;
+  for (const workflowFile of ['build-android.yml', 'build.yml']) {
+    const res = await fetch(
+      `${API}/repos/${owner}/${repo}/actions/workflows/${workflowFile}/runs?per_page=1`,
+      { headers: headers() }
+    );
+    if (!res.ok) continue;
+    const data = await res.json();
+    const run = ((data.workflow_runs || []) as WorkflowRun[])[0];
+    if (run) return run;
+  }
+  return null;
 }
 
 export async function getRunArtifacts(owner: string, repo: string, runId: number): Promise<Artifact[]> {
