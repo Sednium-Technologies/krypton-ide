@@ -2,7 +2,7 @@
 
 <img src="assets/icon.png" alt="Krypton IDE logo" width="128" />
 
-# Krypton IDE
+# Kryptonide
 
 ### Code anywhere. Build anything.
 
