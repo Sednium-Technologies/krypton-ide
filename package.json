@@ -38,6 +38,7 @@
     "comlink": "^4.4.2",
     "dompurify": "^3.2.7",
     "firebase": "^12.13.0",
+    "html-to-image": "^1.11.13",
     "idb-keyval": "^6.2.2",
     "isomorphic-git": "^1.37.4",
     "jszip": "^3.10.1",

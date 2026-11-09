@@ -5,16 +5,19 @@ import { LayaSystem1 } from '../src/lib/pocket/LayaSystem1';
 import { AifManager } from '../src/lib/ai/AifManager';
 import { resolveFullPath } from '../src/lib/ai/toolActions';
 import { ModelAdapters } from '../src/lib/ai/modelAdapters';
+import { useIdeStore } from '../src/store/useIdeStore';
 
 test('AgentToolRegistry registers built-in categories', () => {
   const registry = new AgentToolRegistry();
   const tools = registry.getAllTools();
-  
+
   const categories = new Set(tools.map(t => t.category));
   assert.ok(categories.has('filesystem'), 'Must have filesystem tools');
   assert.ok(categories.has('terminal'), 'Must have terminal tools');
   assert.ok(categories.has('lsp'), 'Must have lsp tools');
   assert.ok(categories.has('aif'), 'Must have aif tools');
+  assert.ok(categories.has('web'), 'Must have web tools');
+  assert.ok(categories.has('preview'), 'Must have preview tools');
 
   // Verify specific tools
   assert.ok(registry.getTool('read_file'));
@@ -24,6 +27,7 @@ test('AgentToolRegistry registers built-in categories', () => {
   assert.ok(registry.getTool('patch_file'));
   assert.ok(registry.getTool('list_dir'));
   assert.ok(registry.getTool('execute_terminal_command'));
+  assert.ok(registry.getTool('build_android_apk'));
   assert.ok(registry.getTool('lsp_get_diagnostics'));
   assert.ok(registry.getTool('lsp_get_symbols'));
   assert.ok(registry.getTool('lsp_find_definition'));
@@ -31,6 +35,13 @@ test('AgentToolRegistry registers built-in categories', () => {
   assert.ok(registry.getTool('aif_scratch'));
   assert.ok(registry.getTool('aif_note'));
   assert.ok(registry.getTool('aif_query'));
+  assert.ok(registry.getTool('search_web'));
+  assert.ok(registry.getTool('fetch_web_page'));
+  assert.ok(registry.getTool('take_screenshot'));
+  assert.ok(registry.getTool('capture_preview_screenshot'));
+  assert.ok(registry.getTool('inspect_preview_dom'));
+  assert.ok(registry.getTool('grep_search'));
+  assert.ok(registry.getTool('find_files_by_name'));
 
   // SEC-TOOL-01: Path traversal protection
   assert.strictEqual(resolveFullPath('src/App.tsx'), 'src/App.tsx');
@@ -246,7 +257,7 @@ test('LayaSystem1 tracks installation status and hardware acceleration', () => {
 test('AgentToolRegistry registers laya_contrastive_decision and laya_status tools', async () => {
   const registry = new AgentToolRegistry();
   const tools = registry.getAllTools();
-  
+
   const layaTool = tools.find(t => t.name === 'laya_contrastive_decision');
   assert.ok(layaTool, 'laya_contrastive_decision tool must be registered');
 
@@ -268,3 +279,74 @@ test('AgentToolRegistry registers laya_contrastive_decision and laya_status tool
   assert.ok(decisionRes.data.bestChoice);
 });
 
+test('AgentToolRegistry executes web, preview, and workspace code search tools', async () => {
+  const registry = new AgentToolRegistry();
+
+  // 1. search_web execution
+  const searchRes = await registry.execute('search_web', { query: 'react hooks' });
+  assert.strictEqual(searchRes.success, true);
+  assert.ok(Array.isArray(searchRes.data.results));
+
+  // 2. fetch_web_page security guards
+  const ftpRes = await registry.execute('fetch_web_page', { url: 'ftp://malicious.com' });
+  assert.strictEqual(ftpRes.success, false);
+  assert.ok(ftpRes.error?.includes('Access Denied'));
+
+  const cloudMetadataRes = await registry.execute('fetch_web_page', { url: 'http://169.254.169.254/latest/meta-data' });
+  assert.strictEqual(cloudMetadataRes.success, false);
+  assert.ok(cloudMetadataRes.error?.includes('Access Denied'));
+
+  // 3. Screenshot and DOM tools must fail honestly without an open Live Preview.
+  const screenshotRes = await registry.execute('take_screenshot', { clip: { x: 0, y: 0, width: 400, height: 300 } });
+  assert.strictEqual(screenshotRes.success, false);
+  assert.match(screenshotRes.error || '', /Live Preview is (not open|not available)/);
+
+  const aliasRes = await registry.execute('capture_preview_screenshot', {});
+  assert.strictEqual(aliasRes.success, false);
+  assert.match(aliasRes.error || '', /Live Preview is (not open|not available)/);
+
+  // 4. inspect_preview_dom must not fabricate a DOM snapshot
+  const domRes = await registry.execute('inspect_preview_dom', { depth: 2 });
+  assert.strictEqual(domRes.success, false);
+  assert.match(domRes.error || '', /Live Preview is (not open|not available)/);
+
+  // 5. grep_search execution
+  const grepRes = await registry.execute('grep_search', { query: 'test', is_regex: false });
+  assert.strictEqual(grepRes.success, true);
+  assert.ok(Array.isArray(grepRes.data.matches));
+
+  // 6. find_files_by_name execution
+  const findRes = await registry.execute('find_files_by_name', { pattern: '*.ts' });
+  assert.strictEqual(findRes.success, true);
+  assert.ok(Array.isArray(findRes.data.matches));
+});
+
+
+test('list_dir scopes to the requested folder and edit_lines rejects invalid ranges', async () => {
+  useIdeStore.setState({
+    files: {
+      root: { id: 'root', name: 'root', type: 'folder', parentId: null, children: ['src', 'readme'] },
+      src: { id: 'src', name: 'src', type: 'folder', parentId: 'root', children: ['app'] },
+      app: { id: 'app', name: 'app.tsx', type: 'file', parentId: 'src', content: 'one\ntwo\nthree', language: 'typescript' },
+      readme: { id: 'readme', name: 'README.md', type: 'file', parentId: 'root', content: '# hi' },
+    },
+  } as any);
+
+  const registry = new AgentToolRegistry();
+
+  const rootList = await registry.execute('list_dir', {});
+  assert.strictEqual(rootList.success, true);
+  assert.deepStrictEqual(rootList.data.map((entry: any) => entry.path), ['src', 'README.md']);
+
+  const srcList = await registry.execute('list_dir', { path: 'src' });
+  assert.strictEqual(srcList.success, true);
+  assert.deepStrictEqual(srcList.data, [{ name: 'app.tsx', type: 'file', path: 'src/app.tsx' }]);
+
+  const missing = await registry.execute('list_dir', { path: 'does-not-exist' });
+  assert.strictEqual(missing.success, false);
+  assert.match(missing.error || '', /Directory not found/);
+
+  const invalidEdit = await registry.execute('edit_lines', { path: 'src/app.tsx', start_line: 99, end_line: 100, new_content: 'x' });
+  assert.strictEqual(invalidEdit.success, false);
+  assert.match(invalidEdit.error || '', /out of range/);
+});

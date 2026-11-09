@@ -52,16 +52,16 @@ interface AiState {
   isLoading: boolean;
   streamingText: string;
   abortController: AbortController | null;
-  
+
   // Configuration
   provider: string;
   apiKey: string;
   model: string;
   baseUrl: string;
-  
+
   savedModels: SavedModel[];
   activeModelId?: string;
-  
+
   contextWindow: number; // default 128000
   maxOutputTokens: number; // default 8192
   reasoningEffort: 'none' | 'low' | 'medium' | 'high'; // default 'none'
@@ -81,22 +81,22 @@ interface AiState {
   removeSavedModel: (id: string) => void;
   updateSavedModel: (id: string, updates: Partial<SavedModel>) => void;
   setActiveSavedModel: (id: string) => void;
-  
+
   setActiveSession: (id: string) => void;
   addMessage: (sessionId: string, msg: Message) => void;
   updateSession: (sessionId: string, updates: Partial<ChatSession>) => void;
   createNewSession: () => string;
   deleteSession: (id: string) => void;
-  
+
   // Load sessions for a specific project
   loadFromDisk: (projectId?: string) => Promise<void>;
-  
+
   // Switch to a different project (clears sessions, loads new ones)
   switchProject: (projectId: string | null) => Promise<void>;
-  
+
   // Clear all session state (when closing a project)
   clearSessions: () => void;
-  
+
   // The Engine
   sendMessage: (sessionId: string, userPrompt: string, systemContext: string, attachments?: AttachedFile[]) => Promise<void>;
   handleRecursiveChat: (sessionId: string, provider: string, key: string, model: string, baseUrl: string, systemContext: string, startTime: number) => Promise<void>;
@@ -127,7 +127,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
   isLoading: false,
   streamingText: '',
   abortController: null,
-  
+
   provider: DEFAULT_AI_PROVIDER,
   apiKey: '',
   model: DEFAULT_AI_MODEL,
@@ -180,7 +180,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
   switchProject: async (projectId: string | null) => {
     // Clear existing sessions
     set({ sessions: [], activeSessionId: null, currentProjectId: projectId });
-    
+
     if (projectId) {
       // Load this project's sessions
       const sessions = await readAllSessions(projectId);
@@ -227,7 +227,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
     set({ baseUrl });
     persistAiConfig(get());
   },
-  
+
   addSavedModel: (model) => {
     set(state => ({ savedModels: [...state.savedModels, model] }));
     persistAiConfig(get());
@@ -259,7 +259,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
         reasoningEffort: saved.reasoningEffort ?? 'none',
         thinkingBudget: saved.thinkingBudget ?? 0,
       });
-      // Optionally also update apiKey if it carries one, 
+      // Optionally also update apiKey if it carries one,
       // but apiKey is usually loaded globally, so setting the local state is fine.
       if (saved.apiKey) {
         set({ apiKey: saved.apiKey });
@@ -283,9 +283,9 @@ export const useAiStore = create<AiState>()((set, get) => ({
 
   addMessage: (sessionId, msg) => {
     set(state => {
-      const newSessions = state.sessions.map(s => 
-        s.id === sessionId 
-          ? { ...s, messages: [...s.messages, msg], updatedAt: Date.now() } 
+      const newSessions = state.sessions.map(s =>
+        s.id === sessionId
+          ? { ...s, messages: [...s.messages, msg], updatedAt: Date.now() }
           : s
       );
       // Save session to disk (debounced) — scoped to current project
@@ -305,8 +305,8 @@ export const useAiStore = create<AiState>()((set, get) => ({
   },
 
   createNewSession: () => {
-    const id = (typeof crypto !== 'undefined' && crypto.randomUUID) 
-      ? crypto.randomUUID() 
+    const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
       : Date.now().toString(36) + Math.random().toString(36).substring(2);
     const newSession: ChatSession = {
       id,
@@ -340,13 +340,13 @@ export const useAiStore = create<AiState>()((set, get) => ({
     const { addMessage, provider, apiKey, model, baseUrl, handleRecursiveChat } = get();
     const currentProvider = getProviderById(provider);
     const effectiveBaseUrl = (baseUrl && baseUrl.trim()) || currentProvider?.baseUrl || '';
-    
+
     // Add user message
-    addMessage(sessionId, { 
-      role: 'user', 
-      content: userPrompt, 
+    addMessage(sessionId, {
+      role: 'user',
+      content: userPrompt,
       timestamp: Date.now(),
-      attachments 
+      attachments
     });
 
     // Safety: If the API key is corrupt (contains ESBuild error), clear it
@@ -444,7 +444,8 @@ export const useAiStore = create<AiState>()((set, get) => ({
       content: m.content,
       tool_calls: m.tool_calls,
       tool_call_id: m.tool_call_id,
-      name: m.name
+      name: m.name,
+      attachments: m.attachments
     }));
 
     const providerMessages = ModelAdapters.formatHistoryForProvider(provider, [
@@ -480,29 +481,12 @@ export const useAiStore = create<AiState>()((set, get) => ({
 
     let body: any = {};
     if (isGoogle) {
-      // Maps attachments for Gemini
-      body.contents = providerMessages.map((msg: any) => {
-        // Find matching original message for attachments
-        const ogMatch = session.messages.find(m => m.content === msg.parts[0]?.text);
-        if (ogMatch && ogMatch.attachments && ogMatch.attachments.length > 0) {
-          const imgParts = ogMatch.attachments.map(att => ({
-            inlineData: {
-              data: att.data.split(',')[1] || att.data, // remove data:image/png;base64, prefix if present
-              mimeType: att.type
-            }
-          }));
-          return {
-            ...msg,
-            parts: [...msg.parts, ...imgParts]
-          };
-        }
-        return msg;
-      });
+      body.contents = providerMessages;
       body.systemInstruction = { parts: [{ text: systemContext }] };
       body.tools = tools;
       body.generationConfig = {
         maxOutputTokens: maxOutput,
-        ...(reasoning !== 'none' && (geminiModel.includes('2.0') || geminiModel.includes('2.5'))
+        ...(reasoning !== 'none' || budget > 0
           ? { thinkingConfig: { thinkingBudget: budget > 0 ? budget : (reasoning === 'low' ? 1024 : reasoning === 'medium' ? 4096 : 8192) } }
           : {}),
       };
@@ -523,27 +507,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
               },
             }
           : {}),
-        messages: providerMessages.map((msg: any) => {
-          const ogMatch = session.messages.find(m => m.content === (typeof msg.content === 'string' ? msg.content : ''));
-          if (ogMatch && ogMatch.attachments && ogMatch.attachments.length > 0) {
-            const imgContents = ogMatch.attachments.map(att => ({
-              type: 'image' as const,
-              source: {
-                type: 'base64' as const,
-                media_type: att.type,
-                data: att.data.includes('base64,') ? att.data.split(',')[1] : att.data
-              }
-            }));
-            return {
-              ...msg,
-              content: [
-                { type: 'text', text: typeof msg.content === 'string' ? msg.content : '' },
-                ...imgContents
-              ]
-            };
-          }
-          return msg;
-        }),
+        messages: providerMessages,
         tools: tools,
         stream: true
       };
@@ -556,27 +520,14 @@ export const useAiStore = create<AiState>()((set, get) => ({
       ];
       body = {
         model,
-        messages: messagesWithSystem.map((msg: any) => {
-          const ogMatch = session.messages.find(m => m.content === msg.content);
-          if (ogMatch && ogMatch.attachments && ogMatch.attachments.length > 0 && (provider === 'openai' || provider === 'openrouter' || provider === 'groq' || provider === 'custom')) {
-             const imgContents = ogMatch.attachments.map(att => ({
-               type: 'image_url',
-               image_url: { url: att.data.includes('base64,') ? att.data : `data:${att.type};base64,${att.data}` }
-             }));
-             return {
-               ...msg,
-               content: [ { type: 'text', text: msg.content }, ...imgContents ]
-             };
-          }
-          return msg;
-        }),
+        messages: messagesWithSystem,
         tools: tools,
         stream: true,
       };
 
       if (provider === 'openai') {
-        const isO1orO3 = model.toLowerCase().startsWith('o1') || model.toLowerCase().startsWith('o3');
-        if (isO1orO3) {
+        const isReasoningModel = model.toLowerCase().startsWith('o') || model.toLowerCase().includes('gpt-6') || model.toLowerCase().includes('reasoning') || model.toLowerCase().includes('astra');
+        if (isReasoningModel) {
           body.max_completion_tokens = maxOutput;
           if (reasoning !== 'none') body.reasoning_effort = reasoning;
         } else {
@@ -656,7 +607,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
         for (const line of lines) {
           const trimmedLine = line.trim();
           if (!trimmedLine) continue;
-          
+
           const partialMessage = ModelAdapters.parseStreamChunk(provider, trimmedLine);
           if (partialMessage) {
             if (partialMessage.content) {
@@ -680,7 +631,7 @@ export const useAiStore = create<AiState>()((set, get) => ({
                   }
                 }
                 if (tc.name) toolCallAccumulators[accKey].name = tc.name;
-                
+
                 if (tc.arguments) {
                   if (typeof tc.arguments === 'object') {
                     toolCallAccumulators[accKey].isObject = true;
@@ -739,10 +690,18 @@ export const useAiStore = create<AiState>()((set, get) => ({
       // Execute tools via unified AgentToolRegistry
       for (const tc of result.tool_calls) {
         let toolOutput = "";
+        let toolAttachments: AttachedFile[] | undefined = undefined;
         try {
           const res = await defaultToolRegistry.execute(tc.name, tc.arguments);
           if (res.success) {
             toolOutput = typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2);
+            if ((tc.name === 'take_screenshot' || tc.name === 'capture_preview_screenshot') && res.data?.base64) {
+              toolAttachments = [{
+                name: 'preview_screenshot.png',
+                type: res.data.mimeType || 'image/png',
+                data: res.data.base64,
+              }];
+            }
           } else {
             toolOutput = `Error: ${res.error || 'Execution failed'}`;
           }
@@ -755,7 +714,8 @@ export const useAiStore = create<AiState>()((set, get) => ({
           tool_call_id: tc.id,
           name: tc.name,
           content: toolOutput,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          attachments: toolAttachments,
         });
       }
 

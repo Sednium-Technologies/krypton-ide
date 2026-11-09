@@ -7,12 +7,31 @@ export interface NormalizedToolCall {
   index?: number;
 }
 
+export interface NormalizedAttachment {
+  type: string;
+  data: string;
+  name?: string;
+}
+
 export interface NormalizedMessage {
   role: 'user' | 'assistant' | 'tool' | 'system';
   content?: string;
   name?: string;
   tool_calls?: NormalizedToolCall[];
   tool_call_id?: string;
+  attachments?: NormalizedAttachment[];
+}
+
+function imageAttachments(message: NormalizedMessage): NormalizedAttachment[] {
+  return (message.attachments || []).filter((attachment) =>
+    typeof attachment.type === 'string' && attachment.type.startsWith('image/')
+  );
+}
+
+function attachmentData(attachment: NormalizedAttachment): string {
+  return attachment.data.includes('base64,')
+    ? attachment.data.split(',')[1]
+    : attachment.data;
 }
 
 /**
@@ -35,7 +54,7 @@ export const ModelAdapters = {
       case 'gemini': {
         const candidate = data.candidates?.[0];
         const part = candidate?.content?.parts?.[0];
-        
+
         if (part?.functionCall) {
           return {
             role: 'assistant',
@@ -52,7 +71,7 @@ export const ModelAdapters = {
       case 'anthropic': {
         const toolUse = data.content?.find((p: any) => p.type === 'tool_use');
         const textPart = data.content?.find((p: any) => p.type === 'text');
-        
+
         if (toolUse) {
           return {
             role: 'assistant',
@@ -98,12 +117,12 @@ export const ModelAdapters = {
 
       // Skip SSE event-type lines (e.g. "event: content_block_delta")
       if (jsonStr.startsWith('event:')) return null;
-      
+
       // OpenAI / Gemini (alt=sse) / Groq / Mistral / Anthropic (SSE format: data: {...})
       if (jsonStr.startsWith('data: ')) {
         jsonStr = jsonStr.replace(/^data: /, '').trim();
         if (jsonStr === '[DONE]') return null;
-        
+
         const data = JSON.parse(jsonStr);
 
         // ── Anthropic SSE streaming format ──
@@ -145,12 +164,12 @@ export const ModelAdapters = {
           // message_start / message_delta / content_block_stop / message_stop — skip
           return null;
         }
-        
+
         // ── Gemini SSE format ──
         if (provider === 'gemini' || data.candidates) {
           const candidate = data.candidates?.[0];
           const part = candidate?.content?.parts?.[0];
-          
+
           if (part?.functionCall) {
             return {
               role: 'assistant',
@@ -211,20 +230,36 @@ export const ModelAdapters = {
       case 'gemini':
         // Gemini expects role: 'model' instead of 'assistant'
         // and uses contents array with parts
-        return filtered.map(m => {
+        return filtered.flatMap(m => {
+          const images = imageAttachments(m);
           if (m.role === 'tool') {
-            return {
+            const out: any[] = [{
               role: 'function',
-              parts: [{ 
+              parts: [{
                 functionResponse: {
                   name: m.name,
                   response: { content: m.content }
-                } 
+                }
               }]
-            };
+            }];
+            if (images.length > 0) {
+              out.push({
+                role: 'user',
+                parts: [
+                  { text: `Image returned by tool ${m.name || ''}`.trim() },
+                  ...images.map((attachment) => ({
+                    inlineData: {
+                      data: attachmentData(attachment),
+                      mimeType: attachment.type
+                    }
+                  }))
+                ]
+              });
+            }
+            return out;
           }
           if (m.tool_calls) {
-            return {
+            return [{
               role: 'model',
               parts: [{
                 functionCall: {
@@ -232,24 +267,45 @@ export const ModelAdapters = {
                   args: m.tool_calls[0].arguments
                 }
               }]
-            };
+            }];
           }
-          return {
+          return [{
             role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content || '' }]
-          };
+            parts: [
+              { text: m.content || '' },
+              ...images.map((attachment) => ({
+                inlineData: {
+                  data: attachmentData(attachment),
+                  mimeType: attachment.type
+                }
+              }))
+            ]
+          }];
         });
 
       case 'anthropic':
         // Anthropic handles tool results as part of the messages stream
         return filtered.map(m => {
+          const images = imageAttachments(m);
           if (m.role === 'tool') {
             return {
               role: 'user',
               content: [{
                 type: 'tool_result',
                 tool_use_id: m.tool_call_id,
-                content: m.content
+                content: images.length > 0
+                  ? [
+                      { type: 'text', text: m.content || '' },
+                      ...images.map((attachment) => ({
+                        type: 'image',
+                        source: {
+                          type: 'base64',
+                          media_type: attachment.type,
+                          data: attachmentData(attachment)
+                        }
+                      }))
+                    ]
+                  : m.content
               }]
             };
           }
@@ -267,21 +323,54 @@ export const ModelAdapters = {
               ]
             } as any;
           }
-          return { role: m.role as any, content: m.content || '' };
+          return {
+            role: m.role as any,
+            content: images.length > 0
+              ? [
+                  { type: 'text', text: m.content || '' },
+                  ...images.map((attachment) => ({
+                    type: 'image',
+                    source: {
+                      type: 'base64',
+                      media_type: attachment.type,
+                      data: attachmentData(attachment)
+                    }
+                  }))
+                ]
+              : (m.content || '')
+          };
         });
 
       default:
         // OpenAI format
-        return filtered.map(m => {
+        return filtered.flatMap(m => {
+          const images = imageAttachments(m);
           if (m.role === 'tool') {
-            return {
+            const out: any[] = [{
               role: 'tool',
               tool_call_id: m.tool_call_id,
               content: m.content
-            };
+            }];
+            if (images.length > 0) {
+              out.push({
+                role: 'user',
+                content: [
+                  { type: 'text', text: `Image returned by tool ${m.name || ''}`.trim() },
+                  ...images.map((attachment) => ({
+                    type: 'image_url',
+                    image_url: {
+                      url: attachment.data.includes('base64,')
+                        ? attachment.data
+                        : `data:${attachment.type};base64,${attachment.data}`
+                    }
+                  }))
+                ]
+              });
+            }
+            return out;
           }
           if (m.tool_calls) {
-             return {
+             return [{
                role: 'assistant',
                content: m.content,
                tool_calls: m.tool_calls.map(tc => ({
@@ -292,9 +381,24 @@ export const ModelAdapters = {
                    arguments: JSON.stringify(tc.arguments)
                  }
                }))
-             };
+             }];
           }
-          return { role: m.role, content: m.content };
+          return [{
+            role: m.role,
+            content: images.length > 0
+              ? [
+                  { type: 'text', text: m.content || '' },
+                  ...images.map((attachment) => ({
+                    type: 'image_url',
+                    image_url: {
+                      url: attachment.data.includes('base64,')
+                        ? attachment.data
+                        : `data:${attachment.type};base64,${attachment.data}`
+                    }
+                  }))
+                ]
+              : (m.content || '')
+          }];
         });
     }
   }

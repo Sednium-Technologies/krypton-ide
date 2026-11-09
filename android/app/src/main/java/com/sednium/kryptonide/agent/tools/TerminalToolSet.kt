@@ -18,7 +18,7 @@ class TerminalToolSet(
     private val homeDir: String? = null,
 ) {
 
-    fun execute(command: String, timeoutMs: Long = 30_000L): ToolResult {
+    fun execute(command: String, timeoutMs: Long = 120_000L): ToolResult {
         if (command.isBlank()) return ToolResult.failure("Command is empty")
 
         val nonce = UUID.randomUUID().toString().replace("-", "").take(16)

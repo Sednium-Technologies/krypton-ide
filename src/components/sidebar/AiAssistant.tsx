@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Bot, Send, Key, X, Sparkles, Loader2, Plus, MessageSquare, Trash2, ChevronDown, ChevronRight, BrainCircuit, FileCode, CheckCircle2, AlertCircle, Square, ClipboardList, Zap, Settings2, Paperclip, RotateCw, Check, Search, TerminalSquare, Globe, FolderCode, Mic, Copy, Edit3, RotateCcw } from 'lucide-react';
+import { Bot, Send, Key, X, Sparkles, Loader2, Plus, MessageSquare, Trash2, ChevronDown, ChevronRight, BrainCircuit, FileCode, CheckCircle2, AlertCircle, Square, ClipboardList, Zap, Settings2, Paperclip, RotateCw, Check, Search, TerminalSquare, Globe, FolderCode, Mic, Copy, Edit3, RotateCcw, Camera, Maximize2, ExternalLink } from 'lucide-react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useAiStore, Message, AttachedFile } from '../../store/useAiStore';
 import { useProblemsStore } from '../../store/useProblemsStore';
@@ -20,9 +20,9 @@ function ThinkBlock({ content, duration }: { content: string; duration?: number 
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="my-2 border border-[#f3f0e7]/10 rounded-xl overflow-hidden w-full max-w-full bg-[#231e22]">
-      <button 
-        onClick={() => setExpanded(!expanded)} 
-        className="w-full bg-[#231e22] hover:bg-[#342f33] px-3 py-2 text-[11px] font-mono text-[#f3f0e7]/75 flex items-center transition-colors border-b border-transparent focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none" 
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full bg-[#231e22] hover:bg-[#342f33] px-3 py-2 text-[11px] font-mono text-[#f3f0e7]/75 flex items-center transition-colors border-b border-transparent focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
         style={{ borderBottomColor: expanded ? 'rgba(243,240,231,0.1)' : 'transparent' }}
       >
         {expanded ? <ChevronDown size={14} className="mr-2 text-[#f3f0e7]/70" /> : <ChevronRight size={14} className="mr-2 text-[#f3f0e7]/70" />}
@@ -45,7 +45,7 @@ function PlanBlock({ content, onComment }: { content: string, onComment?: () => 
           <span className="truncate font-semibold">Implementation Plan</span>
         </button>
         {onComment && (
-          <button 
+          <button
             onClick={onComment}
             className="px-3 py-2 hover:bg-[#3d373c] text-[10px] font-bold text-[#f3f0e7]/80 uppercase tracking-wider flex items-center transition-colors border-l border-[#f3f0e7]/10"
             title="Add a comment to this plan"
@@ -68,8 +68,165 @@ function StatusBlock({ content }: { content: string }) {
   );
 }
 
+function ScreenshotResultCard({ msg }: { msg: Message }) {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  let parsed: any = null;
+  try {
+    parsed = JSON.parse(msg.content);
+  } catch {}
+
+  const imgSrc = msg.attachments?.[0]?.data || parsed?.base64;
+  const targetLabel = parsed?.target || parsed?.selector || 'Live Preview Viewport';
+  const width = parsed?.width;
+  const height = parsed?.height;
+
+  if (!imgSrc) {
+    return (
+      <div className="my-2 border border-[#f3f0e7]/10 rounded-xl p-3 bg-[#231e22] text-[11px] font-mono text-[#f3f0e7]/70">
+        📷 Screenshot captured: {targetLabel}
+      </div>
+    );
+  }
+
+  return (
+    <div className="my-2 border border-[#7C9B79]/30 rounded-xl overflow-hidden w-full max-w-full bg-[#1e1b20]">
+      <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#f3f0e7]/10 bg-[#2a2529]">
+        <div className="flex items-center space-x-2 min-w-0">
+          <Camera size={13} className="text-[#7C9B79] shrink-0" />
+          <span className="text-[11px] font-mono font-bold text-[#f3f0e7] truncate">{targetLabel}</span>
+        </div>
+        {width && height && (
+          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#7C9B79]/20 text-[#7C9B79] border border-[#7C9B79]/30">
+            {width}x{height}
+          </span>
+        )}
+      </div>
+      <div className="p-2 bg-[#151217] flex flex-col items-center">
+        <div
+          onClick={() => setLightboxOpen(true)}
+          className="relative group cursor-pointer rounded-lg overflow-hidden border border-[#f3f0e7]/15 hover:border-[#7C9B79]/60 transition-all max-h-56"
+        >
+          <img src={imgSrc} alt="Preview Screenshot" className="max-w-full object-contain max-h-52 rounded" />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[11px] font-mono font-bold gap-1.5">
+            <Maximize2 size={14} /> Click to expand
+          </div>
+        </div>
+      </div>
+
+      {lightboxOpen && (
+        <div
+          onClick={() => setLightboxOpen(false)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
+        >
+          <div className="relative max-w-4xl max-h-[90vh] bg-[#1e1b20] border border-[#f3f0e7]/20 rounded-2xl overflow-hidden p-2 shadow-2xl">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[#f3f0e7]/10">
+              <span className="text-xs font-mono font-bold text-[#f3f0e7]">{targetLabel} ({width}x{height})</span>
+              <button onClick={() => setLightboxOpen(false)} className="text-[#f3f0e7]/60 hover:text-white p-1">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-2 overflow-auto max-h-[80vh] flex items-center justify-center">
+              <img src={imgSrc} alt="Preview Screenshot Enlarged" className="max-w-full max-h-full object-contain rounded-lg" />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WebSearchResultCard({ msg }: { msg: Message }) {
+  let parsed: any = null;
+  try {
+    parsed = JSON.parse(msg.content);
+  } catch {}
+
+  const results = parsed?.results || [];
+  const query = parsed?.query || '';
+
+  return (
+    <div className="my-2 border border-[#f3f0e7]/15 rounded-xl overflow-hidden w-full max-w-full bg-[#1e1b20]">
+      <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#f3f0e7]/10 bg-[#2a2529]">
+        <div className="flex items-center space-x-2 min-w-0">
+          <Globe size={13} className="text-[#7C9B79] shrink-0" />
+          <span className="text-[11px] font-mono font-bold text-[#f3f0e7] truncate">Web: {query}</span>
+        </div>
+        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#7C9B79]/20 text-[#7C9B79] border border-[#7C9B79]/30">
+          {results.length} result{results.length === 1 ? '' : 's'}
+        </span>
+      </div>
+      <div className="p-2.5 space-y-2 bg-[#151217] max-h-60 overflow-y-auto">
+        {results.map((r: any, idx: number) => (
+          <div key={idx} className="p-2 rounded-lg bg-[#231e22] border border-[#f3f0e7]/10 text-left">
+            <a
+              href={r.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] font-bold text-[#7C9B79] hover:underline flex items-center gap-1 truncate"
+            >
+              <span>{r.title}</span>
+              <ExternalLink size={10} className="shrink-0" />
+            </a>
+            <p className="text-[10px] text-[#f3f0e7]/75 mt-1 line-clamp-2">{r.snippet}</p>
+          </div>
+        ))}
+        {results.length === 0 && (
+          <p className="text-[10px] text-[#f3f0e7]/50 italic">No search results found.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GrepResultCard({ msg }: { msg: Message }) {
+  let parsed: any = null;
+  try {
+    parsed = JSON.parse(msg.content);
+  } catch {}
+
+  const matches = parsed?.matches || [];
+  const query = parsed?.query || '';
+
+  return (
+    <div className="my-2 border border-[#f3f0e7]/15 rounded-xl overflow-hidden w-full max-w-full bg-[#1e1b20]">
+      <div className="px-3 py-1.5 flex items-center justify-between border-b border-[#f3f0e7]/10 bg-[#2a2529]">
+        <div className="flex items-center space-x-2 min-w-0">
+          <Search size={13} className="text-[#7C9B79] shrink-0" />
+          <span className="text-[11px] font-mono font-bold text-[#f3f0e7] truncate">Grep: "{query}"</span>
+        </div>
+        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#7C9B79]/20 text-[#7C9B79] border border-[#7C9B79]/30">
+          {parsed?.totalMatches ?? matches.length} matches
+        </span>
+      </div>
+      <div className="p-2 space-y-1.5 bg-[#151217] max-h-48 overflow-y-auto font-mono text-[10px]">
+        {matches.map((m: any, idx: number) => (
+          <div key={idx} className="flex items-start gap-1.5 text-left text-[#f3f0e7]/80 hover:bg-[#231e22] p-1 rounded">
+            <span className="text-[#7C9B79] shrink-0">{m.path}:{m.line}</span>
+            <span className="text-[#f3f0e7]/60 truncate">{m.content}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ToolResultBlock({ msg }: { msg: Message }) {
   const isError = msg.content.toLowerCase().includes('error');
+
+  // Dedicated screenshot preview card
+  if (msg.name === 'take_screenshot' || msg.name === 'capture_preview_screenshot') {
+    return <ScreenshotResultCard msg={msg} />;
+  }
+
+  // Dedicated web search display
+  if (msg.name === 'search_web') {
+    return <WebSearchResultCard msg={msg} />;
+  }
+
+  // Dedicated workspace grep display
+  if (msg.name === 'grep_search') {
+    return <GrepResultCard msg={msg} />;
+  }
 
   // Dedicated terminal command execution display
   if (msg.name === 'run_terminal_command' || msg.name === 'execute_terminal_command') {
@@ -104,7 +261,7 @@ function ToolResultBlock({ msg }: { msg: Message }) {
     );
   }
 
-  const toolLabel = msg.name === 'read_file' ? 'Read File' 
+  const toolLabel = msg.name === 'read_file' ? 'Read File'
     : msg.name === 'write_file' || msg.name === 'write_new_file' ? 'Write File'
     : msg.name === 'edit_lines' ? 'Edited Lines'
     : msg.name === 'insert_lines' ? 'Inserted Lines'
@@ -153,13 +310,13 @@ export function AiAssistant() {
   const selectedModel = aiStore.model || currentProvider.defaultModel;
   const isAiLoading = aiStore.isLoading;
 
-  const { 
-    models: dynamicModels, 
+  const {
+    models: dynamicModels,
     isLoading: isModelsLoading,
     isLive: isModelsLive,
     refresh: refreshModels
   } = useDynamicModels(activeProvider, currentKey, aiStore.baseUrl);
-  
+
   const [input, setInput] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showSessionList, setShowSessionList] = useState(false);
@@ -208,7 +365,7 @@ export function AiAssistant() {
   const matchingModels = useMemo(() => {
     const query = customModelText.trim().toLowerCase();
     if (!query) return allSelectableModels;
-    return allSelectableModels.filter(m => 
+    return allSelectableModels.filter(m =>
       m.id.toLowerCase().includes(query) || m.name.toLowerCase().includes(query)
     );
   }, [allSelectableModels, customModelText]);
@@ -310,7 +467,7 @@ export function AiAssistant() {
   };
   const [mentionQuery, setMentionQuery] = useState({ active: false, text: '', startIdx: 0 });
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
-  
+
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -332,9 +489,9 @@ export function AiAssistant() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  useEffect(() => { 
+  useEffect(() => {
     if (aiMessages.length > 0 || aiStore.streamingText) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [aiMessages, aiStore.streamingText]);
 
@@ -437,23 +594,23 @@ export function AiAssistant() {
 
     // Read files at send time instead of subscribing the panel to every keystroke.
     const files = useIdeStore.getState().files;
-    
+
     const rawMentions = (input.match(/@([a-zA-Z0-9_.-]+)/g) || []).map(m => m.slice(1).replace(/[.,?!:;]+$/, ''));
     const mentions = Array.from(new Set(rawMentions));
     let contextString = '';
-    
+
     if (mentions.includes('problems')) {
       const problems = useProblemsStore.getState().problems;
       const logs = useOutputStore.getState().consoleLogs;
-      
-      const pText = problems.length > 0 
-        ? 'Editor Problems:\n' + problems.map((p: any) => `[${p.severity.toUpperCase()}] ${p.fileName}:${p.startLine}:${p.startCol} — ${p.message}`).join('\n') 
+
+      const pText = problems.length > 0
+        ? 'Editor Problems:\n' + problems.map((p: any) => `[${p.severity.toUpperCase()}] ${p.fileName}:${p.startLine}:${p.startCol} — ${p.message}`).join('\n')
         : 'No editor problems detected.';
-        
-      const cText = logs && logs.length > 0 
-        ? 'Preview Web Console Logs:\n' + logs.map((l: any) => `[${l.type.toUpperCase()}] ${l.args}`).join('\n') 
+
+      const cText = logs && logs.length > 0
+        ? 'Preview Web Console Logs:\n' + logs.map((l: any) => `[${l.type.toUpperCase()}] ${l.args}`).join('\n')
         : 'No preview console logs.';
-        
+
       contextString += `\n<problems_context>\n${pText}\n\n${cText}\n</problems_context>\n`;
     }
 
@@ -560,18 +717,18 @@ export function AiAssistant() {
       return f.name === filename || buildPath(id) === filename;
     });
 
-    if (fileEntry) { 
-      updateFileContent(fileEntry[0], content); 
-      saveFile(fileEntry[0]); 
-    } else { 
-      const id = createFile(filename.split('/').pop() || filename, 'root', 'file', content); 
-      saveFile(id); 
+    if (fileEntry) {
+      updateFileContent(fileEntry[0], content);
+      saveFile(fileEntry[0]);
+    } else {
+      const id = createFile(filename.split('/').pop() || filename, 'root', 'file', content);
+      saveFile(id);
     }
   };
 
   const getModifiedFiles = (msg: Message) => {
     const filesModified = new Set<string>();
-    
+
     const regex = /<edit(?: file="([^"]*)")?>/g;
     let match;
     while ((match = regex.exec(msg.content)) !== null) {
@@ -589,7 +746,7 @@ export function AiAssistant() {
         }
       });
     }
-    
+
     return Array.from(filesModified);
   };
 
@@ -606,16 +763,16 @@ export function AiAssistant() {
     }
 
     if (!content || content.trim() === '') return null;
-    
+
     const hasTags = content.includes('<ans>') || content.includes('<edit ') || content.includes('<plan>') || content.includes('<status>');
-    
+
     if (!hasTags) {
       const rendered = content.replace(/```([a-z]*)\n([\s\S]*?)```/g, (_m, _lang, code) => code);
       return <span key="fallback" className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed break-words block">{rendered}</span>;
     }
 
     const rawParts = content.split(/(<ans>[\s\S]*?(?:<\/ans>|$)|<edit(?: file="[^"]*")?>[\s\S]*?(?:<\/edit>|$)|<plan>[\s\S]*?(?:<\/plan>|$)|<status>[\s\S]*?(?:<\/status>|$))/g);
-    
+
     const parts: string[] = [];
     rawParts.forEach(p => {
       if (!p) return;
@@ -703,11 +860,11 @@ export function AiAssistant() {
                   isLight ? 'bg-white border-[#2a2529]/12 text-[#2a2529]' : 'bg-[#342f33] border-[#f3f0e7]/10 text-[#f3f0e7]'
                 }`}>
                   <div className="flex items-center space-x-3">
-                    <button 
+                    <button
                       onClick={() => aiStore.setActiveSavedModel(model.id)}
                       className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
-                        aiStore.activeModelId === model.id 
-                          ? (isLight ? 'border-[#2a2529] bg-[#2a2529]/20' : 'border-[#f3f0e7] bg-[#f3f0e7]/20') 
+                        aiStore.activeModelId === model.id
+                          ? (isLight ? 'border-[#2a2529] bg-[#2a2529]/20' : 'border-[#f3f0e7] bg-[#f3f0e7]/20')
                           : (isLight ? 'border-[#2a2529]/40' : 'border-[#f3f0e7]/40')
                       }`}
                     >
@@ -744,7 +901,7 @@ export function AiAssistant() {
                   <button
                     key={provider.id}
                     onClick={() => {
-                      const nextModel = provider.defaultModel || (provider.models[0] || '');
+                      const nextModel = provider.defaultModel || (provider.models?.[0] || '');
                       aiStore.setProvider(provider.id);
                       aiStore.setModel(nextModel);
                       aiStore.setBaseUrl(provider.baseUrl);
@@ -775,14 +932,14 @@ export function AiAssistant() {
                     onChange={(e) => aiStore.setBaseUrl(e.target.value)}
                     placeholder={currentProvider.baseUrl || 'http://localhost:8080/v1'}
                     className={`w-full rounded-xl px-4 py-3 text-sm font-mono border transition-all focus:outline-none ${
-                      isLight 
-                        ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50' 
+                      isLight
+                        ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50'
                         : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40'
                     }`}
                   />
                   <p className={`text-[10px] mt-1 ${isLight ? 'text-[#2a2529]/50' : 'text-[#f3f0e7]/40'}`}>
-                    {activeProvider === 'custom' 
-                      ? 'Target URL of any OpenAI-compatible server (e.g. vLLM, LM Studio, Ollama /v1)' 
+                    {activeProvider === 'custom'
+                      ? 'Target URL of any OpenAI-compatible server (e.g. vLLM, LM Studio, Ollama /v1)'
                       : activeProvider === 'ollama'
                       ? 'Ollama endpoint (e.g. http://localhost:11434)'
                       : 'Override default API host endpoint'}
@@ -800,8 +957,8 @@ export function AiAssistant() {
                   onChange={(e) => aiStore.setApiKey(e.target.value)}
                   placeholder={currentProvider.placeholder}
                   className={`w-full rounded-xl px-4 py-3 text-sm font-mono border transition-all focus:outline-none ${
-                    isLight 
-                      ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50' 
+                    isLight
+                      ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50'
                       : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40'
                   }`}
                 />
@@ -899,8 +1056,8 @@ export function AiAssistant() {
                         }
                       }}
                       className={`w-full rounded-xl pl-4 pr-10 py-3 text-sm font-mono border transition-all focus:outline-none ${
-                        isLight 
-                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50' 
+                        isLight
+                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50'
                           : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40'
                       }`}
                       placeholder={allSelectableModels.length > 0 ? "Type or search custom model ID..." : "Enter custom model ID..."}
@@ -920,8 +1077,8 @@ export function AiAssistant() {
                   {/* Matching Suggestions Panel */}
                   {showModelSuggestions && (
                     <div className={`absolute top-full left-0 right-0 mt-1.5 max-h-56 overflow-y-auto rounded-2xl border shadow-2xl z-50 p-1.5 backdrop-blur-xl ${
-                      isLight 
-                        ? 'bg-[#f4f0e6]/95 border-[#2a2529]/15 shadow-black/15' 
+                      isLight
+                        ? 'bg-[#f4f0e6]/95 border-[#2a2529]/15 shadow-black/15'
                         : 'bg-[#231e22]/95 border-[#f3f0e7]/15 shadow-black/60'
                     }`}>
                       {matchingModels.length > 0 ? (
@@ -975,8 +1132,8 @@ export function AiAssistant() {
                       value={configContextWindow}
                       onChange={(e) => setConfigContextWindow(Number(e.target.value))}
                       className={`w-full rounded-xl px-3 py-2 text-xs font-mono border focus:outline-none ${
-                        isLight 
-                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] focus:border-[#2a2529]/50' 
+                        isLight
+                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] focus:border-[#2a2529]/50'
                           : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] focus:border-[#f3f0e7]/40'
                       }`}
                     >
@@ -998,8 +1155,8 @@ export function AiAssistant() {
                       value={configMaxOutputTokens}
                       onChange={(e) => setConfigMaxOutputTokens(Number(e.target.value))}
                       className={`w-full rounded-xl px-3 py-2 text-xs font-mono border focus:outline-none ${
-                        isLight 
-                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] focus:border-[#2a2529]/50' 
+                        isLight
+                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] focus:border-[#2a2529]/50'
                           : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] focus:border-[#f3f0e7]/40'
                       }`}
                     >
@@ -1042,8 +1199,8 @@ export function AiAssistant() {
                       onChange={(e) => setConfigThinkingBudget(Number(e.target.value) || 0)}
                       placeholder="Custom thinking budget tokens (0 for default)"
                       className={`w-full rounded-xl px-3 py-2 text-xs font-mono border focus:outline-none ${
-                        isLight 
-                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50' 
+                        isLight
+                          ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/35 focus:border-[#2a2529]/50'
                           : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/30 focus:border-[#f3f0e7]/40'
                       }`}
                     />
@@ -1057,7 +1214,7 @@ export function AiAssistant() {
         <div className={`px-5 py-4 flex-shrink-0 border-t ${
           isLight ? 'bg-[#eae5d8] border-[#2a2529]/15' : 'bg-[#231e22] border-[#f3f0e7]/10'
         }`}>
-          <button 
+          <button
             onClick={() => {
               const canSave = currentKey || !currentProvider.requiresKey || activeProvider === 'openrouter' || activeProvider === 'ollama' || activeProvider === 'custom';
               if (canSave) {
@@ -1099,7 +1256,7 @@ export function AiAssistant() {
       <div className={`flex items-center justify-between px-4 py-3 border-b flex-shrink-0 z-30 ${
         isLight ? 'bg-[#eae5d8] border-[#2a2529]/15 text-[#2a2529]' : 'bg-[#231e22] border-[#f3f0e7]/10 text-[#f3f0e7]'
       }`}>
-        <div 
+        <div
           onClick={() => setShowQuickModelPicker(!showQuickModelPicker)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -1141,8 +1298,8 @@ export function AiAssistant() {
           </div>
         </div>
         <div className="flex items-center space-x-1">
-          <button 
-            onClick={() => setShowSessionList(!showSessionList)} 
+          <button
+            onClick={() => setShowSessionList(!showSessionList)}
             className={`p-2 rounded-xl transition-all focus-visible:ring-2 focus-visible:outline-none ${
               isLight ? 'text-[#2a2529]/75 hover:text-[#2a2529] hover:bg-[#2a2529]/10 focus-visible:ring-[#2a2529]/50' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 focus-visible:ring-[#f3f0e7]/50'
             }`}
@@ -1151,8 +1308,8 @@ export function AiAssistant() {
           >
             <MessageSquare size={16} />
           </button>
-          <button 
-            onClick={() => setShowSettings(true)} 
+          <button
+            onClick={() => setShowSettings(true)}
             className={`p-2 rounded-xl transition-all focus-visible:ring-2 focus-visible:outline-none cursor-pointer ${
               isLight ? 'text-[#2a2529]/75 hover:text-[#2a2529] hover:bg-[#2a2529]/10 focus-visible:ring-[#2a2529]/50' : 'text-[#f3f0e7]/75 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10 focus-visible:ring-[#f3f0e7]/50'
             }`}
@@ -1217,8 +1374,8 @@ export function AiAssistant() {
                 placeholder={`Filter ${dynamicModels.length} models...`}
                 aria-label="Filter models"
                 className={`w-full rounded-xl pl-8 pr-3 py-1.5 text-xs font-mono border focus:outline-none ${
-                  isLight 
-                    ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/40 focus:border-[#2a2529]/50' 
+                  isLight
+                    ? 'bg-white border-[#2a2529]/20 text-[#2a2529] placeholder-[#2a2529]/40 focus:border-[#2a2529]/50'
                     : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7] placeholder-[#f3f0e7]/50 focus:border-[#f3f0e7]/35'
                 }`}
                 autoFocus
@@ -1342,8 +1499,8 @@ export function AiAssistant() {
         <div className="absolute inset-x-0 top-[52px] bottom-0 bg-[#2a2529] z-[45] flex flex-col border-r border-[#f3f0e7]/10 animate-slide-in-right">
           <div className="p-4 border-b border-[#f3f0e7]/10 flex items-center justify-between">
             <span className="text-[10px] font-black text-[#f3f0e7]/70 uppercase tracking-[0.2em]">Conversations</span>
-            <button 
-              onClick={startNewSession} 
+            <button
+              onClick={startNewSession}
               className="p-2 bg-[#f3f0e7] text-[#2a2529] rounded-xl hover:bg-white transition-colors focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none shadow-md"
               title="New conversation"
               aria-label="New conversation"
@@ -1370,7 +1527,7 @@ export function AiAssistant() {
                   </div>
                   <div className="text-[9px] opacity-60 mt-1">{new Date(session.id).toLocaleString()}</div>
                 </button>
-                <button 
+                <button
                   onClick={() => aiStore.deleteSession(session.id)}
                   className="p-2 text-[#f3f0e7]/70 hover:text-red-400 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity focus-visible:ring-2 focus-visible:ring-red-400/50 focus-visible:outline-none rounded-lg"
                   title="Delete conversation"
@@ -1415,7 +1572,7 @@ export function AiAssistant() {
 
             <div className="mt-8 flex flex-col gap-2 w-full max-w-[280px]">
               {['@App.tsx fix the layout', 'Optimize @index.css', 'Create a new utility file'].map(suggestion => (
-                <button 
+                <button
                   key={suggestion}
                   onClick={() => setInput(suggestion)}
                   className={`text-left px-3.5 py-2.5 text-[11px] font-medium rounded-xl transition-all border truncate focus-visible:ring-2 focus-visible:outline-none ${
@@ -1548,10 +1705,10 @@ export function AiAssistant() {
               <div className={`w-full bg-transparent border-none text-[13.5px] leading-relaxed ${
                 isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'
               }`}>
-                {renderMessageContent(aiStore.streamingText, { 
-                  role: 'assistant', 
+                {renderMessageContent(aiStore.streamingText, {
+                  role: 'assistant',
                   content: aiStore.streamingText,
-                  timestamp: Date.now() 
+                  timestamp: Date.now()
                 } as any)}
                 <span className={`inline-block w-1.5 h-4 ml-0.5 animate-pulse align-middle ${
                   isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]'
@@ -1630,22 +1787,22 @@ export function AiAssistant() {
       )}
 
       {/* Input Section — Locked to bottom edge of viewport */}
-      <div 
+      <div
         onDragOver={handleDragOver}
         onDrop={handleDropFile}
         className={`p-3 border-t flex-shrink-0 z-40 sticky bottom-0 w-full pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] backdrop-blur-md ${
           isLight ? 'bg-[#f7f5ee]/95 border-[#2a2529]/10 text-[#2a2529]' : 'bg-[#231e22]/95 border-[#f3f0e7]/10 text-[#f3f0e7]'
         }`}
       >
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          onChange={handleFileChange} 
-          multiple 
-          accept="image/*,text/*,application/json,application/javascript,text/typescript" 
-          className="hidden" 
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          multiple
+          accept="image/*,text/*,application/json,application/javascript,text/typescript"
+          className="hidden"
         />
-        
+
         {/* Active Mention Chips & File Attachments */}
         {(activeMentionTags.length > 0 || attachments.length > 0) && (
           <div className="flex flex-wrap gap-1.5 mb-2 px-1">
@@ -1664,8 +1821,8 @@ export function AiAssistant() {
                   <Paperclip size={12} className="text-[#f3f0e7]/70" />
                 )}
                 <span className="text-[10px] text-[#f3f0e7]/80 truncate max-w-[120px] font-medium">{att.name}</span>
-                <button 
-                  onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} 
+                <button
+                  onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
                   className="text-[#f3f0e7]/70 hover:text-red-400 ml-1 transition-colors p-0.5 rounded-md focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
                   aria-label={`Remove attachment ${att.name}`}
                   title={`Remove attachment ${att.name}`}

@@ -16,6 +16,7 @@ export interface TerminalSessionState {
   pid: number | null;
   running: boolean;
   cwd: string;
+  error?: string;
   // Recent terminal output. A single string avoids copying a growing chunk
   // array on every output event.
   buffer: string;
@@ -274,11 +275,33 @@ export const useNativeTerminalStore = create<NativeTerminalState>((set, get) => 
             running: true,
             cwd: targetCwd,
             buffer: prev.sessions[tab].buffer,
+            error: undefined,
           },
         },
       }));
-    } catch (err) {
+    } catch (err: any) {
+      const message = err?.message || 'Failed to initialize terminal session';
       console.error(`[useNativeTerminalStore] Failed to initialize ${tab} session:`, err);
+
+      const banner = `\r\n\x1b[31m[Terminal unavailable]\x1b[0m ${message}\r\n`;
+      set((prev) => ({
+        sessions: {
+          ...prev.sessions,
+          [tab]: {
+            ...prev.sessions[tab],
+            running: false,
+            pid: null,
+            error: message,
+            buffer: prev.sessions[tab].buffer + banner,
+          },
+        },
+      }));
+
+      subscribers[tab].forEach((cb) => {
+        try {
+          cb(banner);
+        } catch {}
+      });
     }
   },
 

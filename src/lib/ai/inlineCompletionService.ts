@@ -197,6 +197,13 @@ export async function fetchAiInlineCompletion(context: CompletionContext): Promi
   else if (apiKey.startsWith('nvapi-')) provider = 'nvidia';
   else if (apiKey.startsWith('sk-or-') || apiKey.startsWith('sk-air-')) provider = 'openrouter';
 
+  const activeSavedModel = aiStore.savedModels?.find(m => m.id === aiStore.activeModelId);
+  const model = (aiStore.model || activeSavedModel?.model || '').trim();
+  if (!model) return null;
+
+  const providerConfig = (await import('../../config/aiProviders')).getProviderById(provider);
+  const baseUrl = (aiStore.baseUrl || activeSavedModel?.baseUrl || providerConfig.baseUrl || '').replace(/\/$/, '');
+
   const codeContext = `Language: ${language}
 Code before cursor:
 ${prefix.slice(-1200)}
@@ -224,7 +231,7 @@ RULES:
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: codeContext },
@@ -241,7 +248,6 @@ RULES:
         completionText = data.choices?.[0]?.message?.content || null;
       }
     } else if (provider === 'google' || provider === 'gemini' || apiKey.startsWith('AIzaSy')) {
-      const model = 'gemini-2.5-flash';
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const res = await fetch(url, {
         method: 'POST',
@@ -278,7 +284,7 @@ RULES:
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'meta/llama-3.1-8b-instruct',
+          model,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: codeContext },
@@ -304,7 +310,31 @@ RULES:
           'X-Title': 'Krypton IDE',
         },
         body: JSON.stringify({
-          model: 'meta-llama/llama-3.1-8b-instruct:free',
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: codeContext },
+          ],
+          max_tokens: 35,
+          temperature: 0.1,
+          stop: ['\n\n\n', '<CURSOR>'],
+        }),
+        signal,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        completionText = data.choices?.[0]?.message?.content || null;
+      }
+    } else if (baseUrl) {
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          model,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: codeContext },

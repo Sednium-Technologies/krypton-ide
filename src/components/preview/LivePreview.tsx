@@ -7,6 +7,7 @@ import { useProjectsStore } from '../../store/useProjectsStore';
 import { executeCode, canExecuteLanguage, getNativeTerminalCommand } from '../../lib/codeRunner';
 import type { ExecutionResult } from '../../lib/codeRunner';
 import { useNativeTerminalStore } from '../../store/useNativeTerminalStore';
+import { injectPreviewBridge, PREVIEW_IFRAME_ID } from '../../lib/preview/previewBridge';
 
 interface LivePreviewProps {
   onClose: () => void;
@@ -54,7 +55,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   const [showConsole, setShowConsole] = useState(false);
   const [unreadLogs, setUnreadLogs] = useState(0);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
-  
+
   const project = currentProjectId ? projects[currentProjectId] : null;
 
   // Listen for console messages from iframe
@@ -85,14 +86,14 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   const hasHtmlFile = Object.values(files).some(
     f => f.type === 'file' && f.name.toLowerCase() === 'index.html'
   );
-  
+
   const jsxFiles = Object.values(files).filter(
     f => f.type === 'file' && (f.name.endsWith('.jsx') || f.name.endsWith('.tsx'))
   );
 
   // Also gather .js files that contain JSX syntax (e.g. Next.js page.js files)
   const jsFilesWithJsx = Object.values(files).filter(
-    f => f.type === 'file' && f.name.endsWith('.js') && f.content && 
+    f => f.type === 'file' && f.name.endsWith('.js') && f.content &&
     (f.content.includes('<div') || f.content.includes('<main') || f.content.includes('<h1') || f.content.includes('React.createElement') || f.content.includes('return ('))
   );
 
@@ -167,10 +168,10 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   const isMarkdownPreview = activeFile?.type === 'file' && (activeFile.name.endsWith('.md') || activeFile.language === 'markdown');
 
   const isSvgPreview = activeFile?.type === 'file' && activeFile.name.endsWith('.svg');
-  
+
   const isAndroidCode = useMemo(() => {
     if (!activeFile?.content) return false;
-    return activeFile.content.includes('import android.') || 
+    return activeFile.content.includes('import android.') ||
            activeFile.content.includes('import androidx.') ||
            project?.template?.startsWith('android-');
   }, [activeFile?.content, project?.template]);
@@ -215,7 +216,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
         const scriptPattern = new RegExp(
           `<script[^>]*src=["']${escapeRegex(jsFile.name)}["'][^>]*>\s*</script>`, 'gi'
         );
-        
+
         if (babelPattern.test(html)) {
           html = html.replace(babelPattern, `<script type="text/babel">\n${jsFile.content}\n</script>`);
         } else {
@@ -247,7 +248,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
 
     return html;
   }, [previewFiles, hasHtmlFile, importMapScript]);
-  const previewSrc = useObjectUrl(previewHtml);
+  const previewSrc = useObjectUrl(injectPreviewBridge(previewHtml));
 
   // For code execution, run on mount
   useEffect(() => {
@@ -258,10 +259,10 @@ export function LivePreview({ onClose }: LivePreviewProps) {
 
   const runCode = async () => {
     if (!activeFile?.content || !activeFile.language) return;
-    
+
     setIsExecuting(true);
     setExecutionResult(null);
-    
+
     const result = await executeCode(activeFile.language, activeFile.content, activeFile.name);
     setExecutionResult(result);
     setIsExecuting(false);
@@ -311,14 +312,14 @@ export function LivePreview({ onClose }: LivePreviewProps) {
       .join('\n');
 
     // Find main entry: App.jsx/tsx first, then page.js for Next.js, then first file
-    const appFile = allReactFiles.find(f => f.name.toLowerCase().startsWith('app.')) 
+    const appFile = allReactFiles.find(f => f.name.toLowerCase().startsWith('app.'))
       || allReactFiles.find(f => f.name.toLowerCase() === 'page.js' || f.name.toLowerCase() === 'page.jsx' || f.name.toLowerCase() === 'page.tsx')
       || allReactFiles[0];
     if (!appFile?.content) return null;
 
     // Collect all component files (non-App files first, then App last)
     const otherFiles = allReactFiles.filter(f => f.id !== appFile.id);
-    
+
     // Process user code: strip import/export since React/ReactDOM are UMD globals
     const processCode = (code: string) => {
       return code
@@ -350,7 +351,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
         return '<script type="text/babel" data-presets="react">\n// === ' + f.name + ' ===\n' + processed + '\n<\/script>';
       })
       .join('\n');
-    
+
     const processedAppCode = processCode(appFile.content);
 
     // Detect the main component name
@@ -415,12 +416,12 @@ export function LivePreview({ onClose }: LivePreviewProps) {
 
     return html;
   }, [previewFiles, hasReactProject, refreshKey, importMapScript, packageJsonDeps]);
-  const reactPreviewSrc = useObjectUrl(reactPreviewHtml);
+  const reactPreviewSrc = useObjectUrl(injectPreviewBridge(reactPreviewHtml));
 
-  // Build Markdown preview 
+  // Build Markdown preview
   const markdownPreviewHtml = useMemo(() => {
     if (!isMarkdownPreview || !activeFile?.content) return null;
-    
+
     // Sanitize before embedding: markdown is untrusted project content.
     const safeMarkdownHtml = DOMPurify.sanitize(marked.parse(activeFile.content) as string);
     const serializedHtml = JSON.stringify(safeMarkdownHtml).replace(/</g, '\\u003c');
@@ -461,13 +462,13 @@ export function LivePreview({ onClose }: LivePreviewProps) {
 </html>`;
     return html;
   }, [isMarkdownPreview, activeFile?.content, refreshKey]);
-  const markdownPreviewSrc = useObjectUrl(markdownPreviewHtml);
+  const markdownPreviewSrc = useObjectUrl(injectPreviewBridge(markdownPreviewHtml));
 
   const svgPreviewHtml = useMemo(() => {
     if (!isSvgPreview || !activeFile?.content) return null;
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0d1117;} svg{max-width:90vw;max-height:90vh;}</style></head><body>${DOMPurify.sanitize(activeFile.content, { USE_PROFILES: { svg: true, svgFilters: true } })}</body></html>`;
   }, [isSvgPreview, activeFile?.content]);
-  const svgPreviewUrl = useObjectUrl(svgPreviewHtml);
+  const svgPreviewUrl = useObjectUrl(injectPreviewBridge(svgPreviewHtml));
 
   // ─── Internet Warning Dialog ───
   if (hasCdnDependencies && !internetWarningAccepted && (hasReactProject || hasHtmlFile)) {
@@ -483,8 +484,8 @@ export function LivePreview({ onClose }: LivePreviewProps) {
               </div>
               <h3 className="text-xl font-bold text-white mb-3">Internet Required</h3>
               <p className="text-gray-400 mb-4 leading-relaxed text-sm">
-                This project has a <code className="text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">package.json</code> with 
-                <span className="text-amber-400 font-semibold"> {Object.keys(packageJsonDeps!).length} dependencies</span> that 
+                This project has a <code className="text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">package.json</code> with
+                <span className="text-amber-400 font-semibold"> {Object.keys(packageJsonDeps!).length} dependencies</span> that
                 will be loaded from the internet via <span className="text-emerald-400 font-mono text-xs">esm.sh</span> CDN.
               </p>
               <div className="bg-black/30 rounded-xl p-3 mb-6 border border-[#30363d] text-left">
@@ -507,13 +508,13 @@ export function LivePreview({ onClose }: LivePreviewProps) {
                 </p>
               </div>
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={onClose}
                   className="flex-1 bg-[#21262d] hover:bg-[#30363d] text-gray-300 py-3 rounded-xl font-semibold transition-all text-sm"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={() => setInternetWarningAccepted(true)}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-emerald-900/30 active:scale-95 text-sm"
                 >
@@ -531,14 +532,14 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   if (hasReactProject && reactPreviewSrc) {
     return (
       <div className={`fixed inset-0 z-50 flex flex-col animate-fade-in ${isLight ? 'bg-[#f4f0e6] text-[#2a2529]' : 'bg-[#151217] text-[#f3f0e7]'}`}>
-        <PreviewHeader 
-          onClose={onClose} 
-          onRefresh={handleRefresh} 
-          isCodeMode={false} 
-          fileName="React App" 
-          previewUrl={reactPreviewSrc} 
-          showConsole={showConsole} 
-          onToggleConsole={() => setShowConsole(!showConsole)} 
+        <PreviewHeader
+          onClose={onClose}
+          onRefresh={handleRefresh}
+          isCodeMode={false}
+          fileName="React App"
+          previewUrl={reactPreviewSrc}
+          showConsole={showConsole}
+          onToggleConsole={() => setShowConsole(!showConsole)}
           unreadLogs={unreadLogs}
           previewMode={previewMode}
           onTogglePreviewMode={() => setPreviewMode(m => m === 'desktop' ? 'mobile' : 'desktop')}
@@ -556,6 +557,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
               </div>
               <iframe
                 key={refreshKey}
+                id={PREVIEW_IFRAME_ID}
                 src={reactPreviewSrc}
                 title="React Preview"
                 sandbox="allow-scripts allow-modals allow-forms"
@@ -565,6 +567,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
           ) : (
             <iframe
               key={refreshKey}
+              id={PREVIEW_IFRAME_ID}
               src={reactPreviewSrc}
               title="React Preview"
               sandbox="allow-scripts allow-modals allow-forms"
@@ -585,6 +588,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
         <div className="flex-1 relative">
           <iframe
             key={refreshKey}
+            id={PREVIEW_IFRAME_ID}
             src={markdownPreviewSrc}
             title="Markdown Preview"
             sandbox="allow-scripts"
@@ -603,6 +607,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
         <div className="flex-1 relative">
           <iframe
             key={refreshKey}
+            id={PREVIEW_IFRAME_ID}
             src={svgPreviewUrl || undefined}
             title="SVG Preview"
             sandbox="allow-scripts"
@@ -627,7 +632,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
             <p className="text-gray-400 mb-8 leading-relaxed">
               This file contains Android-specific libraries (UI components, Activities) that cannot be run as a console script.
             </p>
-            
+
             <div className="space-y-4 text-left mb-8 bg-black/30 rounded-2xl p-4 border border-[#30363d]">
               <div className="flex items-start space-x-3">
                 <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center mt-0.5">
@@ -649,7 +654,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
               </div>
             </div>
 
-            <button 
+            <button
               onClick={() => {
                 onClose();
                 // We'll rely on the user manually switching, as we don't have a direct dispatch for TopBar -> BottomPanel tabs here easily yet
@@ -675,11 +680,11 @@ export function LivePreview({ onClose }: LivePreviewProps) {
     if (executableFile) {
       return (
         <div className="fixed inset-0 z-50 bg-[#0d1117] flex flex-col animate-fade-in">
-          <PreviewHeader 
-            onClose={onClose} 
-            onRefresh={handleRefresh} 
-            isCodeMode={true} 
-            previewUrl={null} 
+          <PreviewHeader
+            onClose={onClose}
+            onRefresh={handleRefresh}
+            isCodeMode={true}
+            previewUrl={null}
             onRunInNativeTerminal={handleRunInNativeTerminal}
           />
           <div className="flex-1 flex items-center justify-center p-6">
@@ -720,15 +725,15 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   if (isCodeExecution) {
     return (
       <div className="fixed inset-0 z-50 bg-[#0d1117] flex flex-col animate-fade-in">
-        <PreviewHeader 
-          onClose={onClose} 
-          onRefresh={handleRefresh} 
+        <PreviewHeader
+          onClose={onClose}
+          onRefresh={handleRefresh}
           isCodeMode={true}
           fileName={activeFile?.name}
           language={activeFile?.language}
           onRunInNativeTerminal={handleRunInNativeTerminal}
         />
-        
+
         <div className="flex-1 overflow-y-auto">
           {isExecuting ? (
             <div className="flex items-center justify-center h-full">
@@ -821,13 +826,13 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   // HTML Preview View
   return (
     <div className={`fixed inset-0 z-50 flex flex-col animate-fade-in ${isLight ? 'bg-[#f4f0e6] text-[#2a2529]' : 'bg-[#2a2529] text-[#f3f0e7]'}`}>
-      <PreviewHeader 
-        onClose={onClose} 
-        onRefresh={handleRefresh} 
-        isCodeMode={false} 
-        previewUrl={previewSrc} 
-        showConsole={showConsole} 
-        onToggleConsole={() => setShowConsole(!showConsole)} 
+      <PreviewHeader
+        onClose={onClose}
+        onRefresh={handleRefresh}
+        isCodeMode={false}
+        previewUrl={previewSrc}
+        showConsole={showConsole}
+        onToggleConsole={() => setShowConsole(!showConsole)}
         unreadLogs={unreadLogs}
         previewMode={previewMode}
         onTogglePreviewMode={() => setPreviewMode(m => m === 'desktop' ? 'mobile' : 'desktop')}
@@ -845,6 +850,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
             </div>
             <iframe
               key={refreshKey}
+              id={PREVIEW_IFRAME_ID}
               src={previewSrc ?? undefined}
               title="Live Preview"
               sandbox="allow-scripts allow-modals allow-forms"
@@ -855,6 +861,7 @@ export function LivePreview({ onClose }: LivePreviewProps) {
           previewSrc ? (
             <iframe
               key={refreshKey}
+              id={PREVIEW_IFRAME_ID}
               src={previewSrc ?? undefined}
               title="Live Preview"
               sandbox="allow-scripts allow-modals allow-forms"
@@ -872,23 +879,23 @@ export function LivePreview({ onClose }: LivePreviewProps) {
   );
 }
 
-function PreviewHeader({ 
-  onClose, 
-  onRefresh, 
-  isCodeMode, 
-  fileName, 
-  language, 
-  previewUrl, 
-  showConsole, 
-  onToggleConsole, 
+function PreviewHeader({
+  onClose,
+  onRefresh,
+  isCodeMode,
+  fileName,
+  language,
+  previewUrl,
+  showConsole,
+  onToggleConsole,
   unreadLogs,
   onRunInNativeTerminal,
   previewMode,
   onTogglePreviewMode,
   isLight,
-}: { 
-  onClose: () => void; 
-  onRefresh: () => void; 
+}: {
+  onClose: () => void;
+  onRefresh: () => void;
   isCodeMode: boolean;
   fileName?: string;
   language?: string;
@@ -909,7 +916,7 @@ function PreviewHeader({
   };
 
   return (
-    <div 
+    <div
       className={`flex items-center justify-between border-b px-3 flex-shrink-0 transition-colors ${
         isLight ? 'bg-[#f4f0e6] border-[#2a2529]/15 text-[#2a2529]' : 'bg-[#231e22] border-[#f3f0e7]/15 text-[#f3f0e7]'
       }`}
@@ -944,7 +951,7 @@ function PreviewHeader({
           </button>
         )}
         {onRunInNativeTerminal && (
-          <button 
+          <button
             onClick={onRunInNativeTerminal}
             className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 active:bg-emerald-600/40 text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 transition-all font-semibold text-xs active:scale-95 shadow-sm"
             title="Run in Native Terminal"
@@ -955,11 +962,11 @@ function PreviewHeader({
           </button>
         )}
         {onToggleConsole && (
-          <button 
+          <button
             onClick={onToggleConsole}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl transition-colors relative ${
-              showConsole 
-                ? (isLight ? 'bg-[#2a2529]/10 text-[#2a2529] font-bold' : 'bg-[#f3f0e7]/20 text-[#f3f0e7] font-bold') 
+              showConsole
+                ? (isLight ? 'bg-[#2a2529]/10 text-[#2a2529] font-bold' : 'bg-[#f3f0e7]/20 text-[#f3f0e7] font-bold')
                 : (isLight ? 'text-[#2a2529]/60 hover:bg-[#2a2529]/10 hover:text-[#2a2529]' : 'text-[#f3f0e7]/60 hover:bg-[#f3f0e7]/10 hover:text-[#f3f0e7]')
             }`}
             title="Toggle Console"
@@ -977,7 +984,7 @@ function PreviewHeader({
           </button>
         )}
         {previewUrl && (
-          <button 
+          <button
             onClick={handleOpenInBrowser}
             className={`p-2 rounded-xl transition-colors ${isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'}`}
             title="Open in Browser"
@@ -985,14 +992,14 @@ function PreviewHeader({
             <ExternalLink size={18} />
           </button>
         )}
-        <button 
+        <button
           onClick={onRefresh}
           className={`p-2 rounded-xl transition-colors ${isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'}`}
           title={isCodeMode ? 'Re-run' : 'Refresh'}
         >
           <RefreshCw size={18} />
         </button>
-        <button 
+        <button
           onClick={onClose}
           className={`p-2 rounded-xl transition-colors ${isLight ? 'text-[#2a2529]/60 hover:text-[#2a2529] hover:bg-[#2a2529]/10' : 'text-[#f3f0e7]/60 hover:text-[#f3f0e7] hover:bg-[#f3f0e7]/10'}`}
         >
@@ -1009,7 +1016,7 @@ function escapeRegex(str: string) {
 
 function ConsoleOverlay({ logs, isOpen, isLight }: { logs: { type: string, args: string }[], isOpen: boolean, isLight?: boolean }) {
   const endRef = React.useRef<HTMLDivElement>(null);
-  
+
   useEffect(() => {
     if (isOpen) {
       endRef.current?.scrollIntoView();
@@ -1025,8 +1032,8 @@ function ConsoleOverlay({ logs, isOpen, isLight }: { logs: { type: string, args:
       <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] md:text-xs">
         {logs.map((log, i) => (
           <div key={i} className={`px-2.5 py-1.5 mb-1.5 rounded-xl border-l-2 ${
-            log.type === 'error' ? (isLight ? 'bg-red-500/10 text-red-600 border-red-500' : 'bg-red-500/10 text-red-400 border-red-500') : 
-            log.type === 'warn' ? (isLight ? 'bg-amber-500/15 text-amber-800 border-amber-500' : 'bg-amber-500/10 text-amber-300 border-amber-500') : 
+            log.type === 'error' ? (isLight ? 'bg-red-500/10 text-red-600 border-red-500' : 'bg-red-500/10 text-red-400 border-red-500') :
+            log.type === 'warn' ? (isLight ? 'bg-amber-500/15 text-amber-800 border-amber-500' : 'bg-amber-500/10 text-amber-300 border-amber-500') :
             log.type === 'info' ? (isLight ? 'bg-[#2a2529]/10 text-[#2a2529] border-[#2a2529]' : 'bg-[#f3f0e7]/10 text-[#f3f0e7] border-[#f3f0e7]') :
             (isLight ? 'text-[#2a2529]/80 border-[#2a2529]/30 hover:bg-[#2a2529]/5' : 'text-[#f3f0e7]/80 border-[#f3f0e7]/30 hover:bg-[#f3f0e7]/5')
           }`}>

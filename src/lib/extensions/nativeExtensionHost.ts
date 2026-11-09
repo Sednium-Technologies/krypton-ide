@@ -260,6 +260,10 @@ export interface ExtensionHostPlugin {
   ): Promise<PluginListenerHandle>;
 }
 
+/**
+ * In-memory extension host used only by the Node test harness. Production web
+ * builds must not install, activate, or fake LSP servers in the browser.
+ */
 export class ExtensionHostWeb implements ExtensionHostPlugin {
   private inMemoryExtensions: InstalledExtension[] = [];
   private activeExtensions: Set<string> = new Set();
@@ -634,26 +638,102 @@ export function inspectExtensionPermissions(manifest: ExtensionManifest): Extens
   return permissions;
 }
 
-const webFallbackInstance = new ExtensionHostWeb();
+const WEB_EXTENSION_HOST_UNAVAILABLE =
+  'Extension Host requires the native Android runtime. VSIX installation and language servers are unavailable in the browser preview.';
+
+class UnsupportedExtensionHost implements ExtensionHostPlugin {
+  async installVsix(_options: { path: string }): Promise<{ success: boolean; extension: InstalledExtension }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async listInstalled(): Promise<{ extensions: InstalledExtension[] }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async uninstall(_options: { id: string }): Promise<{ success: boolean; id: string }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async getManifest(_options: { id: string }): Promise<{ manifest: ExtensionManifest | null }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async activate(_options: { id: string }): Promise<{ success: boolean; id: string; state: string }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async executeCommand<T = any>(_options: { command: string; arguments?: any[] }): Promise<{ success: boolean; result: T }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async listCommands(): Promise<{ commands: string[] }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async drainNotifications(): Promise<{ notifications: ExtensionNotification[] }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async listStatusBarItems(): Promise<{ items: ExtensionStatusBarItem[] }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async startLspServer(_options: { config: LspServerConfig } | LspServerConfig): Promise<{ success: boolean; sessionId: string }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async sendLspMessage(_options: { sessionId: string; message: string }): Promise<{ success: boolean }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async drainLspMessages(_options: { sessionId: string }): Promise<{ success: boolean; messages: string[] }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async stopLspServer(_options: { sessionId: string }): Promise<{ success: boolean }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async checkLspBinary(_options: { binary: string; prefix?: string }): Promise<LspBinaryCheck> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async getBuiltinLspServers(): Promise<{ servers: BuiltinLspServer[] }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async setWorkspaceTrust(_options: { state: WorkspaceTrustState; workspaceRoot?: string }): Promise<WorkspaceTrustInfo> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async getWorkspaceTrust(): Promise<WorkspaceTrustInfo> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async checkCapability(_options: { capability: ExtensionCapability | string }): Promise<CapabilityCheckResult> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async addListener(
+    _eventName: 'contributionsChanged',
+    _listenerFunc: (info: any) => void
+  ): Promise<PluginListenerHandle> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+}
+
+// Node test processes have no window; browser previews do. Keep the in-memory
+// harness for tests, but never expose fake extension/LSP behavior in production.
+const webFallbackInstance: ExtensionHostPlugin =
+  typeof window === 'undefined' ? new ExtensionHostWeb() : new UnsupportedExtensionHost();
+
+function getWebHarness(): ExtensionHostWeb {
+  if (!(webFallbackInstance instanceof ExtensionHostWeb)) {
+    throw new Error('Web extension mocks are only available in the test harness.');
+  }
+  return webFallbackInstance;
+}
 
 export function registerWebMockCommand(id: string, fn: (...args: any[]) => any) {
-  webFallbackInstance.registerMockCommand(id, fn);
+  getWebHarness().registerMockCommand(id, fn);
 }
 
 export function pushWebMockNotification(note: ExtensionNotification) {
-  webFallbackInstance.pushMockNotification(note);
+  getWebHarness().pushMockNotification(note);
 }
 
 export function setWebMockStatusBarItem(item: ExtensionStatusBarItem) {
-  webFallbackInstance.setMockStatusBarItem(item);
+  getWebHarness().setMockStatusBarItem(item);
 }
 
 export function setWebMockBinaryCheck(name: string, check: Partial<LspBinaryCheck>) {
-  webFallbackInstance.setMockBinaryCheck(name, check);
+  getWebHarness().setMockBinaryCheck(name, check);
 }
 
 export function pushWebMockLspMessage(sessionId: string, message: string) {
-  webFallbackInstance.pushMockLspMessage(sessionId, message);
+  getWebHarness().pushMockLspMessage(sessionId, message);
 }
 
 export const NativeExtensionHost = registerPlugin<ExtensionHostPlugin>('ExtensionHost', {

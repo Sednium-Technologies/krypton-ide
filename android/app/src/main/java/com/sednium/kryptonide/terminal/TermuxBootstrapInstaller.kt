@@ -26,8 +26,8 @@ class TermuxBootstrapInstaller(private val context: Context) {
         const val HOME_PATH = "/data/data/com.sednium.kryptonide.legacy/files/home"
         const val TMP_PATH = "/data/data/com.sednium.kryptonide.legacy/files/usr/tmp"
 
-        // Official Termux packages releases
-        private const val BASE_URL_GITHUB = "https://github.com/termux/termux-packages/releases/download/bootstrap-2024.11.18-r1%2Bapt-android-7"
+        // Official Termux packages releases. The `latest` URL resolves to the
+        // current bootstrap asset (verified: bootstrap-<arch>.zip).
         private const val BASE_URL_LATEST = "https://github.com/termux/termux-packages/releases/latest/download"
         private const val BASE_URL_MIRROR = "https://packages.termux.dev/bootstrap"
     }
@@ -94,7 +94,6 @@ class TermuxBootstrapInstaller(private val context: Context) {
             onProgress("checking", 0, "Checking device architecture: $arch")
 
             val downloadUrls = listOf(
-                "$BASE_URL_GITHUB/bootstrap-$arch.zip",
                 "$BASE_URL_LATEST/bootstrap-$arch.zip",
                 "$BASE_URL_MIRROR/bootstrap-$arch.zip"
             )
@@ -207,10 +206,13 @@ class TermuxBootstrapInstaller(private val context: Context) {
                 tempZipFile.delete()
             } catch (_: Exception) {}
 
-            onProgress("configuring", 92, "Creating symbolic links...")
+            onProgress("configuring", 90, "Relocating Termux prefix into the app sandbox...")
+            relocateTermuxPrefix()
+
+            onProgress("configuring", 94, "Creating symbolic links...")
             processSymlinks(symlinkContent.toString())
 
-            onProgress("configuring", 96, "Setting executable permissions on binaries...")
+            onProgress("configuring", 97, "Setting executable permissions on binaries...")
             setPermissionsRecursively(binDir)
             val libexecDir = File(usrDir, "libexec")
             if (libexecDir.exists()) {
@@ -293,6 +295,58 @@ class TermuxBootstrapInstaller(private val context: Context) {
             return
         }
         throw Exception("Too many redirects: $redirects")
+    }
+
+    /**
+     * Termux bootstrap artifacts are built for `/data/data/com.termux/files`.
+     * Text scripts (including `pkg`, `apt` hooks and profile snippets) contain
+     * that absolute prefix in shebangs and configuration. Rewrite the text
+     * files in place so the userland can find its own binaries and libraries.
+     *
+     * ELF binaries cannot be rewritten here because the replacement prefix is
+     * longer; they rely on `LD_LIBRARY_PATH` and the PATH exported by the PTY.
+     */
+    private fun relocateTermuxPrefix() {
+        val replacements = mapOf(
+            "/data/data/com.termux/files/usr" to PREFIX_PATH,
+            "/data/data/com.termux/files/home" to HOME_PATH,
+            "/data/data/com.termux" to "/data/data/com.sednium.kryptonide.legacy"
+        )
+        val maxTextSize = 2L * 1024L * 1024L
+
+        fun rewriteTextFile(file: File) {
+            if (!file.isFile || file.length() > maxTextSize) return
+            try {
+                val bytes = file.readBytes()
+                val probeLength = minOf(bytes.size, 8192)
+                for (i in 0 until probeLength) {
+                    if (bytes[i] == 0.toByte()) return
+                }
+                val text = String(bytes, Charsets.ISO_8859_1)
+                var updated = text
+                for ((from, to) in replacements) {
+                    updated = updated.replace(from, to)
+                }
+                if (updated != text) {
+                    file.writeText(updated, Charsets.ISO_8859_1)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not relocate text file ${file.absolutePath}: ${e.message}")
+            }
+        }
+
+        fun walk(directory: File) {
+            val children = directory.listFiles() ?: return
+            for (child in children) {
+                if (child.isDirectory) {
+                    walk(child)
+                } else {
+                    rewriteTextFile(child)
+                }
+            }
+        }
+
+        walk(usrDir)
     }
 
     private fun processSymlinks(content: String) {

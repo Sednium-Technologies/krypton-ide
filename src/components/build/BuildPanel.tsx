@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useProjectsStore } from '../../store/useProjectsStore';
 import { useBuildStore } from '../../store/useBuildStore';
+import { detectProjectDirectory } from '../../store/useNativeTerminalStore';
 import { Package, Play, CheckCircle, XCircle, Loader2, Download, AlertCircle, Minimize2 } from 'lucide-react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
@@ -13,8 +14,8 @@ interface BuildPanelProps {
 
 export function BuildPanel({ onMinimize }: BuildPanelProps) {
   const { currentProjectId, projects } = useProjectsStore();
-  const { buildStatus, runInfo, errorMsg, apkUri, startBuild, setApkUri } = useBuildStore();
-  
+  const { buildStatus, runInfo, errorMsg, apkUri, buildMode, localLog, startBuild, startLocalBuild } = useBuildStore();
+
   const project = currentProjectId ? projects[currentProjectId] : null;
   const isAndroidProject = project?.template?.startsWith('android-');
 
@@ -22,6 +23,16 @@ export function BuildPanel({ onMinimize }: BuildPanelProps) {
     if (!project || !project.githubRepo) return;
     const [owner, repoName] = project.githubRepo.split('/');
     startBuild(currentProjectId!, owner, repoName);
+  };
+
+  const handleLocalBuild = async () => {
+    if (!project || !currentProjectId) return;
+    const projectPath = project.folderPath?.trim() || detectProjectDirectory();
+    try {
+      await startLocalBuild(currentProjectId, projectPath);
+    } catch {
+      // Error is surfaced by the store.
+    }
   };
 
   const installApk = async () => {
@@ -59,18 +70,27 @@ export function BuildPanel({ onMinimize }: BuildPanelProps) {
         </h3>
         <div className="flex items-center space-x-2">
           <button
-            onClick={handleBuild}
+            onClick={handleLocalBuild}
             disabled={buildStatus === 'pushing' || buildStatus === 'triggering' || buildStatus === 'building' || buildStatus === 'downloading'}
+            className="flex items-center space-x-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold disabled:opacity-50 transition-colors"
+            title="Build with the Gradle/JDK toolchain in the native terminal"
+          >
+            <Play size={14} /><span>Local</span>
+          </button>
+          <button
+            onClick={handleBuild}
+            disabled={!project?.githubRepo || buildStatus === 'pushing' || buildStatus === 'triggering' || buildStatus === 'building' || buildStatus === 'downloading'}
             className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold disabled:opacity-50 transition-colors"
+            title={project?.githubRepo ? 'Build with GitHub Actions' : 'Link a GitHub repository to use cloud builds'}
           >
             {buildStatus === 'idle' || buildStatus === 'failed' || buildStatus === 'success' || buildStatus === 'success_downloaded' ? (
-              <><Play size={14} /><span>Build APK</span></>
+              <><Play size={14} /><span>Cloud</span></>
             ) : (
               <><Loader2 size={14} className="animate-spin" /><span>Processing...</span></>
             )}
           </button>
           {onMinimize && (
-            <button 
+            <button
               onClick={onMinimize}
               className="p-1.5 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white"
               title="Minimize to Background"
@@ -90,30 +110,50 @@ export function BuildPanel({ onMinimize }: BuildPanelProps) {
         )}
 
         <div className="space-y-3 pl-2">
-          <Step 
-            status={getStatusState(buildStatus, ['pushing'], ['triggering', 'building', 'downloading', 'success', 'success_downloaded'], ['failed'])}
-            label="Push code to GitHub"
-          />
-          <Step 
-            status={getStatusState(buildStatus, ['triggering'], ['building', 'downloading', 'success', 'success_downloaded'], ['failed'])}
-            label="Trigger GitHub Actions"
-          />
-          <Step 
-            status={getStatusState(buildStatus, ['building'], ['downloading', 'success', 'success_downloaded'], ['failed'])}
-            label="Compile APK in cloud"
-            subLabel={runInfo ? `Status: ${runInfo.status}` : undefined}
-          />
-          <Step 
-            status={getStatusState(buildStatus, ['downloading'], ['success_downloaded'], ['failed'])}
-            label="Download APK artifact"
-          />
+          {buildMode === 'local' ? (
+            <>
+              <Step
+                status={getStatusState(buildStatus, ['building'], ['success_downloaded'], ['failed'])}
+                label="Detect local Gradle/JDK toolchain"
+              />
+              <Step
+                status={getStatusState(buildStatus, ['building'], ['success_downloaded'], ['failed'])}
+                label="Compile APK on device"
+              />
+              {localLog && (
+                <pre className="max-h-56 overflow-auto rounded bg-black/40 p-2 text-[10px] leading-relaxed text-gray-300 whitespace-pre-wrap">
+                  {localLog}
+                </pre>
+              )}
+            </>
+          ) : (
+            <>
+              <Step
+                status={getStatusState(buildStatus, ['pushing'], ['triggering', 'building', 'downloading', 'success', 'success_downloaded'], ['failed'])}
+                label="Push code to GitHub"
+              />
+              <Step
+                status={getStatusState(buildStatus, ['triggering'], ['building', 'downloading', 'success', 'success_downloaded'], ['failed'])}
+                label="Trigger GitHub Actions"
+              />
+              <Step
+                status={getStatusState(buildStatus, ['building'], ['downloading', 'success', 'success_downloaded'], ['failed'])}
+                label="Compile APK in cloud"
+                subLabel={runInfo ? `Status: ${runInfo.status}` : undefined}
+              />
+              <Step
+                status={getStatusState(buildStatus, ['downloading'], ['success_downloaded'], ['failed'])}
+                label="Download APK artifact"
+              />
+            </>
+          )}
         </div>
 
         {buildStatus === 'success_downloaded' && (
           <div className="mt-6 flex flex-col items-center justify-center p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
             <CheckCircle size={24} className="text-green-400 mb-2" />
             <h4 className="font-bold text-green-300 mb-1">Build Successful!</h4>
-            <button 
+            <button
               onClick={installApk}
               className="mt-3 flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-lg"
             >
@@ -128,9 +168,9 @@ export function BuildPanel({ onMinimize }: BuildPanelProps) {
 }
 
 function getStatusState(
-  current: string, 
-  activeStates: string[], 
-  completedStates: string[], 
+  current: string,
+  activeStates: string[],
+  completedStates: string[],
   errorStates: string[]
 ): 'pending' | 'active' | 'completed' | 'error' {
   if (errorStates.includes(current) && !completedStates.includes(current)) return 'error';
