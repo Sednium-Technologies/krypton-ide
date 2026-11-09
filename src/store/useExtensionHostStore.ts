@@ -5,6 +5,7 @@ import {
   type ExtensionManifest,
   type ExtensionNotification,
   type ExtensionStatusBarItem,
+  type ExtensionWebviewSnapshot,
 } from '../lib/extensions/nativeExtensionHost';
 
 export interface ExtensionHostState {
@@ -26,6 +27,9 @@ export interface ExtensionHostState {
   refreshCommands: () => Promise<string[]>;
   drainNotifications: () => Promise<ExtensionNotification[]>;
   refreshStatusBarItems: () => Promise<ExtensionStatusBarItem[]>;
+  resolveWebview: (extensionId: string, viewId: string) => Promise<ExtensionWebviewSnapshot | null>;
+  drainWebviews: (extensionId: string) => Promise<ExtensionWebviewSnapshot[]>;
+  sendWebviewMessage: (webviewId: string, message: unknown) => Promise<boolean>;
   getContributedCommands: () => Array<{ extensionId: string; command: string; title: string; category?: string }>;
   getContributedConfigurations: () => Array<{ extensionId: string; title: string; properties: Record<string, any> }>;
   getConfiguration: (key: string, defaultValue?: any) => any;
@@ -189,6 +193,37 @@ export const useExtensionHostStore = create<ExtensionHostState>((set, get) => ({
       return notes;
     } catch {
       return [];
+    }
+  },
+
+  resolveWebview: async (extensionId, viewId) => {
+    try {
+      const res = await NativeExtensionHost.resolveWebview({ extensionId, viewId });
+      return res.webview || null;
+    } catch (e: any) {
+      set({ error: e?.message || `Failed to resolve webview ${viewId}` });
+      return null;
+    }
+  },
+
+  drainWebviews: async (extensionId) => {
+    try {
+      const res = await NativeExtensionHost.drainWebviews({ extensionId });
+      return res.webviews || [];
+    } catch {
+      return [];
+    }
+  },
+
+  sendWebviewMessage: async (webviewId, message) => {
+    try {
+      const res = await NativeExtensionHost.sendWebviewMessage({
+        webviewId,
+        messageJson: JSON.stringify(message),
+      });
+      return Boolean(res.handled);
+    } catch {
+      return false;
     }
   },
 

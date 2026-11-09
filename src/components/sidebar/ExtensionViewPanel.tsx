@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   RefreshCw,
   ChevronDown,
@@ -16,6 +16,7 @@ import { ToolIcon } from '../ui/ToolIcon';
 import { ExtensionDetailModal } from '../extensions/ExtensionDetailModal';
 import { ExtensionWebviewHost } from '../extensions/ExtensionWebviewHost';
 import { findExtension } from '../../lib/extensions/extensionRegistry';
+import type { ExtensionWebviewSnapshot } from '../../lib/extensions/nativeExtensionHost';
 
 export function ExtensionViewPanel() {
   const activeExtensionView = useIdeStore((state) => state.activeExtensionView);
@@ -25,11 +26,17 @@ export function ExtensionViewPanel() {
   const { customExtensions, installedExtensions, loadFromDisk } = useExtensionsStore();
   const hostExtensions = useExtensionHostStore((state) => state.installedExtensions);
   const executeCommand = useExtensionHostStore((state) => state.executeCommand);
+  const resolveWebview = useExtensionHostStore((state) => state.resolveWebview);
+  const drainWebviews = useExtensionHostStore((state) => state.drainWebviews);
+  const sendWebviewMessage = useExtensionHostStore((state) => state.sendWebviewMessage);
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [webviewKey, setWebviewKey] = useState(0);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [runningCmd, setRunningCmd] = useState<string | null>(null);
+  const [dynamicWebview, setDynamicWebview] = useState<ExtensionWebviewSnapshot | null>(null);
+  const [webviewStatus, setWebviewStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [webviewError, setWebviewError] = useState<string | null>(null);
 
   const extension = findExtension(
     { customExtensions, installedExtensions },
@@ -37,6 +44,114 @@ export function ExtensionViewPanel() {
   );
   const hostExtension = hostExtensions.find(
     (e) => e.id === activeExtensionView?.extensionId
+  );
+
+  const webviewHtml = (extension as any)?.webviewHtml as string | undefined;
+  const webviewSynthesized =
+    Boolean((extension as any)?.webviewSynthesized) ||
+    Boolean(webviewHtml && webviewHtml.includes('<sidebar-app>'));
+
+  const runtimeViewIds = useMemo(() => {
+    if (!activeExtensionView) return [] as string[];
+    const containerId = activeExtensionView.viewContainerId;
+    const ids = new Set<string>();
+
+    const manifestViews = hostExtension?.manifest?.contributes?.views?.[containerId] || [];
+    for (const view of manifestViews) {
+      if (view?.type === 'webview' && view.id) ids.add(view.id);
+    }
+
+    const contributionViews =
+      extension?.activityBarContributions?.find((c) => c.id === containerId)?.views || [];
+    for (const view of contributionViews) {
+      if (view?.type === 'webview' && view.id) ids.add(view.id);
+    }
+
+    return Array.from(ids);
+  }, [activeExtensionView, extension, hostExtension]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDynamicWebview(null);
+    setWebviewError(null);
+    setWebviewStatus('idle');
+
+    if (
+      !activeExtensionView ||
+      runtimeViewIds.length === 0 ||
+      (webviewHtml && !webviewSynthesized)
+    ) {
+      return;
+    }
+
+    setWebviewStatus('loading');
+
+    const resolveWithRetry = async () => {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        for (const viewId of runtimeViewIds) {
+          const snapshot = await resolveWebview(activeExtensionView.extensionId, viewId);
+          if (cancelled) return;
+          if (snapshot?.html) {
+            setDynamicWebview(snapshot);
+            setWebviewStatus('ready');
+            return;
+          }
+        }
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+          if (cancelled) return;
+        }
+      }
+
+      if (!cancelled) {
+        setWebviewStatus('error');
+        setWebviewError('The extension did not expose a runtime webview for this view.');
+      }
+    };
+
+    void resolveWithRetry();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeExtensionView, webviewHtml, webviewSynthesized, runtimeViewIds, resolveWebview]);
+
+  useEffect(() => {
+    if (!dynamicWebview?.id || !activeExtensionView) return;
+    const extensionId = activeExtensionView.extensionId;
+
+    const interval = window.setInterval(async () => {
+      const snapshots = await drainWebviews(extensionId);
+      const next = snapshots.find((snapshot) => snapshot.id === dynamicWebview.id);
+      if (!next) return;
+
+      for (const message of next.messages || []) {
+        window.dispatchEvent(
+          new CustomEvent('krypton:webview-host-message', {
+            detail: {
+              extensionId,
+              viewId: next.viewType,
+              message,
+            },
+          })
+        );
+      }
+
+      setDynamicWebview((previous) =>
+        previous && previous.id === next.id
+          ? { ...previous, ...next, messages: [] }
+          : next
+      );
+    }, 1200);
+
+    return () => window.clearInterval(interval);
+  }, [activeExtensionView, drainWebviews, dynamicWebview?.id]);
+
+  const handleSendWebviewMessage = useCallback(
+    (message: unknown) => {
+      if (!dynamicWebview?.id) return;
+      void sendWebviewMessage(dynamicWebview.id, message);
+    },
+    [dynamicWebview?.id, sendWebviewMessage]
   );
 
   const toggleSection = (id: string) => {
@@ -80,9 +195,11 @@ export function ExtensionViewPanel() {
     );
   }
 
-  // 1. If the extension contributes a packaged Webview HTML, render the dynamic Webview Host
-  const webviewHtml = (extension as any)?.webviewHtml;
-  if (webviewHtml) {
+  // 1. Real packaged Webview HTML wins. Synthesized shells are skipped in favor of
+  // the extension host's runtime webview, which carries the real provider logic.
+  const preferRuntimeWebview =
+    runtimeViewIds.length > 0 && (!webviewHtml || webviewSynthesized);
+  if (webviewHtml && !preferRuntimeWebview) {
     return (
       <div className={`flex flex-col h-full overflow-hidden ${
         isLight ? 'bg-[#f4f0e6] text-[#2a2529]' : 'bg-[#231e22] text-[#f3f0e7]'
@@ -133,6 +250,84 @@ export function ExtensionViewPanel() {
             viewId={activeExtensionView.viewContainerId}
             htmlContent={webviewHtml}
             title={activeExtensionView.title}
+          />
+        </div>
+
+        {extension && (
+          <ExtensionDetailModal
+            extension={extension}
+            isOpen={isDetailModalOpen}
+            onClose={() => setIsDetailModalOpen(false)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // 2. Runtime webview generated by the extension host (Claude Code, Antigravity, etc.)
+  if (dynamicWebview?.html) {
+    return (
+      <div className={`flex flex-col h-full overflow-hidden ${
+        isLight ? 'bg-[#f4f0e6] text-[#2a2529]' : 'bg-[#231e22] text-[#f3f0e7]'
+      }`}>
+        <div className={`flex items-center justify-between px-3.5 py-2.5 border-b shrink-0 ${
+          isLight ? 'border-[#2a2529]/10 bg-[#f4f0e6]' : 'border-[#f3f0e7]/10 bg-[#231e22]'
+        }`}>
+          <div className="flex items-center space-x-2 min-w-0">
+            {extension?.iconUrl ? (
+              <img src={extension.iconUrl} alt={activeExtensionView.title} className="w-4 h-4 object-contain rounded" />
+            ) : activeExtensionView.icon ? (
+              <ToolIcon icon={activeExtensionView.icon} size={15} />
+            ) : (
+              <Package size={15} />
+            )}
+            <span className="text-xs font-bold truncate">
+              {dynamicWebview.title || activeExtensionView.title}
+            </span>
+          </div>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => {
+                setWebviewKey((key) => key + 1);
+                setDynamicWebview(null);
+                setWebviewStatus('loading');
+                void resolveWebview(activeExtensionView.extensionId, dynamicWebview.viewType).then((snapshot) => {
+                  if (snapshot?.html) {
+                    setDynamicWebview(snapshot);
+                    setWebviewStatus('ready');
+                  } else {
+                    setWebviewStatus('error');
+                    setWebviewError('Failed to reload the runtime webview.');
+                  }
+                });
+              }}
+              className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                isLight ? 'hover:bg-[#2a2529]/10 text-[#2a2529]/70' : 'hover:bg-[#f3f0e7]/10 text-[#f3f0e7]/70'
+              }`}
+              title="Reload Webview"
+            >
+              <RefreshCw size={13} />
+            </button>
+            <button
+              onClick={() => setIsDetailModalOpen(true)}
+              className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                isLight ? 'hover:bg-[#2a2529]/10 text-[#2a2529]/70' : 'hover:bg-[#f3f0e7]/10 text-[#f3f0e7]/70'
+              }`}
+              title="Extension Details"
+            >
+              <Info size={13} />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 min-h-0 relative">
+          <ExtensionWebviewHost
+            key={`${dynamicWebview.id}-${webviewKey}`}
+            extensionId={activeExtensionView.extensionId}
+            viewId={dynamicWebview.viewType}
+            webview={dynamicWebview}
+            title={dynamicWebview.title || activeExtensionView.title}
+            onSendMessage={handleSendWebviewMessage}
           />
         </div>
 
@@ -221,16 +416,28 @@ export function ExtensionViewPanel() {
 
       {/* Main Interactive GUI Body */}
       <div className="flex-1 overflow-y-auto divide-y divide-white/5 scrollbar-thin p-3 space-y-4">
-        {contribViews.some((view: any) => view?.type === 'webview') && (
+        {webviewStatus === 'loading' && (
+          <div className={`p-3 rounded-2xl border text-[11px] leading-relaxed flex items-center space-x-2 ${
+            isLight
+              ? 'bg-[#2a2529]/5 border-[#2a2529]/10 text-[#2a2529]/70'
+              : 'bg-[#f3f0e7]/5 border-[#f3f0e7]/10 text-[#f3f0e7]/70'
+          }`}>
+            <RefreshCw size={12} className="animate-spin shrink-0" />
+            <span>Resolving runtime webview from the extension host…</span>
+          </div>
+        )}
+
+        {webviewStatus === 'error' && (runtimeViewIds.length > 0 || contribViews.some((view: any) => view?.type === 'webview')) && (
           <div className={`p-3 rounded-2xl border text-[11px] leading-relaxed ${
             isLight
               ? 'bg-amber-500/10 border-amber-500/25 text-amber-800'
               : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
           }`}>
-            This extension creates its webview at runtime through the VS Code extension host. Krypton can
-            render packaged webviews, but dynamically generated panels (like Claude Code) need a running
-            extension-host UI bridge that is not available yet. Commands below still execute through the
-            native host where supported.
+            <p className="font-semibold mb-1">Runtime webview unavailable</p>
+            <p>{webviewError || 'The extension did not expose a webview for this view.'}</p>
+            <p className="mt-1 opacity-80">
+              Commands below still execute through the native extension host where supported.
+            </p>
           </div>
         )}
 

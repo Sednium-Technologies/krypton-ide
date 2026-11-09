@@ -8,7 +8,7 @@ pub mod lifecycle_impl {
 
     use crate::ext_host::installer::InstalledExtension;
     use crate::ext_host::runtime::ExtensionRuntime;
-    use crate::ext_host::vscode_api::{window::StatusBarItemState, NotificationMessage, VscodeApiHost};
+    use crate::ext_host::vscode_api::{window::StatusBarItemState, NotificationMessage, VscodeApiHost, WebviewSnapshot};
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -156,7 +156,11 @@ pub mod lifecycle_impl {
             // Create QuickJS runtime & inject vscode API
             let runtime = ExtensionRuntime::new()?;
             let api = VscodeApiHost::with_lsp_and_trust(self.lsp.clone(), self.trust.clone());
-            api.inject_into_runtime(&runtime, &ext.location.to_string_lossy())?;
+            api.inject_into_runtime_with_id(
+                &runtime,
+                &ext.location.to_string_lossy(),
+                id,
+            )?;
 
             let location_json = serde_json::to_string(&ext.location.to_string_lossy())
                 .unwrap_or_else(|_| "\"\"".to_string());
@@ -183,7 +187,28 @@ pub mod lifecycle_impl {
                         extensionPath: {location_json},
                         extensionUri: vscode.Uri.file({location_json}),
                         globalStorageUri: vscode.Uri.file({storage_json}),
+                        storageUri: vscode.Uri.file({storage_json}),
+                        globalStoragePath: {storage_json},
                         logUri: vscode.Uri.file({log_json}),
+                        logPath: {log_json},
+                        extensionMode: 1,
+                        globalState: vscode.workspace.globalState,
+                        workspaceState: vscode.workspace.workspaceState,
+                        secrets: {{
+                            get: function() {{ return Promise.resolve(undefined); }},
+                            store: function() {{ return Promise.resolve(); }},
+                            delete: function() {{ return Promise.resolve(); }},
+                            onDidChange: function() {{ return new Disposable(function() {{}}); }}
+                        }},
+                        environmentVariableCollection: {{
+                            replace: function() {{}},
+                            append: function() {{}},
+                            prepend: function() {{}},
+                            clear: function() {{}},
+                            delete: function() {{}},
+                            get: function() {{ return undefined; }},
+                            forEach: function() {{}}
+                        }},
                         asAbsolutePath: function(rel) {{
                             return {location_json} + '/' + rel.replace(/^\.?\//, '');
                         }}
@@ -201,16 +226,14 @@ pub mod lifecycle_impl {
                 "#
             );
 
-            if let Err(e) = runtime.eval_string(&wrapped_cjs) {
-                let err_msg = format!("Failed during activation of extension '{id}': {e}");
-                if let Ok(mut states) = self.states.lock() {
-                    states.insert(id.to_string(), ExtensionState::Failed(err_msg.clone()));
-                }
-                return Err(err_msg);
-            }
+            let activation_result = runtime
+                .eval_string(&wrapped_cjs)
+                .and(runtime.pump_jobs());
 
-            runtime.pump_jobs()?;
-
+            // Keep the runtime alive even when activation throws. Many desktop
+            // extensions register commands, providers, or webviews before a late
+            // unsupported API call fails, and those partial contributions remain
+            // usable through the native host.
             if let Ok(mut active) = self.active.lock() {
                 active.insert(
                     id.to_string(),
@@ -222,11 +245,21 @@ pub mod lifecycle_impl {
                 );
             }
 
-            if let Ok(mut states) = self.states.lock() {
-                states.insert(id.to_string(), ExtensionState::Active);
+            match activation_result {
+                Ok(_) => {
+                    if let Ok(mut states) = self.states.lock() {
+                        states.insert(id.to_string(), ExtensionState::Active);
+                    }
+                    Ok(())
+                }
+                Err(e) => {
+                    let err_msg = format!("Failed during activation of extension '{id}': {e}");
+                    if let Ok(mut states) = self.states.lock() {
+                        states.insert(id.to_string(), ExtensionState::Failed(err_msg.clone()));
+                    }
+                    Err(err_msg)
+                }
             }
-
-            Ok(())
         }
 
         pub fn deactivate_extension(&self, id: &str) -> Result<(), String> {
@@ -236,6 +269,7 @@ pub mod lifecycle_impl {
             };
 
             if let Some(inst) = instance {
+                inst.api.webviews.clear_extension(id);
                 let deact_code = r#"
                     (function() {
                         if (globalThis.__krypton_context && Array.isArray(globalThis.__krypton_context.subscriptions)) {
@@ -357,6 +391,59 @@ pub mod lifecycle_impl {
             }
             all_items.sort_by(|a, b| b.priority.cmp(&a.priority));
             all_items
+        }
+
+        /// Activates (if necessary) and resolves a runtime webview view provider.
+        pub fn resolve_webview_view(
+            &self,
+            extension_id: &str,
+            view_id: &str,
+        ) -> Result<Option<WebviewSnapshot>, String> {
+            // Partial activation is intentionally tolerated: desktop extensions
+            // often register their webview provider before a later unsupported
+            // API call fails.
+            let _ = self.activate_extension(extension_id);
+
+            let active = self.active.lock().map_err(|e| e.to_string())?;
+            let instance = active
+                .get(extension_id)
+                .ok_or_else(|| format!("Extension '{extension_id}' is not active"))?;
+            instance
+                .api
+                .resolve_webview_view(&instance.runtime, extension_id, view_id)
+        }
+
+        /// Drains queued extension -> webview messages for a running extension.
+        pub fn drain_webviews(&self, extension_id: &str) -> Vec<WebviewSnapshot> {
+            let active = match self.active.lock() {
+                Ok(active) => active,
+                Err(_) => return Vec::new(),
+            };
+            let mut result = Vec::new();
+            for (id, instance) in active.iter() {
+                if id == extension_id {
+                    result.extend(instance.api.webviews.drain(extension_id));
+                }
+            }
+            result
+        }
+
+        /// Delivers a message from a sandboxed iframe to the owning extension.
+        pub fn send_webview_message(
+            &self,
+            webview_id: &str,
+            message_json: &str,
+        ) -> Result<bool, String> {
+            let active = self.active.lock().map_err(|e| e.to_string())?;
+            for instance in active.values() {
+                if instance.api.webviews.contains(webview_id) {
+                    instance
+                        .api
+                        .send_webview_message(&instance.runtime, webview_id, message_json)?;
+                    return Ok(true);
+                }
+            }
+            Ok(false)
         }
     }
 }

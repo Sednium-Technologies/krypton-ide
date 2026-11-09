@@ -42,6 +42,7 @@ export interface Extension {
   activityBarContributions?: Array<{ id: string; title: string; icon?: string; views?: Array<{ id: string; name: string; type?: string }> }>;
   contributedCommands?: Array<{ command: string; title: string; category?: string }>;
   webviewHtml?: string;
+  webviewSynthesized?: boolean;
 }
 
 export interface InstallProgress {
@@ -245,7 +246,7 @@ export async function extractExtensionWebviewPackage(
   zip: JSZip,
   pkg: any,
   extId: string
-): Promise<{ webviewAssets: Record<string, { data: Uint8Array | string; mime: string }>; webviewHtml?: string }> {
+): Promise<{ webviewAssets: Record<string, { data: Uint8Array | string; mime: string }>; webviewHtml?: string; webviewSynthesized?: boolean }> {
   const webviewAssets: Record<string, { data: Uint8Array | string; mime: string }> = {};
 
   const SUPPORTED_EXTS = [
@@ -383,6 +384,7 @@ export async function extractExtensionWebviewPackage(
 
   // 2. Locate primary HTML file
   let webviewHtml: string | undefined = undefined;
+  let webviewSynthesized = false;
   const primaryHtmlFile =
     zip.file('extension/webview/index.html') ||
     zip.file('webview/index.html') ||
@@ -532,6 +534,7 @@ export async function extractExtensionWebviewPackage(
 
       webviewAssets['index.html'] = { data: synthesizedHtml, mime: 'text/html' };
       webviewHtml = synthesizedHtml;
+      webviewSynthesized = true;
     }
   }
 
@@ -540,7 +543,7 @@ export async function extractExtensionWebviewPackage(
     await storeExtensionAssets(extId, webviewAssets);
   }
 
-  return { webviewAssets, webviewHtml };
+  return { webviewAssets, webviewHtml, webviewSynthesized };
 }
 
 export const useExtensionsStore = create<ExtensionsState>()(
@@ -833,7 +836,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
         }
 
         // Dynamic: Extract Webview, Media, and Resource Assets using Universal Package Extractor
-        const { webviewAssets, webviewHtml } = await extractExtensionWebviewPackage(zip, pkg, id);
+        const { webviewAssets, webviewHtml, webviewSynthesized } = await extractExtensionWebviewPackage(zip, pkg, id);
         // Dynamic: Check for extension contributed CSS styles
         const cssFiles = Object.keys(zip.files).filter((p) =>
           !zip.files[p].dir &&
@@ -895,6 +898,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
           activityBarContributions: activityBarContributions.length > 0 ? activityBarContributions : undefined,
           contributedCommands,
           webviewHtml,
+          webviewSynthesized,
         };
 
         set((s) => ({
@@ -1158,7 +1162,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
         }
 
         // Dynamic: Extract Webview, Media, and Resource Assets using Universal Package Extractor
-        const { webviewAssets, webviewHtml } = await extractExtensionWebviewPackage(zip, pkg, extId);
+        const { webviewAssets, webviewHtml, webviewSynthesized } = await extractExtensionWebviewPackage(zip, pkg, extId);
         if (webviewHtml) {
           log(`[INFO] Webview ready (${Object.keys(webviewAssets).length} assets registered)`);
         }
@@ -1218,6 +1222,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
           activityBarContributions: activityBarContributions.length > 0 ? activityBarContributions : undefined,
           contributedCommands,
           webviewHtml,
+          webviewSynthesized,
         };
 
         set((s) => {

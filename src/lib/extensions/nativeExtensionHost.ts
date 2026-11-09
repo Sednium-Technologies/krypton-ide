@@ -25,6 +25,7 @@ export interface ExtensionViewsContainersContribution {
 export interface ExtensionViewContribution {
   id: string;
   name: string;
+  type?: string;
   when?: string;
 }
 
@@ -108,6 +109,17 @@ export interface ExtensionStatusBarItem {
   tooltip?: string;
   command?: string;
   visible?: boolean;
+}
+
+export interface ExtensionWebviewSnapshot {
+  id: string;
+  extensionId: string;
+  kind: 'view' | 'panel' | string;
+  viewType: string;
+  title: string;
+  html: string;
+  visible: boolean;
+  messages: any[];
 }
 
 export interface LspServerConfig {
@@ -245,6 +257,9 @@ export interface ExtensionHostPlugin {
   listCommands(): Promise<{ commands: string[] }>;
   drainNotifications(): Promise<{ notifications: ExtensionNotification[] }>;
   listStatusBarItems(): Promise<{ items: ExtensionStatusBarItem[] }>;
+  resolveWebview(options: { extensionId: string; viewId: string }): Promise<{ webview: ExtensionWebviewSnapshot | null }>;
+  drainWebviews(options: { extensionId: string }): Promise<{ webviews: ExtensionWebviewSnapshot[] }>;
+  sendWebviewMessage(options: { webviewId: string; messageJson: string }): Promise<{ handled: boolean }>;
   startLspServer(options: { config: LspServerConfig } | LspServerConfig): Promise<{ success: boolean; sessionId: string }>;
   sendLspMessage(options: { sessionId: string; message: string }): Promise<{ success: boolean }>;
   drainLspMessages(options: { sessionId: string }): Promise<{ success: boolean; messages: string[] }>;
@@ -270,6 +285,8 @@ export class ExtensionHostWeb implements ExtensionHostPlugin {
   private mockCommands: Map<string, (...args: any[]) => any> = new Map();
   private pendingNotifications: ExtensionNotification[] = [];
   private mockStatusBarItems: Map<string, ExtensionStatusBarItem> = new Map();
+  private mockWebviews: Map<string, ExtensionWebviewSnapshot> = new Map();
+  private mockWebviewHandlers: Map<string, (message: any) => void> = new Map();
   private mockLspSessions: Map<string, { config: LspServerConfig; queuedMessages: string[] }> = new Map();
   private mockBinaryOverrides: Map<string, Partial<LspBinaryCheck>> = new Map();
   private trustState: WorkspaceTrustState = 'restricted';
@@ -385,6 +402,45 @@ export class ExtensionHostWeb implements ExtensionHostPlugin {
       .filter((it) => it.visible !== false)
       .sort((a, b) => (b.priority || 0) - (a.priority || 0));
     return { items: visibleItems };
+  }
+
+  registerMockWebview(webview: ExtensionWebviewSnapshot, handler?: (message: any) => void) {
+    this.mockWebviews.set(webview.id, { ...webview, messages: [] });
+    if (handler) this.mockWebviewHandlers.set(webview.id, handler);
+  }
+
+  pushMockWebviewMessage(webviewId: string, message: any) {
+    const webview = this.mockWebviews.get(webviewId);
+    if (webview) webview.messages.push(message);
+  }
+
+  async resolveWebview(options: { extensionId: string; viewId: string }): Promise<{ webview: ExtensionWebviewSnapshot | null }> {
+    const found = Array.from(this.mockWebviews.values()).find(
+      (webview) => webview.extensionId === options.extensionId && webview.viewType === options.viewId
+    );
+    return { webview: found ? { ...found, messages: [...found.messages] } : null };
+  }
+
+  async drainWebviews(options: { extensionId: string }): Promise<{ webviews: ExtensionWebviewSnapshot[] }> {
+    const webviews = Array.from(this.mockWebviews.values())
+      .filter((webview) => webview.extensionId === options.extensionId)
+      .map((webview) => {
+        const snapshot = { ...webview, messages: [...webview.messages] };
+        webview.messages = [];
+        return snapshot;
+      });
+    return { webviews };
+  }
+
+  async sendWebviewMessage(options: { webviewId: string; messageJson: string }): Promise<{ handled: boolean }> {
+    const handler = this.mockWebviewHandlers.get(options.webviewId);
+    if (!handler) return { handled: false };
+    try {
+      handler(JSON.parse(options.messageJson));
+      return { handled: true };
+    } catch {
+      return { handled: false };
+    }
   }
 
   setMockBinaryCheck(name: string, check: Partial<LspBinaryCheck>) {
@@ -667,6 +723,15 @@ class UnsupportedExtensionHost implements ExtensionHostPlugin {
     throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
   }
   async listStatusBarItems(): Promise<{ items: ExtensionStatusBarItem[] }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async resolveWebview(_options: { extensionId: string; viewId: string }): Promise<{ webview: ExtensionWebviewSnapshot | null }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async drainWebviews(_options: { extensionId: string }): Promise<{ webviews: ExtensionWebviewSnapshot[] }> {
+    throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
+  }
+  async sendWebviewMessage(_options: { webviewId: string; messageJson: string }): Promise<{ handled: boolean }> {
     throw new Error(WEB_EXTENSION_HOST_UNAVAILABLE);
   }
   async startLspServer(_options: { config: LspServerConfig } | LspServerConfig): Promise<{ success: boolean; sessionId: string }> {

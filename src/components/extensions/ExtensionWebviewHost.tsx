@@ -4,21 +4,26 @@ import { useIdeStore } from '../../store/useIdeStore';
 import { useToastStore } from '../../store/useToastStore';
 import { createBlobUrlMap, rewriteHtmlWithBlobMap } from '../../lib/extensionAssetRegistry';
 import { routeWebviewMessage } from '../../lib/extensions/webviewBridge';
+import type { ExtensionWebviewSnapshot } from '../../lib/extensions/nativeExtensionHost';
 
 interface ExtensionWebviewHostProps {
   extensionId: string;
   viewId?: string;
   htmlContent?: string;
+  webview?: ExtensionWebviewSnapshot | null;
   title?: string;
   className?: string;
+  onSendMessage?: (message: unknown) => void;
 }
 
 export function ExtensionWebviewHost({
   extensionId,
   viewId = 'main',
   htmlContent,
+  webview,
   title = 'Extension Webview',
   className = '',
+  onSendMessage,
 }: ExtensionWebviewHostProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const theme = useIdeStore((state) => state.theme);
@@ -66,7 +71,8 @@ export function ExtensionWebviewHost({
       <script>
         (function() {
           const EXTENSION_ID = ${JSON.stringify(extensionId)};
-          const VIEW_ID = ${JSON.stringify(viewId)};
+          const VIEW_ID = ${JSON.stringify(webview?.id || viewId)};
+          const FRAME_ID = ${JSON.stringify(webview?.id || viewId)};
           let _state = {};
           try {
             _state = JSON.parse(localStorage.getItem('kryptonide_wv_' + EXTENSION_ID) || '{}');
@@ -79,6 +85,7 @@ export function ExtensionWebviewHost({
                   type: 'vscode-webview-message',
                   extensionId: EXTENSION_ID,
                   viewId: VIEW_ID,
+                  webviewId: FRAME_ID,
                   message: message
                 }, '*');
               },
@@ -117,7 +124,11 @@ export function ExtensionWebviewHost({
       </script>
     `;
 
-    let html = htmlContent;
+    let html = htmlContent || webview?.html || '';
+    html = html.replace(
+      /<meta[^>]+http-equiv=["']Content-Security-Policy["'][^>]*>/gi,
+      ''
+    );
     if (blobMap && Object.keys(blobMap).length > 0) {
       html = rewriteHtmlWithBlobMap(html, blobMap);
     }
@@ -129,13 +140,16 @@ export function ExtensionWebviewHost({
     } else {
       return `<!DOCTYPE html><html><head>${polyfillScript}</head><body>${html}</body></html>`;
     }
-  }, [htmlContent, extensionId, viewId, themeColors, isLight, blobMap]);
+  }, [htmlContent, webview?.html, extensionId, viewId, webview?.id, themeColors, isLight, blobMap]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (!event.data || event.data.type !== 'vscode-webview-message') return;
       if (event.data.extensionId !== extensionId) return;
+      if (webview?.id && event.data.webviewId && event.data.webviewId !== webview.id) return;
+
+      onSendMessage?.(event.data.message);
 
       for (const action of routeWebviewMessage(event.data.message)) {
         if (action.kind === 'openUrl') window.open(action.url, '_blank', 'noopener,noreferrer');
@@ -152,7 +166,7 @@ export function ExtensionWebviewHost({
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [extensionId, viewId]);
+  }, [extensionId, viewId, webview?.id, onSendMessage]);
 
   useEffect(() => {
     const handleHostMessage = (event: Event) => {
@@ -171,7 +185,7 @@ export function ExtensionWebviewHost({
     );
   };
 
-  if (!htmlContent) {
+  if (!htmlContent && !webview?.html) {
     return (
       <div className={`flex flex-col items-center justify-center p-6 text-center h-full select-none ${className}`}>
         <div

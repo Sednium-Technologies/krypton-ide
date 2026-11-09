@@ -342,6 +342,126 @@ class ExtensionHostPlugin : Plugin() {
     }
 
     @PluginMethod
+    fun resolveWebview(call: PluginCall) {
+        val extensionId = call.getString("extensionId")
+        val viewId = call.getString("viewId")
+        if (extensionId.isNullOrEmpty() || viewId.isNullOrEmpty()) {
+            call.reject("Missing required parameters 'extensionId' and 'viewId'")
+            return
+        }
+
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("webview", null)
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeResolveWebviewView(
+                    extensionId,
+                    viewId,
+                    getExtensionsDir()
+                )
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false)) {
+                    val ret = JSObject()
+                    if (parsed.has("data") && !parsed.isNull("data")) {
+                        ret.put("webview", JSObject(parsed.getJSONObject("data").toString()))
+                    } else {
+                        ret.put("webview", null)
+                    }
+                    call.resolve(ret)
+                } else {
+                    call.reject(parsed.optString("error", "Failed to resolve webview"))
+                }
+            } catch (e: Exception) {
+                call.reject("Webview resolve error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun drainWebviews(call: PluginCall) {
+        val extensionId = call.getString("extensionId")
+        if (extensionId.isNullOrEmpty()) {
+            call.reject("Missing required parameter 'extensionId'")
+            return
+        }
+
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("webviews", JSArray())
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeDrainWebviews(
+                    extensionId,
+                    getExtensionsDir()
+                )
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false)) {
+                    val ret = JSObject()
+                    val webviews = JSArray()
+                    if (parsed.has("data") && !parsed.isNull("data")) {
+                        val arr = parsed.getJSONArray("data")
+                        for (i in 0 until arr.length()) {
+                            webviews.put(JSObject(arr.getJSONObject(i).toString()))
+                        }
+                    }
+                    ret.put("webviews", webviews)
+                    call.resolve(ret)
+                } else {
+                    call.reject(parsed.optString("error", "Failed to drain webviews"))
+                }
+            } catch (e: Exception) {
+                call.reject("Webview drain error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun sendWebviewMessage(call: PluginCall) {
+        val webviewId = call.getString("webviewId")
+        val messageJson = call.getString("messageJson")
+        if (webviewId.isNullOrEmpty() || messageJson.isNullOrEmpty()) {
+            call.reject("Missing required parameters 'webviewId' and 'messageJson'")
+            return
+        }
+
+        if (!ExtensionHostNative.isAvailable()) {
+            val ret = JSObject()
+            ret.put("handled", false)
+            call.resolve(ret)
+            return
+        }
+
+        pluginScope.launch {
+            try {
+                val jsonResponse = ExtensionHostNative.nativeSendWebviewMessage(
+                    webviewId,
+                    messageJson,
+                    getExtensionsDir()
+                )
+                val parsed = JSONObject(jsonResponse)
+                if (parsed.optBoolean("success", false)) {
+                    val ret = JSObject()
+                    ret.put("handled", parsed.optBoolean("data", false))
+                    call.resolve(ret)
+                } else {
+                    call.reject(parsed.optString("error", "Failed to send webview message"))
+                }
+            } catch (e: Exception) {
+                call.reject("Webview message error: ${e.message}", e)
+            }
+        }
+    }
+
+    @PluginMethod
     fun startLspServer(call: PluginCall) {
         val configObj = call.getObject("config")
         val configJson = configObj?.toString() ?: JSONObject().apply {

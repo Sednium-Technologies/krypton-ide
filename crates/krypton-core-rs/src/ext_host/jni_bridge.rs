@@ -697,4 +697,134 @@ pub mod ext_jni_impl {
 
         result.unwrap_or(std::ptr::null_mut())
     }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeResolveWebviewView(
+        mut env: JNIEnv,
+        _class: JClass,
+        extension_id: JString,
+        view_id: JString,
+        extensions_dir: JString,
+    ) -> jstring {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let ext_str: String = match env.get_string(&extension_id) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extension_id JString: {}", e)),
+                    )
+                }
+            };
+
+            let view_str: String = match env.get_string(&view_id) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid view_id JString: {}", e)),
+                    )
+                }
+            };
+
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extensions_dir JString: {}", e)),
+                    )
+                }
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            let res = mgr.resolve_webview_view(&ext_str, &view_str);
+            to_json_jstring(&mut env, res)
+        }));
+
+        result.unwrap_or(std::ptr::null_mut())
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeDrainWebviews(
+        mut env: JNIEnv,
+        _class: JClass,
+        extension_id: JString,
+        extensions_dir: JString,
+    ) -> jstring {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let ext_str: String = match env.get_string(&extension_id) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extension_id JString: {}", e)),
+                    )
+                }
+            };
+
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extensions_dir JString: {}", e)),
+                    )
+                }
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            let webviews = mgr.drain_webviews(&ext_str);
+            to_json_jstring(&mut env, Ok(webviews))
+        }));
+
+        result.unwrap_or(std::ptr::null_mut())
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_sednium_kryptonide_extensions_ExtensionHostNative_nativeSendWebviewMessage(
+        mut env: JNIEnv,
+        _class: JClass,
+        webview_id: JString,
+        message_json: JString,
+        extensions_dir: JString,
+    ) -> jstring {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let id_str: String = match env.get_string(&webview_id) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid webview_id JString: {}", e)),
+                    )
+                }
+            };
+
+            let message_str: String = match env.get_string(&message_json) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid message_json JString: {}", e)),
+                    )
+                }
+            };
+
+            let dir_str: String = match env.get_string(&extensions_dir) {
+                Ok(s) => s.into(),
+                Err(e) => {
+                    return to_json_jstring::<()>(
+                        &mut env,
+                        Err(format!("Invalid extensions_dir JString: {}", e)),
+                    )
+                }
+            };
+
+            let mgr = get_manager(Path::new(&dir_str));
+            let handled = mgr.send_webview_message(&id_str, &message_str);
+            to_json_jstring(&mut env, handled)
+        }));
+
+        result.unwrap_or(std::ptr::null_mut())
+    }
 }

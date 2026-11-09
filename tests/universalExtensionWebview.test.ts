@@ -99,10 +99,11 @@ test('extractExtensionWebviewPackage: extracts assets and synthesizes universal 
     },
   };
 
-  const { webviewAssets, webviewHtml } = await extractExtensionWebviewPackage(zip, pkg, 'n2ns.antigravity-panel');
+  const { webviewAssets, webviewHtml, webviewSynthesized } = await extractExtensionWebviewPackage(zip, pkg, 'n2ns.antigravity-panel');
 
   // Verify synthesized HTML shell
   assert.ok(webviewHtml, 'webviewHtml should be synthesized');
+  assert.equal(webviewSynthesized, true, 'Synthesized shells must be marked so runtime webviews take priority');
   assert.ok(webviewHtml.includes('<sidebar-app></sidebar-app>'), 'Should include custom element placeholder');
   assert.ok(webviewHtml.includes('<div id="root"></div>'), 'Should include React root');
   assert.ok(webviewHtml.includes('src="./dist/webview.js"'), 'Should link primary script');
@@ -119,4 +120,30 @@ test('extractExtensionWebviewPackage: extracts assets and synthesizes universal 
   const retrieved = await getExtensionAsset('n2ns.antigravity-panel', 'codicon.ttf');
   assert.ok(retrieved, 'Should retrieve codicon.ttf through basename fallback');
   assert.equal(retrieved.mime, 'font/ttf');
+});
+
+test('rewriteHtmlWithBlobMap: resolves native krypton-webview asset URIs', () => {
+  const blobMap: Record<string, string> = {
+    'dist/webview.js': 'blob:http://localhost/mock-js',
+    'dist/webview.css': 'blob:http://localhost/mock-css',
+    'assets/logo.png': 'blob:http://localhost/mock-logo',
+  };
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="krypton-webview:///dist/webview.css">
+</head>
+<body>
+  <img src="krypton-webview:///assets/logo.png" />
+  <script type="module" src="krypton-webview:///dist/webview.js"></script>
+</body>
+</html>`;
+
+  const rewritten = rewriteHtmlWithBlobMap(html, blobMap);
+
+  assert.ok(rewritten.includes('href="blob:http://localhost/mock-css"'));
+  assert.ok(!rewritten.includes('krypton-webview:///dist/webview.css'));
+  assert.ok(rewritten.includes('src="blob:http://localhost/mock-logo"'));
+  assert.ok(rewritten.includes('src="blob:http://localhost/mock-js"'));
 });

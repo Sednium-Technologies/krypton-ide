@@ -289,12 +289,25 @@ export function rewriteHtmlWithBlobMap(html: string, blobMap: Record<string, str
     ) {
       return undefined;
     }
-    const clean = normalizeAssetPath(urlPath);
+
+    let candidate = urlPath;
+    if (candidate.startsWith('krypton-webview:')) {
+      candidate = candidate.slice('krypton-webview:'.length);
+      candidate = candidate.replace(/^\/\/[^/]*/, '');
+      try {
+        candidate = decodeURIComponent(candidate);
+      } catch {
+        // Keep the raw path when it contains malformed escapes.
+      }
+    }
+
+    const clean = normalizeAssetPath(candidate);
     const base = clean.split('/').pop() || clean;
     return (
       blobMap[clean] ||
       blobMap[`./${clean}`] ||
       blobMap[`/${clean}`] ||
+      blobMap[candidate] ||
       blobMap[urlPath] ||
       blobMap[base]
     );

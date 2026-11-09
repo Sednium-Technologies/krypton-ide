@@ -48,6 +48,15 @@ object ExtensionHostNative {
     external fun nativeListStatusBarItems(extensionsDir: String): String
 
     @JvmStatic
+    external fun nativeResolveWebviewView(extensionId: String, viewId: String, extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeDrainWebviews(extensionId: String, extensionsDir: String): String
+
+    @JvmStatic
+    external fun nativeSendWebviewMessage(webviewId: String, messageJson: String, extensionsDir: String): String
+
+    @JvmStatic
     external fun nativeStartLspServer(configJson: String, extensionsDir: String): String
 
     @JvmStatic
