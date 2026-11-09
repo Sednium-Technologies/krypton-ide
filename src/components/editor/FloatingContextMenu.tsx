@@ -296,13 +296,13 @@ export function FloatingContextMenu({
 
         <div className={`w-px h-5 mx-0.5 shrink-0 krypton-menu-divider ${isLight ? 'bg-[#2a2529]/15' : 'bg-[#f3f0e7]/15'}`} />
 
-        {/* Ask Oorty Lite (Amber/Gold accent pill) */}
+        {/* Ask Oorty Lite */}
         <button
           onClick={handleAskOortyLite}
-          className="flex flex-col items-center justify-center px-2 py-1 min-h-[38px] min-w-[48px] rounded-xl bg-gradient-to-br from-amber-300 via-amber-400 to-amber-500 text-stone-950 hover:brightness-105 active:brightness-95 active:scale-95 shadow-sm border border-amber-600/30 font-bold text-[10px] transition-all cursor-pointer"
+          className="flex flex-col items-center justify-center px-2 py-1 min-h-[38px] min-w-[48px] rounded-xl bg-[#7C9B79] text-white hover:bg-[#6d8a6a] active:scale-95 shadow-sm border border-[#7C9B79]/50 font-bold text-[10px] transition-all cursor-pointer"
           title="Ask Oorty Lite"
         >
-          <Sparkles size={14} className="text-stone-950" />
+          <Sparkles size={14} className="text-white" />
           <span className="mt-0.5 leading-tight font-bold">Oorty Lite</span>
         </button>
 

@@ -128,10 +128,10 @@ Replace all ad-hoc string comparisons with a typed registry supporting function 
 
 ## 3. Implementation Checklist for the Agent
 
-- [ ] Add `com.sednium.kryptonide.agent` package hierarchy.
-- [ ] Implement `LayaSystemOneEngine.kt` with fast intent routing, risk scoring, and context pruning.
-- [ ] Connect `OortyNativeBridge.kt` to `oorty_engine.cpp` in `app/src/main/cpp/`.
-- [ ] Build `AgentToolRegistry.kt` and integrate with `NativeTerminalPlugin` and SAF filesystem.
-- [ ] Create `AifMemoryManager.kt` storing binary `.ai` files in `/storage/emulated/0/KryptonIDE/aif/`.
-- [ ] Build Compose UI: Pocket Server screen, model selector, hardware warning dialog, and Settings link to `https://github.com/Sednium-Technologies/OORTY`.
-- [ ] Lock down system prompt in UI and verify all "Larry" occurrences are replaced with "Oorty Lite".
+- [x] Add `com.sednium.kryptonide.agent` package hierarchy.
+- [x] Implement `LayaSystemOneEngine.kt` with fast intent routing, risk scoring, and context pruning.
+- [x] Connect `OortyNativeBridge.kt` to `oorty_engine.cpp` in `app/src/main/cpp/`.
+- [x] Build `AgentToolRegistry.kt` and integrate with `NativeTerminalPlugin` and SAF filesystem.
+- [x] Create `AifMemoryManager.kt` storing binary `.ai` files in `/storage/emulated/0/KryptonIDE/aif/`.
+- [x] Build Compose UI: Pocket Server screen, model selector, hardware warning dialog, and Settings link to `https://github.com/Sednium-Technologies/OORTY`.
+- [x] Lock down system prompt in UI and verify all "Larry" occurrences are replaced with "Oorty Lite".

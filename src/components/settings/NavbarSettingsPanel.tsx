@@ -274,7 +274,7 @@ export function NavbarSettingsPanel({ onClose }: NavbarSettingsPanelProps) {
               Reorder slots or swap any tool directly into a position.
             </p>
           </div>
-          <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+          <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
             Slot 1 to {pinnedCount}
           </span>
         </div>

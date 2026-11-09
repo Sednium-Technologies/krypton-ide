@@ -16,6 +16,15 @@ interface CachedModelsData {
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour TTL for model cache
 
+function fingerprint(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 export function useDynamicModels(provider: string, apiKey?: string, customBaseUrl?: string) {
   const [models, setModels] = useState<AIModel[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +35,7 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
 
   const getCacheKey = useCallback(() => {
     const urlKey = customBaseUrl ? `_${encodeURIComponent(customBaseUrl)}` : '';
-    const keyFingerprint = apiKey ? `_${apiKey.trim().slice(-8)}` : '_nokey';
+    const keyFingerprint = apiKey ? `_${fingerprint(apiKey.trim())}` : '_nokey';
     return `krypton_dynamic_models_v4_${provider}${urlKey}${keyFingerprint}`;
   }, [provider, apiKey, customBaseUrl]);
 
@@ -40,7 +49,7 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
         if (Array.isArray(parsed.models) && parsed.models.length > 0) {
           setModels(parsed.models);
           setLastUpdated(parsed.timestamp);
-          setIsLive(true);
+          setIsLive(false);
           return;
         }
       }
@@ -157,17 +166,12 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
             headers: provider === 'google' || provider === 'gemini' ? undefined : headers,
             signal: controller.signal,
           });
-        } catch (fetchErr: any) {
-          // If browser blocked CORS on web, fallback to proxy so web testing succeeds
-          if (!Capacitor.isNativePlatform() && (fetchErr.name === 'TypeError' || String(fetchErr).includes('fetch'))) {
-            response = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, {
-              method: 'GET',
-              headers: provider === 'google' || provider === 'gemini' ? undefined : headers,
-              signal: controller.signal,
-            });
-          } else {
-            throw fetchErr;
-          }
+        } catch (fetchErr) {
+          // Do not route API keys through third-party CORS proxies. Surface the
+          // browser restriction instead of leaking credentials to a proxy.
+          throw new Error(
+            `The browser blocked the model list request (CORS). Use the Android app or a provider that allows browser requests. ${String(fetchErr)}`
+          );
         }
 
         if (!response.ok) {
@@ -181,8 +185,8 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
 
       if (provider === 'google' || provider === 'gemini') {
         const list = data.models || [];
-        rawModels = list.filter((m: any) => 
-          !m.supportedGenerationMethods || 
+        rawModels = list.filter((m: any) =>
+          !m.supportedGenerationMethods ||
           m.supportedGenerationMethods.includes('generateContent')
         );
       } else if (Array.isArray(data)) {
@@ -238,7 +242,7 @@ export function useDynamicModels(provider: string, apiKey?: string, customBaseUr
 
     } catch (err: any) {
       console.warn(`[useDynamicModels] Failed to fetch live models for ${provider}:`, err.message);
-      
+
       const cacheKey = getCacheKey();
       let hasCached = false;
       try {

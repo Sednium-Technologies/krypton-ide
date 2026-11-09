@@ -219,24 +219,46 @@ export async function analyzeWorkspaceLanguages(
   };
 }
 
-export function getModelWeightProgress(modelId: string, currentStep: number = 0): ModelWeightProgress {
+export function getModelWeightProgress(
+  modelId: string,
+  currentStep: number = 0,
+  totalSteps: number = 100,
+  totalBytes: number = 4 * 1024 * 1024 * 1024,
+): ModelWeightProgress {
   try {
     if (wasmModule && typeof wasmModule.kryptonGetModelWeightProgress === 'function') {
-      const res = wasmModule.kryptonGetModelWeightProgress(modelId, currentStep);
-      return JSON.parse(res);
+      const res = wasmModule.kryptonGetModelWeightProgress(currentStep, totalSteps, totalBytes);
+      const raw = JSON.parse(res) as {
+        percent?: number;
+        percentage?: number;
+        bytes_loaded?: number;
+        total_bytes?: number;
+        phase?: string;
+      };
+      const percentage = Math.min(100, Math.max(0, Number(raw.percent ?? raw.percentage ?? 0)));
+      const bytesLoaded = Number(raw.bytes_loaded ?? 0);
+      const total = Number(raw.total_bytes ?? totalBytes);
+      return {
+        model_id: modelId,
+        bytes_loaded: bytesLoaded,
+        total_bytes: total,
+        percentage,
+        is_complete: percentage >= 100,
+        status: percentage >= 100 ? 'Loaded' : `Allocating weights in RAM (${Math.round(percentage)}%)`,
+        phase: raw.phase ?? '',
+      };
     }
   } catch {}
 
-  const total = 100;
-  const pct = Math.min(100, Math.max(0, currentStep));
+  const pct = Math.min(100, Math.max(0, (currentStep / Math.max(1, totalSteps)) * 100));
   return {
     model_id: modelId,
-    bytes_loaded: pct * 40 * 1024 * 1024,
-    total_bytes: 4 * 1024 * 1024 * 1024,
+    bytes_loaded: Math.round((pct / 100) * totalBytes),
+    total_bytes: totalBytes,
     percentage: pct,
     is_complete: pct >= 100,
-    status: pct >= 100 ? 'Loaded' : `Allocating weights in RAM (${pct}%)`,
-    phase: pct >= 100 ? 'Weights initialized in NPU/RAM' : `Mapping tensor weights (${pct}%)`,
+    status: pct >= 100 ? 'Loaded' : `Allocating weights in RAM (${Math.round(pct)}%)`,
+    phase: pct >= 100 ? 'Weights initialized in NPU/RAM' : `Mapping tensor weights (${Math.round(pct)}%)`,
   };
 }
 

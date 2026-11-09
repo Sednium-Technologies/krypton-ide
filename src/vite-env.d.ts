@@ -11,3 +11,8 @@ declare module '*?raw' {
   const content: string;
   export default content;
 }
+
+declare module 'html-to-image/dist/html-to-image.js?raw' {
+  const content: string;
+  export default content;
+}

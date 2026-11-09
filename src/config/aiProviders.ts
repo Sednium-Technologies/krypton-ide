@@ -1,13 +1,14 @@
 /**
- * Krypton IDE — AI Providers and Frontier Models Roster
- * Ported from OortyLiteProviders.kt & SettingsStore.kt specifications
+ * Krypton IDE — AI Infrastructure Providers
+ * Strict Dynamic Endpoint Discovery: All models are retrieved live from provider /models endpoints.
+ * Zero hardcoded presets or legacy static rosters.
  */
 
 export interface AiProviderConfig {
   id: string;
   name: string;
   placeholder: string;
-  models: string[];
+  models?: string[];
   defaultModel: string;
   baseUrl: string;
   requiresKey: boolean;
@@ -20,134 +21,88 @@ export const AI_PROVIDERS: AiProviderConfig[] = [
     id: 'google',
     name: 'Google Gemini',
     placeholder: 'AIzaSy...',
-    models: [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-2.0-flash',
-      'gemini-2.0-flash-thinking-exp',
-      'gemini-1.5-pro',
-      'gemini-1.5-flash',
-    ],
-    defaultModel: 'gemini-2.5-flash',
+    models: [],
+    defaultModel: '',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     requiresKey: true,
-    description: 'Fast, multimodal frontier intelligence with deep coding reasoning',
-  },
-  {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    placeholder: 'sk-...',
-    models: [
-      'deepseek-reasoner',
-      'deepseek-chat',
-    ],
-    defaultModel: 'deepseek-reasoner',
-    baseUrl: 'https://api.deepseek.com/v1',
-    requiresKey: true,
-    description: 'High-efficiency reasoning and code architecture models',
-  },
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    placeholder: 'sk-...',
-    models: [
-      'gpt-4o',
-      'gpt-4o-mini',
-      'o3-mini',
-      'o1',
-      'chatgpt-4o-latest',
-    ],
-    defaultModel: 'gpt-4o',
-    baseUrl: 'https://api.openai.com/v1',
-    requiresKey: true,
-    description: 'Flagship reasoning and code generation models',
+    description: 'Multimodal frontier intelligence with live endpoint discovery',
   },
   {
     id: 'anthropic',
     name: 'Anthropic Claude',
     placeholder: 'sk-ant-...',
-    models: [
-      'claude-3-7-sonnet-20250219',
-      'claude-3-5-sonnet-20241022',
-      'claude-3-5-haiku-20241022',
-    ],
-    defaultModel: 'claude-3-7-sonnet-20250219',
+    models: [],
+    defaultModel: '',
     baseUrl: 'https://api.anthropic.com/v1',
     requiresKey: true,
-    description: 'Premier coding, architectural reasoning, and agentic workflows',
+    description: 'Architectural reasoning, coding, and agentic workflows with live model discovery',
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    placeholder: 'sk-...',
+    models: [],
+    defaultModel: '',
+    baseUrl: 'https://api.openai.com/v1',
+    requiresKey: true,
+    description: 'Flagship reasoning and code generation models discovered via /models',
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    placeholder: 'sk-...',
+    models: [],
+    defaultModel: '',
+    baseUrl: 'https://api.deepseek.com/v1',
+    requiresKey: true,
+    description: 'High-efficiency reasoning and code architecture models',
   },
   {
     id: 'openrouter',
     name: 'OpenRouter',
     placeholder: 'sk-or-v1-... (optional for free models)',
-    models: [
-      'google/gemini-2.5-flash',
-      'anthropic/claude-3.7-sonnet',
-      'openai/gpt-4o',
-      'deepseek/deepseek-r1',
-      'meta-llama/llama-3.3-70b-instruct',
-      'qwen/qwen-2.5-coder-32b-instruct',
-    ],
-    defaultModel: 'google/gemini-2.5-flash',
+    models: [],
+    defaultModel: '',
     baseUrl: 'https://openrouter.ai/api/v1',
     requiresKey: false,
-    description: 'Unified gateway to 300+ frontier and open-source models with free options',
+    description: 'Unified gateway with live discovery across 300+ frontier and open-weight models',
   },
   {
     id: 'nvidia',
     name: 'NVIDIA NIM',
     placeholder: 'nvapi-...',
-    models: [
-      'nvidia/llama-3.1-nemotron-70b-instruct',
-      'meta/llama-3.3-70b-instruct',
-      'deepseek-ai/deepseek-r1',
-      'mistralai/mistral-large-2-instruct',
-    ],
-    defaultModel: 'nvidia/llama-3.1-nemotron-70b-instruct',
+    models: [],
+    defaultModel: '',
     baseUrl: 'https://integrate.api.nvidia.com/v1',
     requiresKey: true,
-    description: 'NVIDIA accelerated AI models & NIM inference microservices',
+    description: 'NVIDIA accelerated AI models & NIM inference microservices with live discovery',
   },
   {
     id: 'groq',
     name: 'Groq Cloud',
     placeholder: 'gsk_...',
-    models: [
-      'llama-3.3-70b-versatile',
-      'deepseek-r1-distill-llama-70b',
-      'llama-3.1-8b-instant',
-    ],
-    defaultModel: 'llama-3.3-70b-versatile',
+    models: [],
+    defaultModel: '',
     baseUrl: 'https://api.groq.com/openai/v1',
     requiresKey: true,
-    description: 'Ultra-low latency inference engine on LPUs',
+    description: 'Ultra-low latency inference engine on LPUs with dynamic /models retrieval',
   },
   {
     id: 'moonshot',
     name: 'Moonshot (Kimi)',
     placeholder: 'sk-...',
-    models: [
-      'moonshot-v1-auto',
-      'moonshot-v1-128k',
-      'moonshot-v1-32k',
-      'moonshot-v1-8k',
-    ],
-    defaultModel: 'moonshot-v1-auto',
+    models: [],
+    defaultModel: '',
     baseUrl: 'https://api.moonshot.cn/v1',
     requiresKey: true,
-    description: 'Ultra-long context window reasoning and code analysis',
+    description: 'Ultra-long context window reasoning models fetched live',
   },
   {
     id: 'custom',
     name: 'Custom OpenAI',
     placeholder: 'sk-... (optional)',
-    models: [
-      'gpt-4o',
-      'deepseek-r1',
-      'llama-3.3-70b',
-      'qwen-2.5-coder',
-    ],
-    defaultModel: 'gpt-4o',
+    models: [],
+    defaultModel: '',
     baseUrl: 'http://localhost:8080/v1',
     requiresKey: false,
     description: 'Any OpenAI-compatible server, proxy, vLLM, LMStudio, LocalAI, or gateway',
@@ -157,22 +112,17 @@ export const AI_PROVIDERS: AiProviderConfig[] = [
     id: 'ollama',
     name: 'Ollama (Local)',
     placeholder: 'No key needed',
-    models: [
-      'llama3.3:70b',
-      'llama3.2:3b',
-      'deepseek-r1:14b',
-      'qwen2.5-coder:7b',
-    ],
-    defaultModel: 'llama3.3:70b',
+    models: [],
+    defaultModel: '',
     baseUrl: 'http://localhost:11434/v1',
     requiresKey: false,
-    description: 'Run open-weight models completely offline and private on device',
+    description: 'Run open-weight models offline on device with live endpoint discovery',
     allowCustomBaseUrl: true,
   },
 ];
 
 export const DEFAULT_AI_PROVIDER = 'google';
-export const DEFAULT_AI_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_AI_MODEL = '';
 
 export function getProviderById(id: string): AiProviderConfig {
   // Support 'gemini' alias for 'google'

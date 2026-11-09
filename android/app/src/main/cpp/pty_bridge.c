@@ -137,6 +137,23 @@ Java_com_sednium_kryptonide_terminal_PtyBridge_createSubprocess(
         setenv("TMPDIR", "/data/data/com.sednium.kryptonide.legacy/files/usr/tmp", 1);
         setenv("LD_LIBRARY_PATH", "/data/data/com.sednium.kryptonide.legacy/files/usr/lib", 1);
 
+        // Termux path metadata. Packages are built with /data/data/com.termux
+        // prefixes, so termux-exec uses these values to remap exec/open paths
+        // into this app's sandbox. Without them, ELF binaries such as dpkg,
+        // apt and pkg still look under the com.termux package data dir.
+        setenv("TERMUX__ROOTFS", "/data/data/com.sednium.kryptonide.legacy/files", 1);
+        setenv("TERMUX__PREFIX", "/data/data/com.sednium.kryptonide.legacy/files/usr", 1);
+        setenv("TERMUX__HOME", "/data/data/com.sednium.kryptonide.legacy/files/home", 1);
+        setenv("TERMUX_APP__DATA_DIR", "/data/data/com.sednium.kryptonide.legacy", 1);
+        setenv("TERMUX_APP__LEGACY_DATA_DIR", "/data/data/com.sednium.kryptonide.legacy", 1);
+        setenv("TERMUX_APP__BUILD_DATA_DIR", "/data/data/com.termux", 1);
+        setenv("TERMUX_EXEC__EXECVE_CALL__INTERCEPT", "enable", 1);
+
+        const char *termux_exec_lib = "/data/data/com.sednium.kryptonide.legacy/files/usr/lib/libtermux-exec-ld-preload.so";
+        if (access(termux_exec_lib, R_OK) == 0) {
+            setenv("LD_PRELOAD", termux_exec_lib, 1);
+        }
+
         // Prepend /data/data/com.sednium.kryptonide.legacy/files/usr/bin to PATH
         const char *termux_bin = "/data/data/com.sednium.kryptonide.legacy/files/usr/bin";
         const char *curr_path = getenv("PATH");

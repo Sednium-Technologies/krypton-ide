@@ -2,8 +2,9 @@ import { Filesystem, Encoding } from '@capacitor/filesystem';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useProjectsStore } from '../../store/useProjectsStore';
 import { getBasePath, getProjectPath, defaultDir } from '../fileSystemStorage';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { LayaSystem1 } from '../pocket/LayaSystem1';
+import { requestPreviewBridge } from '../preview/previewBridge';
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -114,15 +115,6 @@ function syncWithIdeStore(path: string, newContent: string) {
     return;
   }
 
-  // Fallback: basename matching (for backwards compatibility)
-  const fileName = path.split('/').pop() || path;
-  const fallbackId = Object.entries(state.files).find(([_, f]) => {
-    return f.type === 'file' && f.name === fileName;
-  })?.[0];
-
-  if (fallbackId) {
-    state.updateFileContent(fallbackId, newContent);
-  }
 }
 
 // ─── read_file ───────────────────────────────────────────────
@@ -191,25 +183,6 @@ export async function CapacitorFilesystemRead(
     if (error.message?.includes('Access Denied')) {
       throw error;
     }
-    // Last resort: try IDE store by basename as a final fallback
-    const fileName = path.split('/').pop() || path;
-    const state = useIdeStore.getState();
-    const fallbackEntry = Object.entries(state.files).find(([_, f]) =>
-      f.type === 'file' && f.name === fileName
-    );
-    if (fallbackEntry) {
-      const [, file] = fallbackEntry;
-      const content = file.content || '';
-      const lines = content.split('\n');
-      const start = startLine ? Math.max(1, startLine) : 1;
-      const end = endLine ? Math.min(lines.length, endLine) : lines.length;
-      const numbered = lines
-        .slice(start - 1, end)
-        .map((line, i) => `${start + i}: ${line}`)
-        .join('\n');
-      return `File: ${path} (${lines.length} lines total, showing ${start}-${end})\n${numbered}`;
-    }
-
     console.error('Filesystem Read Error:', error);
     throw new Error(`Could not read file at ${path}: ${error.message}`);
   }
@@ -282,30 +255,30 @@ export async function CapacitorFilesystemEditLines(
   try {
     const content = await readRawContent(path);
     const lines = content.split('\n');
-    
+
     // Validate range
     if (startLine < 1 || startLine > lines.length) {
-      return `Error: start_line ${startLine} is out of range (file has ${lines.length} lines)`;
+      throw new Error(`start_line ${startLine} is out of range (file has ${lines.length} lines)`);
     }
     if (endLine < startLine) {
-      return `Error: end_line ${endLine} cannot be less than start_line ${startLine}`;
+      throw new Error(`end_line ${endLine} cannot be less than start_line ${startLine}`);
     }
     if (endLine > lines.length) {
       endLine = lines.length; // Clamp to file length
     }
-    
+
     // Split new content into lines (handle empty string = deletion)
     const newLines = newContent === '' ? [] : newContent.split('\n');
-    
+
     // Splice: remove old lines, insert new ones
     const before = lines.slice(0, startLine - 1);
     const after = lines.slice(endLine);
     const result = [...before, ...newLines, ...after];
-    
+
     const newFileContent = result.join('\n');
     await writeContent(path, newFileContent);
     syncWithIdeStore(path, newFileContent);
-    
+
     const removedCount = endLine - startLine + 1;
     const insertedCount = newLines.length;
     return `Success: Replaced lines ${startLine}-${endLine} (${removedCount} lines removed, ${insertedCount} lines inserted). File now has ${result.length} lines.`;
@@ -328,16 +301,16 @@ export async function CapacitorFilesystemInsertLines(
   try {
     const fileContent = await readRawContent(path);
     const lines = fileContent.split('\n');
-    
+
     const newLines = content.split('\n');
     const insertIdx = Math.min(Math.max(atLine - 1, 0), lines.length);
-    
+
     lines.splice(insertIdx, 0, ...newLines);
-    
+
     const newFileContent = lines.join('\n');
     await writeContent(path, newFileContent);
     syncWithIdeStore(path, newFileContent);
-    
+
     return `Success: Inserted ${newLines.length} lines at line ${atLine}. File now has ${lines.length} lines.`;
   } catch (error: any) {
     throw new Error(`Could not insert lines in ${path}: ${error.message}`);
@@ -350,22 +323,22 @@ export async function CapacitorFilesystemInsertLines(
  * Patches a file by replacing a search string with a replacement string.
  */
 export async function CapacitorFilesystemPatch(
-  path: string, 
-  searchString: string, 
+  path: string,
+  searchString: string,
   replaceString: string
 ): Promise<boolean> {
   try {
     const content = await readRawContent(path);
-    
+
     if (!content.includes(searchString)) {
       console.warn(`Patch failed: Search string not found in ${path}`);
       return false;
     }
-    
+
     const newContent = content.replace(searchString, replaceString);
     await writeContent(path, newContent);
     syncWithIdeStore(path, newContent);
-    
+
     return true;
   } catch (error: any) {
     console.error('Filesystem Patch Error:', error);
@@ -389,6 +362,36 @@ export async function CapacitorFilesystemMkdir(path: string, options: { recursiv
   }
 }
 
+export async function listDirectory(subPath?: string): Promise<Array<{ name: string; type: string; path: string }>> {
+  const cleaned = (subPath || '').replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\/+$/, '');
+  const targetId = cleaned ? findFileIdByPath(cleaned) : 'root';
+  if (!targetId) {
+    throw new Error(`Directory not found: ${subPath}`);
+  }
+
+  const files = useIdeStore.getState().files;
+  const node = files[targetId];
+  if (!node) {
+    throw new Error(`Directory not found: ${subPath}`);
+  }
+  if (node.type !== 'folder') {
+    throw new Error(`Not a directory: ${subPath}`);
+  }
+
+  return (node.children || [])
+    .map((childId) => files[childId])
+    .filter((child): child is NonNullable<typeof child> => Boolean(child))
+    .map((child) => ({
+      name: child.name,
+      type: child.type,
+      path: cleaned ? `${cleaned}/${child.name}` : child.name,
+    }))
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+}
+
 // ─── write_new_file ──────────────────────────────────────────
 
 export async function CapacitorFilesystemWrite(path: string, content: string): Promise<void> {
@@ -399,7 +402,7 @@ export async function CapacitorFilesystemWrite(path: string, content: string): P
     const cleaned = path.replace(/^\.?\//, '');
     const segments = cleaned.split('/').filter(Boolean);
     const fileName = segments.pop()!;
-    
+
     // Walk/create folder hierarchy in the IDE store
     let currentParentId: string = 'root';
     for (const folderName of segments) {
@@ -416,9 +419,6 @@ export async function CapacitorFilesystemWrite(path: string, content: string): P
         // Create the intermediate folder in the store
         const newFolderId = state.createFile(folderName, currentParentId, 'folder');
         currentParentId = newFolderId;
-        // Re-read state after mutation
-        const freshState = useIdeStore.getState();
-        Object.assign(state, { files: freshState.files });
       }
     }
 
@@ -544,3 +544,395 @@ export async function executeTerminalCommand(
   }
 }
 
+
+
+// ─── 7. Web Surfing & Live Documentation ─────────────────────
+
+async function httpGetText(
+  url: string,
+  headers: Record<string, string>,
+  timeoutMs: number
+): Promise<string> {
+  if (Capacitor.isNativePlatform()) {
+    const nativeRes = await CapacitorHttp.get({
+      url,
+      headers,
+      responseType: 'text',
+      connectTimeout: timeoutMs,
+      readTimeout: timeoutMs,
+    });
+    if (nativeRes.status < 200 || nativeRes.status >= 300) {
+      throw new Error(`HTTP ${nativeRes.status}`);
+    }
+    return typeof nativeRes.data === 'string' ? nativeRes.data : JSON.stringify(nativeRes.data);
+  }
+
+  const res = await fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  }
+  return res.text();
+}
+
+/**
+ * Searches the web for technical documentation, libraries, and error resolutions.
+ */
+export async function searchWeb(
+  query: string,
+  domain?: string
+): Promise<{
+  query: string;
+  results: Array<{ title: string; url: string; snippet: string }>;
+  source: string;
+}> {
+  const effectiveQuery = domain ? `${query} site:${domain}` : query;
+  const results: Array<{ title: string; url: string; snippet: string }> = [];
+
+  try {
+    // 1. DuckDuckGo Instant Answer API (JSON)
+    const apiUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(effectiveQuery)}&format=json&no_html=1&skip_disambig=1`;
+
+    {
+      const data = JSON.parse(await httpGetText(apiUrl, { Accept: 'application/json' }, 8000));
+      if (data.AbstractText) {
+        results.push({
+          title: data.Heading || query,
+          url: data.AbstractURL || '',
+          snippet: data.AbstractText,
+        });
+      }
+      if (Array.isArray(data.RelatedTopics)) {
+        for (const topic of data.RelatedTopics.slice(0, 5)) {
+          if (topic.Text && topic.FirstURL) {
+            results.push({
+              title: topic.Text.split(' - ')[0] || topic.Text.slice(0, 50),
+              url: topic.FirstURL,
+              snippet: topic.Text,
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[searchWeb] DuckDuckGo API error, attempting HTML search:', err);
+  }
+
+  // 2. Fallback: DuckDuckGo HTML Lite scraping if API returns few results
+  if (results.length === 0) {
+    try {
+      const htmlUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(effectiveQuery)}`;
+      const text = await httpGetText(
+        htmlUrl,
+        { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        8000
+      );
+      const linkRegex = /<a class="result__url" href="([^"]+)">([^<]+)<\/a>[\s\S]*?<a class="result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
+      let match;
+      while ((match = linkRegex.exec(text)) !== null && results.length < 5) {
+        const rawUrl = match[1].trim();
+        const cleanSnippet = match[3].replace(/<[^>]+>/g, '').trim();
+        results.push({
+          title: match[2].trim(),
+          url: rawUrl.startsWith('//') ? `https:${rawUrl}` : rawUrl,
+          snippet: cleanSnippet,
+        });
+      }
+    } catch (htmlErr) {
+      console.warn('[searchWeb] HTML search fallback failed:', htmlErr);
+    }
+  }
+
+  return {
+    query: effectiveQuery,
+    results,
+    source: 'duckduckgo',
+  };
+}
+
+/**
+ * Fetches an external web page, strips scripts/styles, and converts into clean reader markdown.
+ */
+export async function fetchWebPage(
+  url: string,
+  selector?: string,
+  maxLength: number = 8000
+): Promise<{
+  url: string;
+  title: string;
+  content: string;
+  truncated: boolean;
+}> {
+  // Security guard: Validate URL protocol
+  const parsed = new URL(url);
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error(`Access Denied: Protocol ${parsed.protocol} is prohibited.`);
+  }
+  // Cloud metadata protection
+  if (parsed.hostname === '169.254.169.254' || parsed.host.includes('169.254.169.254')) {
+    throw new Error('Access Denied: Cloud metadata IP is prohibited.');
+  }
+
+  const headers = { 'User-Agent': 'Mozilla/5.0 (compatible; KryptonideOorty/4.0; +https://oorty.sednium.com)' };
+  let html: string;
+
+  if (Capacitor.isNativePlatform()) {
+    const nativeRes = await CapacitorHttp.get({
+      url,
+      headers,
+      responseType: 'text',
+      connectTimeout: 12000,
+      readTimeout: 12000,
+    });
+    if (nativeRes.status < 200 || nativeRes.status >= 300) {
+      throw new Error(`Failed to fetch web page: HTTP ${nativeRes.status}`);
+    }
+    html = typeof nativeRes.data === 'string' ? nativeRes.data : JSON.stringify(nativeRes.data);
+  } else {
+    const res = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch web page: HTTP ${res.status} ${res.statusText}`);
+    }
+
+    html = await res.text();
+  }
+
+  // Extract title
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const title = titleMatch ? titleMatch[1].trim() : parsed.hostname;
+
+  // Clean HTML
+  let cleaned = html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, '')
+    .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '');
+
+  // If a CSS selector was passed and DOMParser is available
+  if (selector && typeof DOMParser !== 'undefined') {
+    try {
+      const doc = new DOMParser().parseFromString(cleaned, 'text/html');
+      const el = doc.querySelector(selector);
+      if (el) {
+        cleaned = el.innerHTML;
+      }
+    } catch {}
+  }
+
+  // Convert basic HTML to readable Markdown
+  let text = cleaned
+    .replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n### $1\n')
+    .replace(/<li[^>]*>(.*?)<\/li>/gi, '\n- $1')
+    .replace(/<p[^>]*>(.*?)<\/p>/gi, '\n$1\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<a\b[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
+    .replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  const truncated = text.length > maxLength;
+  if (truncated) {
+    text = text.slice(0, maxLength) + '\n\n... [Content truncated for context budget]';
+  }
+
+  return {
+    url,
+    title,
+    content: text,
+    truncated,
+  };
+}
+
+// ─── 8. Visual UI Inspection & Region Screenshotting ────────
+
+export interface DomNodeSnapshot {
+  tag: string;
+  id?: string;
+  classes?: string[];
+  role?: string;
+  text?: string;
+  rect?: { x: number; y: number; width: number; height: number };
+  attributes?: Record<string, string>;
+  children?: DomNodeSnapshot[];
+}
+
+/**
+ * Inspects the DOM layout, semantic roles, bounding boxes, and interactive
+ * elements of the active Live Preview. The preview is sandboxed, so this
+ * request is handled by the injected bridge inside the iframe.
+ */
+export async function inspectPreviewDom(
+  selector?: string,
+  depth: number = 3
+): Promise<{
+  target: string;
+  snapshot: DomNodeSnapshot | null;
+  totalElements: number;
+}> {
+  return requestPreviewBridge('inspect', {
+    selector: selector || undefined,
+    depth: Math.max(1, Math.min(12, Math.floor(depth || 3))),
+  });
+}
+
+/**
+ * Captures a real PNG screenshot of the Live Preview, a CSS selector, a clip
+ * rectangle, or the full scrollable page. Returns base64 PNG data produced by
+ * the preview bridge (html-to-image inside the iframe).
+ */
+export async function capturePreviewScreenshot(options?: {
+  selector?: string;
+  clip?: { x: number; y: number; width: number; height: number };
+  fullPage?: boolean;
+}): Promise<{
+  mimeType: string;
+  base64: string;
+  width: number;
+  height: number;
+  clip?: { x: number; y: number; width: number; height: number };
+  selector?: string;
+  target: string;
+}> {
+  const result = await requestPreviewBridge<{
+    mimeType: string;
+    base64: string;
+    width: number;
+    height: number;
+    clip?: { x: number; y: number; width: number; height: number };
+    selector?: string;
+    target: string;
+  }>('capture', { options: options || {} }, 30000);
+
+  if (!result?.base64 || !result.base64.startsWith('data:image/png;base64,')) {
+    throw new Error('Preview bridge returned no PNG data');
+  }
+  return result;
+}
+
+// ─── 9. Workspace Code Search (Grep & Find) ──────────────────
+
+/**
+ * Fast workspace text and regex search across all project files.
+ */
+export async function grepSearch(
+  query: string,
+  subPath?: string,
+  isRegex: boolean = false,
+  caseSensitive: boolean = false
+): Promise<{
+  query: string;
+  totalMatches: number;
+  filesSearched: number;
+  matches: Array<{ path: string; line: number; content: string }>;
+}> {
+  const files = useIdeStore.getState().files;
+  const matches: Array<{ path: string; line: number; content: string }> = [];
+  let filesSearched = 0;
+
+  let pattern: RegExp;
+  try {
+    const flags = caseSensitive ? 'g' : 'gi';
+    pattern = isRegex ? new RegExp(query, flags) : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+  } catch (err: any) {
+    throw new Error(`Invalid regex search pattern: ${err.message}`);
+  }
+
+  const buildPathForNode = (nodeId: string): string => {
+    const node = files[nodeId];
+    if (!node || !node.parentId || nodeId === 'root') return '';
+    const parentPath = buildPathForNode(node.parentId);
+    return parentPath ? `${parentPath}/${node.name}` : node.name;
+  };
+
+  const normalizedSubPath = subPath ? subPath.replace(/^\.?\//, '') : '';
+
+  for (const [id, node] of Object.entries(files)) {
+    if (id === 'root' || node.type !== 'file' || typeof node.content !== 'string') continue;
+    const fullPath = buildPathForNode(id);
+    if (normalizedSubPath && !fullPath.startsWith(normalizedSubPath)) continue;
+
+    filesSearched++;
+    const lines = node.content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (pattern.test(lines[i])) {
+        matches.push({
+          path: fullPath,
+          line: i + 1,
+          content: lines[i].trim(),
+        });
+        pattern.lastIndex = 0; // Reset regex state
+        if (matches.length >= 100) break; // Limit to 100 matches
+      }
+    }
+    if (matches.length >= 100) break;
+  }
+
+  return {
+    query,
+    totalMatches: matches.length,
+    filesSearched,
+    matches,
+  };
+}
+
+/**
+ * Locates files and directories matching a glob or substring pattern across the workspace.
+ */
+export async function findFilesByName(
+  pattern: string,
+  subPath?: string
+): Promise<{
+  pattern: string;
+  totalMatches: number;
+  matches: Array<{ name: string; path: string; type: 'file' | 'folder' }>;
+}> {
+  const files = useIdeStore.getState().files;
+  const matches: Array<{ name: string; path: string; type: 'file' | 'folder' }> = [];
+
+  const buildPathForNode = (nodeId: string): string => {
+    const node = files[nodeId];
+    if (!node || !node.parentId || nodeId === 'root') return '';
+    const parentPath = buildPathForNode(node.parentId);
+    return parentPath ? `${parentPath}/${node.name}` : node.name;
+  };
+
+  const normalizedPattern = pattern.toLowerCase();
+  const normalizedSubPath = subPath ? subPath.replace(/^\.?\//, '') : '';
+
+  for (const [id, node] of Object.entries(files)) {
+    if (id === 'root') continue;
+    const fullPath = buildPathForNode(id);
+    if (normalizedSubPath && !fullPath.startsWith(normalizedSubPath)) continue;
+
+    const matchesName = node.name.toLowerCase().includes(normalizedPattern) ||
+      (normalizedPattern.includes('*') && new RegExp('^' + normalizedPattern.replace(/\*/g, '.*') + '$', 'i').test(node.name));
+
+    if (matchesName) {
+      matches.push({
+        name: node.name,
+        path: fullPath,
+        type: node.type,
+      });
+      if (matches.length >= 100) break;
+    }
+  }
+
+  return {
+    pattern,
+    totalMatches: matches.length,
+    matches,
+  };
+}

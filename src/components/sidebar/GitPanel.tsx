@@ -614,11 +614,11 @@ function GitHubTab() {
             ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
             : statusMessage.type === 'error'
             ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-            : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
         }`}>
           {statusMessage.type === 'success' && <CheckCircle2 size={13} className="shrink-0 text-emerald-400" />}
           {statusMessage.type === 'error' && <AlertCircle size={13} className="shrink-0 text-rose-400" />}
-          {statusMessage.type === 'info' && <Info size={13} className="shrink-0 text-cyan-400" />}
+          {statusMessage.type === 'info' && <Info size={13} className="shrink-0 text-emerald-400" />}
           <span>{statusMessage.text}</span>
         </div>
       )}

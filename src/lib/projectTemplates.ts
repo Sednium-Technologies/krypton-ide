@@ -1,16 +1,16 @@
 import type { FileNode } from '../store/useIdeStore';
 
-export type ProjectTemplate = 
-  | 'blank' 
-  | 'html-css-js' 
-  | 'react' 
-  | 'python' 
-  | 'markdown' 
-  | 'android-java' 
-  | 'android-kotlin' 
-  | 'android-compose' 
-  | 'rust-cli' 
-  | 'java-cli' 
+export type ProjectTemplate =
+  | 'blank'
+  | 'html-css-js'
+  | 'react'
+  | 'python'
+  | 'markdown'
+  | 'android-java'
+  | 'android-kotlin'
+  | 'android-compose'
+  | 'rust-cli'
+  | 'java-cli'
   | 'kotlin-cli'
   | 'c-cli'
   | 'cpp-cli'
@@ -54,10 +54,13 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
       - name: Build APK
-        run: |
-          chmod +x gradlew
-          ./gradlew assemble\${{ inputs.build_type == 'release' && 'Release' || 'Debug' }}
+        run: gradle assemble\${{ inputs.build_type == 'release' && 'Release' || 'Debug' }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -220,7 +223,7 @@ jobs:
     }
 
     case 'android-java': {
-      root.children = ['app_folder', 'build_gradle', 'settings_gradle', 'github_folder'];
+      root.children = ['app_folder', 'build_gradle', 'settings_gradle', 'gradle_properties', 'github_folder'];
       return {
         root,
         app_folder: {
@@ -349,6 +352,14 @@ jobs:
           language: 'groovy',
           content: 'rootProject.name = "AndroidApp"\ninclude \':app\'\n'
         },
+        gradle_properties: {
+          id: 'gradle_properties',
+          name: 'gradle.properties',
+          type: 'file',
+          parentId: 'root',
+          language: 'properties',
+          content: 'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\nandroid.useAndroidX=true\nandroid.nonTransitiveRClass=true\n'
+        },
         github_folder: {
           id: 'github_folder',
           name: '.github',
@@ -365,7 +376,7 @@ jobs:
         },
         build_yml: {
           id: 'build_yml',
-          name: 'build.yml',
+          name: 'build-android.yml',
           type: 'file',
           parentId: 'workflows_folder',
           language: 'yaml',
@@ -375,7 +386,7 @@ jobs:
     }
 
     case 'android-kotlin': {
-      root.children = ['app_folder', 'build_gradle_kts', 'settings_gradle_kts', 'github_folder'];
+      root.children = ['app_folder', 'build_gradle_kts', 'settings_gradle_kts', 'gradle_properties', 'github_folder'];
       return {
         root,
         app_folder: {
@@ -504,6 +515,14 @@ jobs:
           language: 'groovy',
           content: 'rootProject.name = "AndroidApp"\ninclude(":app")\n'
         },
+        gradle_properties: {
+          id: 'gradle_properties',
+          name: 'gradle.properties',
+          type: 'file',
+          parentId: 'root',
+          language: 'properties',
+          content: 'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\nandroid.useAndroidX=true\nandroid.nonTransitiveRClass=true\n'
+        },
         github_folder: {
           id: 'github_folder',
           name: '.github',
@@ -520,7 +539,7 @@ jobs:
         },
         build_yml: {
           id: 'build_yml',
-          name: 'build.yml',
+          name: 'build-android.yml',
           type: 'file',
           parentId: 'workflows_folder',
           language: 'yaml',
@@ -531,7 +550,7 @@ jobs:
 
     case 'android-compose': {
       // Compose template is similar to Kotlin but with compose dependencies
-      root.children = ['app_folder', 'build_gradle_kts', 'settings_gradle_kts', 'github_folder'];
+      root.children = ['app_folder', 'build_gradle_kts', 'settings_gradle_kts', 'gradle_properties', 'github_folder'];
       return {
         root,
         app_folder: {
@@ -645,6 +664,14 @@ jobs:
           language: 'groovy',
           content: 'rootProject.name = "ComposeApp"\ninclude(":app")\n'
         },
+        gradle_properties: {
+          id: 'gradle_properties',
+          name: 'gradle.properties',
+          type: 'file',
+          parentId: 'root',
+          language: 'properties',
+          content: 'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\nandroid.useAndroidX=true\nandroid.nonTransitiveRClass=true\n'
+        },
         github_folder: {
           id: 'github_folder',
           name: '.github',
@@ -661,7 +688,7 @@ jobs:
         },
         build_yml: {
           id: 'build_yml',
-          name: 'build.yml',
+          name: 'build-android.yml',
           type: 'file',
           parentId: 'workflows_folder',
           language: 'yaml',

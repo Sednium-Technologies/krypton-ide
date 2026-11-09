@@ -49,5 +49,4 @@ export function OortyLiteIcon({ size = 16, className = 'text-[#f3f0e7]', useImag
 }
 
 // Backwards compatibility alias
-export const LarrySvg = OortyLiteIcon;
 export default OortyLiteIcon;

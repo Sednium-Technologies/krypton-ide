@@ -58,7 +58,7 @@ function ExtensionIcon({ icon, category }: { icon?: string; category?: string })
     case 'moon':
       return <Palette {...iconProps} className="text-purple-400" />;
     case 'sparkles':
-      return <Sparkles {...iconProps} className="text-yellow-400" />;
+      return <Sparkles {...iconProps} className="text-emerald-500" />;
     case 'terminal':
       return <Terminal {...iconProps} className="text-emerald-400" />;
     default:

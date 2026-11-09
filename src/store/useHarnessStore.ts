@@ -94,7 +94,7 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
   isLoaded: false,
 
   setDefaultHarnessId: (id: string) => {
-    const targetId = id === 'larry' ? 'oorty-lite' : id;
+    const targetId = id;
     const harness = get().harnesses.find((h) => h.id === targetId);
     // User policy: users can only choose from installed harnesses
     if (!harness || !harness.isInstalled) {
@@ -136,7 +136,7 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
   updateHarnessInstallStatus: (installedMap) => {
     set((state) => {
       const updated = state.harnesses.map((h) => {
-        if (h.id === 'oorty-lite' || h.id === 'larry') return h; // Oorty Lite is always installed
+        if (h.id === 'oorty-lite') return h; // Oorty Lite is always installed
         const match = installedMap[h.id] || (h.binaryName ? installedMap[h.binaryName] : undefined);
         if (match) {
           return {
@@ -150,7 +150,6 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
 
       // If active harness is no longer installed, fall back to Oorty Lite
       let active = state.defaultHarnessId;
-      if (active === 'larry') active = 'oorty-lite';
       const activeHarness = updated.find((h) => h.id === active);
       if (!activeHarness || !activeHarness.isInstalled) {
         active = 'oorty-lite';
@@ -169,7 +168,7 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
       const cfg = await readConfig();
       if (cfg?.harness) {
         const configuredId = cfg.harness.defaultHarnessId;
-        const defaultHarnessId = (!configuredId || configuredId === 'larry') ? 'oorty-lite' : configuredId;
+        const defaultHarnessId = configuredId || 'oorty-lite';
         set({
           defaultHarnessId,
           executionMode: cfg.harness.executionMode || 'supervised',
@@ -187,7 +186,7 @@ export const useHarnessStore = create<HarnessState>((set, get) => ({
     const { defaultHarnessId, harnesses } = get();
     const activeHarness = harnesses.find((h) => h.id === defaultHarnessId) || harnesses[0];
 
-    if (activeHarness.id === 'oorty-lite' || activeHarness.id === 'larry' || activeHarness.type === 'internal') {
+    if (activeHarness.id === 'oorty-lite' || activeHarness.type === 'internal') {
       // 1. Delegate to Oorty Lite (Built-in Assistant)
       const ideState = useIdeStore.getState();
       ideState.setSidebarView('ai');

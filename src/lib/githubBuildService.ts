@@ -1,6 +1,7 @@
 import { useAuthStore } from '../store/useAuthStore';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import JSZip from 'jszip';
 
 const API = 'https://api.github.com';
 
@@ -21,6 +22,7 @@ export interface WorkflowRun {
   conclusion: string | null;
   html_url: string;
   created_at: string;
+  path?: string;
 }
 
 export interface Artifact {
@@ -31,32 +33,45 @@ export interface Artifact {
 }
 
 export async function triggerBuild(owner: string, repo: string, buildType: 'debug' | 'release' = 'debug'): Promise<void> {
-  const res = await fetch(`${API}/repos/${owner}/${repo}/actions/workflows/build-android.yml/dispatches`, {
-    method: 'POST',
-    headers: headers(),
-    body: JSON.stringify({
-      ref: 'main', // defaulting to main branch
-      inputs: {
-        build_type: buildType
-      }
-    }),
-  });
+  // Primary endpoint: /actions/workflows/build-android.yml/dispatches
+  // Legacy repositories may still only have build.yml; fall back to it.
+  const workflowFiles = ['build-android.yml', 'build.yml'];
+  let lastError = 'No build workflow found in the repository';
 
-  if (!res.ok) {
+  for (const workflowFile of workflowFiles) {
+    const res = await fetch(`${API}/repos/${owner}/${repo}/actions/workflows/${workflowFile}/dispatches`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({
+        ref: 'main',
+        inputs: {
+          build_type: buildType
+        }
+      }),
+    });
+
+    if (res.ok) return;
+
     const error = await res.json().catch(() => ({}));
-    throw new Error(error.message || `Failed to trigger build: ${res.status}`);
+    lastError = error.message || `Failed to trigger ${workflowFile}: HTTP ${res.status}`;
+    if (res.status !== 404) {
+      throw new Error(lastError);
+    }
   }
+
+  throw new Error(lastError);
 }
 
 export async function getLatestRun(owner: string, repo: string): Promise<WorkflowRun | null> {
-  const res = await fetch(`${API}/repos/${owner}/${repo}/actions/runs?per_page=1`, {
-    headers: headers()
-  });
-  
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (data.workflow_runs && data.workflow_runs.length > 0) {
-    return data.workflow_runs[0] as WorkflowRun;
+  for (const workflowFile of ['build-android.yml', 'build.yml']) {
+    const res = await fetch(
+      `${API}/repos/${owner}/${repo}/actions/workflows/${workflowFile}/runs?per_page=1`,
+      { headers: headers() }
+    );
+    if (!res.ok) continue;
+    const data = await res.json();
+    const run = ((data.workflow_runs || []) as WorkflowRun[])[0];
+    if (run) return run;
   }
   return null;
 }
@@ -72,41 +87,41 @@ export async function getRunArtifacts(owner: string, repo: string, runId: number
 }
 
 export async function downloadArtifactToDevice(artifactDownloadUrl: string): Promise<string> {
-  // Use Capacitor filesystem to download
-  // But wait, it redirects to a zip file. We need to fetch the zip and save it.
   const res = await fetch(artifactDownloadUrl, {
-    headers: headers(), // need auth to download artifact
+    headers: headers(),
   });
 
-  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`);
 
-  const blob = await res.blob();
-  
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      try {
-        const base64data = reader.result as string;
-        // Strip out the data URL prefix if present
-        const base64 = base64data.split(',')[1] || base64data;
-        
-        await Filesystem.writeFile({
-          path: 'krypton-apk.zip',
-          data: base64,
-          directory: Directory.Data,
-        });
+  const archive = await res.arrayBuffer();
+  const zip = await JSZip.loadAsync(archive);
+  const apkEntry = Object.values(zip.files).find(
+    (entry) => !entry.dir && entry.name.toLowerCase().endsWith('.apk')
+  );
 
-        const uriResult = await Filesystem.getUri({
-          path: 'krypton-apk.zip',
-          directory: Directory.Data,
-        });
+  if (!apkEntry) {
+    throw new Error('Build artifact did not contain an APK file');
+  }
 
-        resolve(uriResult.uri);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
+  const fileName = apkEntry.name.split('/').pop() || 'krypton-build.apk';
+
+  if (!Capacitor.isNativePlatform()) {
+    const blob = await apkEntry.async('blob');
+    return URL.createObjectURL(blob);
+  }
+
+  const apkBase64 = await apkEntry.async('base64');
+  await Filesystem.writeFile({
+    path: fileName,
+    data: apkBase64,
+    directory: Directory.Data,
+    recursive: true,
   });
+
+  const uriResult = await Filesystem.getUri({
+    path: fileName,
+    directory: Directory.Data,
+  });
+
+  return uriResult.uri;
 }

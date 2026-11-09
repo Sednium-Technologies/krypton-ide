@@ -485,7 +485,7 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
                 </div>
                 <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-[#e5e0d4]' : 'bg-[#1a1719]'}`}>
                   <div
-                    className="h-full bg-gradient-to-r from-teal-400 via-emerald-400 to-cyan-400 transition-all duration-300 rounded-full"
+                    className="h-full bg-emerald-500 transition-all duration-300 rounded-full"
                     style={{ width: `${progress?.percent || 0}%` }}
                   />
                 </div>

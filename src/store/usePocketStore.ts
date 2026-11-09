@@ -90,7 +90,8 @@ interface PocketState {
   isServerRunning: boolean;
   hardwareInfo: HardwareInfo | null;
   downloadingModelId: string | null;
-  
+  downloadError: string | null;
+
   selectModel: (id: string) => void;
   setEngineMode: (mode: 'laya_system1' | 'local_gguf' | 'api_fallback') => void;
   setHardwareInfo: (info: HardwareInfo) => void;
@@ -103,9 +104,10 @@ export const usePocketStore = create<PocketState>()((set, get) => ({
   selectedModelId: 'laya-multilingual-fp16',
   availableModels: [...BUILTIN_POCKET_MODELS],
   engineMode: 'laya_system1',
-  isServerRunning: true,
+  isServerRunning: false,
   hardwareInfo: null,
   downloadingModelId: null,
+  downloadError: null,
 
   selectModel: (id: string) => {
     const model = get().availableModels.find(m => m.id === id);
@@ -119,7 +121,16 @@ export const usePocketStore = create<PocketState>()((set, get) => ({
   },
 
   downloadModel: async (id: string) => {
-    set({ downloadingModelId: id });
+    const model = get().availableModels.find(m => m.id === id);
+    if (!model || !id.startsWith('laya-')) {
+      set({
+        downloadingModelId: null,
+        downloadError: `${model?.name || id} has no published download source in Krypton yet. Import the model file manually with Discover Local Models.`,
+      });
+      return false;
+    }
+
+    set({ downloadingModelId: id, downloadError: null });
     try {
       const { LayaSystem1 } = await import('../lib/pocket/LayaSystem1');
       const targetHuggingFaceId = id.includes('q4') ? 'convaiinnovations/laya-typed-decisions' : 'convaiinnovations/laya-multilingual';
@@ -137,13 +148,14 @@ export const usePocketStore = create<PocketState>()((set, get) => ({
             m.id === id ? { ...m, isDownloaded: true, downloadProgress: 100 } : m
           ),
           downloadingModelId: null,
+          downloadError: null,
         }));
         return true;
       }
-      set({ downloadingModelId: null });
+      set({ downloadingModelId: null, downloadError: 'Model download did not complete.' });
       return false;
-    } catch {
-      set({ downloadingModelId: null });
+    } catch (error: any) {
+      set({ downloadingModelId: null, downloadError: error?.message || 'Model download failed.' });
       return false;
     }
   },
@@ -151,8 +163,12 @@ export const usePocketStore = create<PocketState>()((set, get) => ({
   toggleModelMemory: async (id: string, load: boolean) => {
     try {
       const { LayaSystem1 } = await import('../lib/pocket/LayaSystem1');
+      const model = get().availableModels.find(m => m.id === id);
       if (load) {
         const targetHuggingFaceId = id.includes('q4') ? 'convaiinnovations/laya-typed-decisions' : 'convaiinnovations/laya-multilingual';
+        window.dispatchEvent(new CustomEvent('krypton-model-loading', {
+          detail: { path: targetHuggingFaceId, name: model?.name || id },
+        }));
         await LayaSystem1.loadIntoMemory(targetHuggingFaceId);
         set((state) => ({
           availableModels: state.availableModels.map((m) =>

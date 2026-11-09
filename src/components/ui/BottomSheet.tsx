@@ -3,6 +3,7 @@ import { motion, AnimatePresence, PanInfo, useAnimationControls } from 'motion/r
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useIdeStore } from '../../store/useIdeStore';
+import { hapticLight, hapticMedium } from '../../lib/haptics';
 
 interface BottomSheetProps {
   isOpen: boolean;
@@ -49,10 +50,13 @@ export function BottomSheet({
 
   const handleDragEnd = (_: any, info: PanInfo) => {
     if (info.offset.y > 100 || info.velocity.y > 500) {
+      hapticMedium();
       onClose();
     } else if (info.offset.y < -80 || info.velocity.y < -400) {
+      hapticMedium();
       setIsExpanded(true);
     } else {
+      hapticLight();
       controls.start({ y: 0 });
     }
   };
@@ -111,7 +115,7 @@ export function BottomSheet({
                 </div>
                 {showCloseButton && (
                   <button
-                    onClick={onClose}
+                    onClick={() => { hapticLight(); onClose(); }}
                     aria-label="Close sheet"
                     className={cn(
                       "ml-3 rounded-full p-1.5 transition-colors",

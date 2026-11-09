@@ -12,12 +12,21 @@ import {
   CapacitorFilesystemPatch,
   CapacitorFilesystemMkdir,
   executeTerminalCommand,
+  searchWeb,
+  fetchWebPage,
+  capturePreviewScreenshot,
+  inspectPreviewDom,
+  grepSearch,
+  findFilesByName,
+  listDirectory,
 } from './toolActions';
 import { useIdeStore } from '../../store/useIdeStore';
 import { useProblemsStore, extractMonacoProblems } from '../../store/useProblemsStore';
 import { useMcpStore } from '../../store/useMcpStore';
 import { defaultAifManager, AifManager } from './AifManager';
 import { LayaSystem1 } from '../pocket/LayaSystem1';
+import { buildAndroidApkLocally } from '../localAndroidBuild';
+import { useProjectsStore } from '../../store/useProjectsStore';
 
 export interface AgentTool {
   name: string;
@@ -27,7 +36,7 @@ export interface AgentTool {
     properties: Record<string, any>;
     required?: string[];
   };
-  category: 'filesystem' | 'terminal' | 'lsp' | 'mcp' | 'aif' | 'system1';
+  category: 'filesystem' | 'terminal' | 'lsp' | 'mcp' | 'aif' | 'system1' | 'web' | 'preview';
   execute: (args: any) => Promise<{ success: boolean; data?: any; error?: string }>;
 }
 
@@ -38,6 +47,10 @@ export class AgentToolRegistry {
   constructor(aifManager?: AifManager) {
     this.aif = aifManager || defaultAifManager;
     this.registerBuiltinTools();
+  }
+
+  setAifManager(aifManager: AifManager): void {
+    this.aif = aifManager;
   }
 
   private registerBuiltinTools() {
@@ -214,16 +227,8 @@ export class AgentToolRegistry {
       },
       execute: async (args) => {
         try {
-          const files = useIdeStore.getState().files;
-          const target = args?.path ? args.path.replace(/^\.?\//, '') : '';
-          const list: { name: string; type: string; path: string }[] = [];
-
-          for (const [id, node] of Object.entries(files)) {
-            if (id === 'root') continue;
-            list.push({ name: node.name, type: node.type, path: id });
-          }
-
-          return { success: true, data: list.slice(0, 100) };
+          const list = await listDirectory(args?.path);
+          return { success: true, data: list };
         } catch (e: any) {
           return { success: false, error: e.message };
         }
@@ -261,6 +266,49 @@ export class AgentToolRegistry {
     this.registerTool({
       ...terminalTool,
       name: 'run_terminal_command',
+    });
+
+    this.registerTool({
+      name: 'build_android_apk',
+      description: 'Builds an Android APK on-device with the local Gradle/JDK toolchain. Fails honestly when no toolchain is installed; use the cloud build workflow instead in that case.',
+      category: 'terminal',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'Optional Android project path. Defaults to the currently open project folder.',
+          },
+          variant: {
+            type: 'string',
+            enum: ['debug', 'release'],
+            description: 'Build variant (default: debug)',
+          },
+        },
+        required: [],
+      },
+      execute: async (args) => {
+        try {
+          const projectPath =
+            args.path ||
+            useProjectsStore.getState().getCurrentProject()?.folderPath;
+          if (!projectPath) {
+            return { success: false, error: 'No project path available for the Android build.' };
+          }
+          const variant = args.variant === 'release' ? 'release' : 'debug';
+          const result = await buildAndroidApkLocally(projectPath, variant);
+          return {
+            success: true,
+            data: {
+              apkPath: result.apkPath,
+              variant,
+              log: result.log.split('\n').slice(-80).join('\n'),
+            },
+          };
+        } catch (e: any) {
+          return { success: false, error: e.message };
+        }
+      },
     });
 
     // ─── 3. LSP Tools ──────────────────────────────────────────────────
@@ -461,6 +509,24 @@ export class AgentToolRegistry {
       },
     });
 
+    this.registerTool({
+      name: 'aif_status',
+      description: 'Reports the active project AIF memory rings, cross-project bridge count, and volatile scratch state.',
+      category: 'aif',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+      execute: async () => {
+        try {
+          const summary = await this.aif.getSummary();
+          return { success: true, data: summary };
+        } catch (e: any) {
+          return { success: false, error: e.message };
+        }
+      },
+    });
+
     // ─── 5. System 1 Contrastive Decision Tools (convaiinnovations/laya) ───
     this.registerTool({
       name: 'laya_status',
@@ -517,6 +583,158 @@ export class AgentToolRegistry {
               hardwareAccelerated: LayaSystem1.getStatus().isHardwareAccelerated,
             },
           };
+        } catch (e: any) {
+          return { success: false, error: e.message };
+        }
+      },
+    });
+
+    // ─── 6. Workspace Code Search Tools ───────────────────────────────
+    this.registerTool({
+      name: 'grep_search',
+      description: 'Search for text or regex patterns line-by-line across all files in the workspace. Returns file paths, line numbers, and matching lines.',
+      category: 'filesystem',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'The text or regex pattern to search for' },
+          path: { type: 'string', description: 'Optional subfolder path filter (e.g. src/components)' },
+          is_regex: { type: 'boolean', description: 'Whether query should be treated as a regular expression (default: false)' },
+          case_sensitive: { type: 'boolean', description: 'Whether search should be case sensitive (default: false)' },
+        },
+        required: ['query'],
+      },
+      execute: async (args) => {
+        try {
+          const res = await grepSearch(args.query, args.path, args.is_regex, args.case_sensitive);
+          return { success: true, data: res };
+        } catch (e: any) {
+          return { success: false, error: e.message };
+        }
+      },
+    });
+
+    this.registerTool({
+      name: 'find_files_by_name',
+      description: 'Locate files and folders across the project by substring or glob pattern (e.g. "*.tsx", "Button", "config.json").',
+      category: 'filesystem',
+      parameters: {
+        type: 'object',
+        properties: {
+          pattern: { type: 'string', description: 'Glob pattern or substring to match file and folder names' },
+          path: { type: 'string', description: 'Optional directory path to restrict the search' },
+        },
+        required: ['pattern'],
+      },
+      execute: async (args) => {
+        try {
+          const res = await findFilesByName(args.pattern, args.path);
+          return { success: true, data: res };
+        } catch (e: any) {
+          return { success: false, error: e.message };
+        }
+      },
+    });
+
+    // ─── 7. Web Surfing & Live Documentation Tools ────────────────────
+    this.registerTool({
+      name: 'search_web',
+      description: 'Search the public web for live technical documentation, API specifications, library updates, and error solutions.',
+      category: 'web',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'The search query keywords' },
+          domain: { type: 'string', description: 'Optional domain to restrict search (e.g. github.com, npmjs.com, docs.rs)' },
+        },
+        required: ['query'],
+      },
+      execute: async (args) => {
+        try {
+          const res = await searchWeb(args.query, args.domain);
+          return { success: true, data: res };
+        } catch (e: any) {
+          return { success: false, error: e.message };
+        }
+      },
+    });
+
+    this.registerTool({
+      name: 'fetch_web_page',
+      description: 'Fetches and converts a web page or documentation URL into clean, readable Markdown with scripts and ads stripped.',
+      category: 'web',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'The full HTTP or HTTPS URL to fetch' },
+          selector: { type: 'string', description: 'Optional CSS selector to extract only a specific section (e.g. article, main, .docs-body)' },
+          maxLength: { type: 'integer', description: 'Max character length of returned text (default: 8000)' },
+        },
+        required: ['url'],
+      },
+      execute: async (args) => {
+        try {
+          const res = await fetchWebPage(args.url, args.selector, args.maxLength);
+          return { success: true, data: res };
+        } catch (e: any) {
+          return { success: false, error: e.message };
+        }
+      },
+    });
+
+    // ─── 8. Visual UI & Preview Inspection Tools ──────────────────────
+    const screenshotTool: AgentTool = {
+      name: 'take_screenshot',
+      description: 'Captures a visual PNG screenshot of the Live Preview webview, an exact CSS selector element, or a cropped bounding box ({ x, y, width, height }). Returns base64 image data.',
+      category: 'preview',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'Optional CSS selector of the specific element to screenshot (e.g. "#header", ".modal", "button.primary")' },
+          clip: {
+            type: 'object',
+            description: 'Optional pixel bounding box to crop into: { x, y, width, height }',
+            properties: {
+              x: { type: 'number' },
+              y: { type: 'number' },
+              width: { type: 'number' },
+              height: { type: 'number' },
+            },
+          },
+          fullPage: { type: 'boolean', description: 'Whether to capture full scrollable document height (default: false)' },
+        },
+      },
+      execute: async (args) => {
+        try {
+          const res = await capturePreviewScreenshot(args);
+          return { success: true, data: res };
+        } catch (e: any) {
+          return { success: false, error: e.message };
+        }
+      },
+    };
+    this.registerTool(screenshotTool);
+    // Alias for capture_preview_screenshot
+    this.registerTool({
+      ...screenshotTool,
+      name: 'capture_preview_screenshot',
+    });
+
+    this.registerTool({
+      name: 'inspect_preview_dom',
+      description: 'Inspects the live DOM accessibility tree, tags, classes, text, interactive attributes, and bounding box coordinates in the Live Preview webview before visual interaction.',
+      category: 'preview',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'Optional CSS selector to start inspection from (defaults to preview root)' },
+          depth: { type: 'integer', description: 'Maximum tree depth to traverse (default: 3)' },
+        },
+      },
+      execute: async (args) => {
+        try {
+          const res = await inspectPreviewDom(args?.selector, args?.depth);
+          return { success: true, data: res };
         } catch (e: any) {
           return { success: false, error: e.message };
         }
