@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/icon.png" alt="Krypton IDE logo" width="128" />
+<img src="assets/icon.png" alt="Kryptonide logo" width="128" />
 
 # Kryptonide
 
@@ -8,7 +8,7 @@
 
 **Version 4.0.0**
 
-A mobile-first IDE that runs a real editor, real terminal, real filesystem, native extensions, and an agentic AI assistant on Android and the web.
+A mobile-first Android IDE with a real editor, native terminal, real filesystem, native extensions, and an agentic AI assistant.
 
 [Quick start](#quick-start) · [What's new](#whats-new-in-v40) · [Architecture](#architecture) · [Extensions](#native-extension-host) · [Development](#development) · [Documentation](#documentation)
 
@@ -16,22 +16,24 @@ A mobile-first IDE that runs a real editor, real terminal, real filesystem, nati
 
 ---
 
-Krypton IDE brings a desktop-class development workflow to a phone, tablet, or browser. It combines Monaco Editor, a native POSIX terminal, a Rust execution core, VSIX extension support, GitHub workflows, and Oorty Lite — an AI agent that can read, edit, build, and navigate a project through structured tools.
+Kryptonide brings a desktop-class development workflow to a phone or tablet. It combines Monaco Editor, a native POSIX terminal, a Rust execution core, VSIX extension support, GitHub workflows, and Oorty Lite — an AI agent that can read, edit, build, and navigate a project through structured tools.
 
-Version 4 is not a cosmetic release. It adds a native extension host, an on-device agent stack, real PTY sessions, MCP connectors, agent skills, workspace trust, and a substantially deeper Android integration.
+This is the **Rust + TypeScript + Kotlin** build. The earlier version was a native Kotlin app; this version keeps the Android shell while moving the UI to React/TypeScript, high-throughput work to a Rust core, and native host integration to Kotlin/Java Capacitor bridges.
+
+Version 4 adds a native extension host, an on-device agent stack, a stronger native terminal, MCP connectors, agent skills, workspace trust, and deeper Android integration.
 
 > [!NOTE]
-> Krypton has two deployment paths: a browser/PWA build for web development and a Capacitor Android app for full native execution. Features such as PTY terminals, Termux language servers, native extensions, and on-device models require the Android build.
+> Kryptonide is an Android application. The Vite dev server and browser build are used for frontend development and UI testing only. Native features such as the PTY terminal, Termux language servers, extensions, and on-device models require the Android runtime.
 
 ---
 
 ## Table of Contents
 
-- [What is Krypton IDE?](#what-is-krypton-ide)
+- [What is Kryptonide?](#what-is-kryptonide)
 - [What's new in v4.0](#whats-new-in-v40)
 - [v4.0 in numbers](#v40-in-numbers)
 - [Quick start](#quick-start)
-  - [Run the web app](#run-the-web-app)
+  - [Run the frontend dev build](#run-the-frontend-dev-build)
   - [Build for Android](#build-for-android)
 - [Feature tour](#feature-tour)
   - [Editor and workspace](#editor-and-workspace)
@@ -55,17 +57,18 @@ Version 4 is not a cosmetic release. It adds a native extension host, an on-devi
 
 ---
 
-## What is Krypton IDE?
+## What is Kryptonide?
 
 | | |
 |---|---|
-| **Primary target** | Android (Capacitor 8), with a browser/PWA build |
+| **Primary target** | Android (Capacitor 8); the Vite browser build is for frontend development only |
 | **Editor** | Monaco Editor with LSP, themes, snippets, formatting, and mobile input controls |
 | **Terminal** | Native POSIX PTY with optional Termux userland bootstrap |
 | **Extensibility** | VSIX installation, Rust + QuickJS extension host, VS Code API subset, LSP |
 | **AI** | Oorty Lite agent, live model discovery, tool calling, MCP, skills, AIF memory |
-| **Native core** | Rust (`krypton-core-rs`), JNI, Android Kotlin plugins, C/C++ PTY bridge |
-| **Storage** | Device filesystem, OPFS/IndexedDB for web, Google Drive backup |
+| **Native core** | Rust (`krypton-core-rs`), JNI, Android Kotlin/Java plugins, C/C++ PTY bridge |
+| **UI stack** | React 19 + TypeScript, Monaco Editor, Zustand, Tailwind CSS |
+| **Storage** | Device filesystem, OPFS/IndexedDB for browser development, Google Drive backup |
 | **Source control** | isomorphic-git, GitHub OAuth, repository management, Actions builds |
 | **License** | MIT |
 
@@ -109,11 +112,13 @@ See [Native extension host](#native-extension-host) and the [extension authoring
 
 ### Terminal and execution
 
-- Real POSIX PTY sessions through `libkrypton-pty.so`.
-- Separate Project Shell and System Shell tabs.
-- Termux userland bootstrap with package installation helpers.
-- Docked or floating terminal panel, resize handling, shell restart, output buffering, and ANSI rendering.
-- LSP servers launched inside the Termux environment and connected back to Monaco.
+The v4 terminal is the stronger native path compared with the earlier Kotlin-only build:
+
+- Real POSIX PTY sessions through `libkrypton-pty.so`, with real process IDs, signals, exit codes, resize propagation, and streaming output.
+- Separate Project Shell and System Shell tabs, so project commands and Termux userland commands do not share one working directory.
+- Termux userland bootstrap with package installation helpers for Python, Rust, C/C++, Node.js, and CLI tooling.
+- Docked or floating terminal panel, shell restart, buffer clearing, ANSI rendering, copy/paste, and a tool scanner that reports actual command availability.
+- Rust-backed session handling and output buffering, plus LSP servers launched inside the same Termux environment and connected back to Monaco.
 
 ### Release and reliability work
 
@@ -181,14 +186,14 @@ git log --oneline v3.0.0..3e85600
 
 | Workflow | Requirements |
 |---|---|
-| Web development | Node.js 22+, npm 10+, a modern Chromium or Firefox browser |
+| Frontend development | Node.js 22+, npm 10+, a modern Chromium or Firefox browser for UI testing |
 | Android build | Android Studio, Android SDK 36, build-tools 36.0.0, JDK 21, NDK 27.0.12077973, CMake 3.22.1 |
 | Native core changes | Rust stable, Cargo, `cargo-ndk` for Android targets |
 | Optional services | Firebase project for Google Sign-In, provider API keys for hosted AI models |
 
 The Android app includes prebuilt native libraries under `android/app/src/main/jniLibs/`. Rebuild them only if you change the Rust core.
 
-### Run the web app
+### Run the frontend dev build
 
 ```bash
 git clone git@github.com:Sednium-Technologies/krypton-ide.git
@@ -198,7 +203,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000` to develop the UI. Native Android features are unavailable in this browser-only development mode.
 
 The development server binds to `0.0.0.0` so it can be opened from another device on the same network.
 
@@ -320,6 +325,8 @@ Supported providers:
 <details id="terminal-and-execution">
 <summary><strong>Terminal and execution</strong></summary>
 
+This is the improved terminal implementation for the Rust + TypeScript + Kotlin build.
+
 - Native PTY engine, not a simulated command runner.
 - Project Shell opens inside the active workspace.
 - System Shell opens in the Termux home directory.
@@ -349,7 +356,7 @@ Supported providers:
 <summary><strong>Storage, sync, and backup</strong></summary>
 
 - Projects stored as ordinary files in a configurable device-storage root, for example `/sdcard/Documents/KryptonIDE`.
-- Web storage backed by OPFS and IndexedDB.
+- Browser development fallback uses OPFS and IndexedDB.
 - ZIP project import and export.
 - Google Drive AppData backup and restore with zip-slip protection.
 - Debounced and lifecycle-aware auto-save.
@@ -362,7 +369,7 @@ Supported providers:
 <details id="build-and-release">
 <summary><strong>Build and release</strong></summary>
 
-- Web production builds through Vite.
+- Frontend production bundle through Vite, packaged into Android with Capacitor.
 - Capacitor synchronization for Android.
 - Android debug and release builds through Gradle.
 - Local Android build service and release configuration checks.
@@ -390,7 +397,7 @@ Supported providers:
 
 ## Native extension host
 
-Krypton does not fake extensions with hardcoded panels. A VSIX is unpacked, validated, indexed, activated, and executed through a native host.
+Kryptonide does not fake extensions with hardcoded panels. A VSIX is unpacked, validated, indexed, activated, and executed through a native host.
 
 ```mermaid
 flowchart TB
@@ -591,7 +598,7 @@ krypton-ide/
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Start Vite on port 3000 |
-| `npm run build` | Create a production web build |
+| `npm run build` | Build the web assets consumed by Capacitor |
 | `npm run preview` | Preview the production build |
 | `npm run clean` | Remove `dist/` |
 | `npm test` | Run the TypeScript test suite |
@@ -728,7 +735,7 @@ If lifecycle scripts fail on a platform-specific optional package, retry with `-
 </details>
 
 <details>
-<summary><strong>The web build stalls or runs out of memory</strong></summary>
+<summary><strong>The Vite build stalls or runs out of memory</strong></summary>
 
 Increase the Node heap for the build process:
 
@@ -762,15 +769,14 @@ Re-authenticate the Google account, confirm Drive access is authorized, and chec
 |---|---|
 | [Extension authoring guide](docs/extensions/extension-authoring-guide.md) | VSIX structure, API subset, trust, LSP, contributions, packaging |
 | [Native extension host design](docs/design/krypton-native-extension-host.md) | Host architecture and phased implementation |
-| [Rust core architecture](docs/design/krypton-core-rust-architecture.md) | JNI/WASM boundaries, search, diff, ZIP, AIF, Git, hardware |
+| [Rust core architecture](docs/design/krypton-core-rust-architecture.md) | JNI/native boundaries, search, diff, ZIP, AIF, Git, hardware |
 | [Command palette and agent harness](docs/design/command-palette-and-agent-harness-system.md) | Palette integration and agent execution design |
 | [Features ledger](docs/features.md) | Settings, accounts, storage, themes, sync, and system paths |
 | [Performance baseline](docs/performance_baseline_report.md) | Benchmarks and optimization targets |
-| [Audit report](docs/AUDIT_REPORT.md) | Security, stability, and performance findings |
 | [Changelog and porting notes](docs/changelog.md) | Feature implementation notes and architecture changes |
 | [Project overview](docs/kryptonide.md) | Product and subsystem overview |
 
-Verification helpers live in `scripts/` and `.agents/skills/verify-krypton-ide/`.
+Verification helpers live in `scripts/`.
 
 ---
 
@@ -798,4 +804,4 @@ See [LICENSE](LICENSE) for the full text.
 
 Built by **Sednium** and **Bhoid**.
 
-Krypton IDE stands on the work of the React, Monaco, Capacitor, Rust, QuickJS, xterm.js, Tailwind, Zustand, isomorphic-git, and open-source Android communities.
+Kryptonide stands on the work of the React, Monaco, Capacitor, Rust, QuickJS, xterm.js, Tailwind, Zustand, isomorphic-git, and open-source Android communities.

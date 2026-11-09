@@ -1,7 +1,7 @@
 {
   "name": "sample-snippets-ext",
   "displayName": "Sample Krypton Snippets",
-  "description": "Authentic TypeScript code snippets for Krypton IDE",
+  "description": "Authentic TypeScript code snippets for Kryptonide",
   "version": "1.0.0",
   "publisher": "krypton",
   "engines": {

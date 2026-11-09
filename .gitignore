@@ -32,3 +32,12 @@ target/
 
 # Release binaries
 dist-apk/
+
+# Local agent configuration and skills
+.agents/
+
+# Local scratch artifacts
+/scratch/
+
+# Generated AIF memory
+/default_project.ai

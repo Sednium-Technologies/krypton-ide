@@ -1,5 +1,5 @@
 /**
- * Dynamic VS Code-compliant Icon Theme Engine for Krypton IDE.
+ * Dynamic VS Code-compliant Icon Theme Engine for Kryptonide.
  * Resolves file and folder icons dynamically supporting:
  * 1. Custom VSIX/SVG themes loaded in memory or IndexedDB
  * 2. Authentic Google Material Design SVGs ('material' / 'material-icon-theme')

@@ -1,7 +1,7 @@
 {
   "name": "sample-lsp-ext",
   "displayName": "Sample LSP Client Extension",
-  "description": "Language server client extension bootstrapping LanguageClient for Krypton IDE",
+  "description": "Language server client extension bootstrapping LanguageClient for Kryptonide",
   "version": "1.0.0",
   "publisher": "krypton",
   "main": "./main.js",

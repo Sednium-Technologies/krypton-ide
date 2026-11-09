@@ -1,7 +1,7 @@
 /**
  * googleDriveSync.ts
  * 
- * Google Drive sync service for Krypton IDE.
+ * Google Drive sync service for Kryptonide.
  * Implements a dual-sync model:
  *   Local filesystem ←→ Google Drive (appDataFolder)
  * 

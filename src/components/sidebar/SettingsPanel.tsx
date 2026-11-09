@@ -1473,7 +1473,7 @@ export function SettingsPanel() {
                   </div>
                   <div>
                     <h4 className="text-xs font-bold uppercase tracking-wider">Custom CSS Injection</h4>
-                    <p className={`text-[11px] ${textMuted}`}>Inject live styles across the entire Krypton IDE</p>
+                    <p className={`text-[11px] ${textMuted}`}>Inject live styles across the entire Kryptonide</p>
                   </div>
                 </div>
                 <button

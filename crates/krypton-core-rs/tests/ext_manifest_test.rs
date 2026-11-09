@@ -46,7 +46,7 @@ fn test_complete_manifest() {
         "publisher": "krypton-org",
         "version": "2.4.1",
         "displayName": "Full Tooling Suite",
-        "description": "Comprehensive development tools for Krypton IDE",
+        "description": "Comprehensive development tools for Kryptonide",
         "main": "./dist/extension.js",
         "icon": "media/icon.png",
         "activationEvents": [
@@ -143,7 +143,7 @@ fn test_complete_manifest() {
     assert_eq!(manifest.publisher, "krypton-org");
     assert_eq!(manifest.version, "2.4.1");
     assert_eq!(manifest.display_name.as_deref(), Some("Full Tooling Suite"));
-    assert_eq!(manifest.description.as_deref(), Some("Comprehensive development tools for Krypton IDE"));
+    assert_eq!(manifest.description.as_deref(), Some("Comprehensive development tools for Kryptonide"));
     assert_eq!(manifest.main.as_deref(), Some("./dist/extension.js"));
     assert_eq!(manifest.icon.as_deref(), Some("media/icon.png"));
     assert_eq!(manifest.extension_id(), "krypton-org.full-tooling");

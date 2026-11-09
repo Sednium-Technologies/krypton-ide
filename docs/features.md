@@ -1,6 +1,6 @@
-# Krypton IDE Settings Features Ledger (features.md)
+# Kryptonide Settings Features Ledger (features.md)
 
-Comprehensive list of all features, capabilities, and configuration options supported in Krypton IDE Settings.
+Comprehensive list of all features, capabilities, and configuration options supported in Kryptonide Settings.
 
 ---
 
@@ -68,7 +68,7 @@ Comprehensive list of all features, capabilities, and configuration options supp
 ---
 
 ## 9. About & Metadata
-- Version badge (`Krypton IDE v4.0`).
+- Version badge (`Kryptonide v4.0`).
 - Author link (`CoderBhoid`).
 - Website links (`sednium.com`, `kryptonide.sednium.com`).
 - Stack highlights (TypeScript 7, OPFS, React 19).

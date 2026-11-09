@@ -307,7 +307,7 @@ RULES:
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
           'HTTP-Referer': 'https://kryptonide.web',
-          'X-Title': 'Krypton IDE',
+          'X-Title': 'Kryptonide',
         },
         body: JSON.stringify({
           model,

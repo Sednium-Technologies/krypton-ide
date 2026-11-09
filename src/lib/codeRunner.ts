@@ -379,7 +379,7 @@ async function executePistonAPI(code: string, language: string, filename?: strin
   return {
     success: false,
     output: '',
-    stderr: `Could not connect to code execution servers.\n\nDetails:\n${errors.join('\n')}\n\nFor Python and JavaScript, Krypton IDE runs code directly in your browser. For other languages (${language}), a stable internet connection and access to emkc.org is required.`,
+    stderr: `Could not connect to code execution servers.\n\nDetails:\n${errors.join('\n')}\n\nFor Python and JavaScript, Kryptonide runs code directly in your browser. For other languages (${language}), a stable internet connection and access to emkc.org is required.`,
     exitCode: 1,
     language,
     version: '',

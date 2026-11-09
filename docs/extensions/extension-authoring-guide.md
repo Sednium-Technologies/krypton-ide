@@ -1,6 +1,6 @@
-# Krypton IDE Native Extension Authoring Guide
+# Kryptonide Native Extension Authoring Guide
 
-Welcome to the **Krypton IDE Native Extension Host**. Krypton allows you to author, package, and execute genuine `.vsix` extensions natively on Android mobile devices and desktop workstations without running a heavy Node.js runtime or embedded Chromium desktop container.
+Welcome to the **Kryptonide Native Extension Host**. Krypton allows you to author, package, and execute genuine `.vsix` extensions natively on Android mobile devices and desktop workstations without running a heavy Node.js runtime or embedded Chromium desktop container.
 
 ---
 
@@ -229,6 +229,6 @@ buildVsix('./my-extension', './dist/my-extension.vsix');
 ## 8. Verification & Debugging
 
 1. **Install VSIX on Device:**
-   Open Krypton IDE > **More** > **Extensions** > **Install from VSIX** > Select file.
+   Open Kryptonide > **More** > **Extensions** > **Install from VSIX** > Select file.
 2. **Review Logs:**
    Diagnostics and extension console messages stream to Krypton's native logging channel at `.logs/` and the Debug console.

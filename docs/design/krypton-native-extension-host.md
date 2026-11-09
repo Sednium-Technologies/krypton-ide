@@ -1,7 +1,7 @@
 # Krypton Native Extension Host (QuickJS + Rust + Kotlin)
 
 **Status:** Complete — Phases 0 through 6 delivered and production-ready
-**Scope:** Hybrid Krypton IDE (Capacitor + React + Rust + Kotlin)
+**Scope:** Hybrid Kryptonide (Capacitor + React + Rust + Kotlin)
 **Primary target:** Android (Termux userland available)
 **Secondary target:** Web dev preview (declarative fallback only)
 

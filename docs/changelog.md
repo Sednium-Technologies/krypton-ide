@@ -1,7 +1,7 @@
-# Krypton IDE — Architecture Upgrades, Enhancements & Porting Guide
+# Kryptonide — Architecture Upgrades, Enhancements & Porting Guide
 
 **Target Audience:** CEO & Core Engineering Team  
-**Purpose:** Technical specifications, architecture designs, feature implementations, and bug fixes added to the native Krypton IDE Android version, structured for direct porting into the **React Legacy / Web Version**.  
+**Purpose:** Technical specifications, architecture designs, feature implementations, and bug fixes added to the native Kryptonide Android version, structured for direct porting into the **React/TypeScript frontend**.
 **Date:** September 13, 2026  
 **Status:** Implemented, Verified, and Deployed in Release APK  
 
@@ -23,7 +23,7 @@
 
 ## 1. Executive Summary
 
-Over the latest development cycle, Krypton IDE underwent significant architecture modernization. The changes address critical performance bottlenecks on lower-spec hardware, overhaul the AI and plugin infrastructures with modern 2026 standards, improve file editing data integrity, and refine UX ergonomics across the workspace.
+Over the latest development cycle, Kryptonide underwent significant architecture modernization. The changes address critical performance bottlenecks on lower-spec hardware, overhaul the AI and plugin infrastructures with modern 2026 standards, improve file editing data integrity, and refine UX ergonomics across the workspace.
 
 ### Key Pillars of the Upgrade:
 - **Zero Data Loss Guarantee**: Auto-save on blur/switch/exit, disk synchronization with project root paths, interactive unsaved indicators.

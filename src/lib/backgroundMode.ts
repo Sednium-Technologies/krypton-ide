@@ -1,7 +1,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 /**
- * Background mode manager for Krypton IDE.
+ * Background mode manager for Kryptonide.
  * 
  * On Android: Starts a foreground service with a persistent notification
  * to prevent the OS from killing the app during background tasks.

@@ -55,7 +55,7 @@ pub struct ExtensionLspDescriptor {
     pub client_options: Option<serde_json::Value>,
 }
 
-/// Returns the registry of built-in language servers supported by Krypton IDE.
+/// Returns the registry of built-in language servers supported by Kryptonide.
 pub fn get_builtin_servers() -> Vec<BuiltinLspServer> {
     vec![
         BuiltinLspServer {

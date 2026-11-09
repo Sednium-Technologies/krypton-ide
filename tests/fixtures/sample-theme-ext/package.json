@@ -1,7 +1,7 @@
 {
   "name": "sample-theme-ext",
   "displayName": "Sample Krypton Theme",
-  "description": "Authentic cyberpunk neon theme extension for Krypton IDE",
+  "description": "Authentic cyberpunk neon theme extension for Kryptonide",
   "version": "1.0.0",
   "publisher": "krypton",
   "engines": {

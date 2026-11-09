@@ -1,7 +1,7 @@
 {
   "name": "sample-treeview-ext",
   "displayName": "Sample TreeView Extension",
-  "description": "Dynamic activity bar and custom view container extension for Krypton IDE",
+  "description": "Dynamic activity bar and custom view container extension for Kryptonide",
   "version": "1.0.0",
   "publisher": "krypton",
   "main": "./main.js",

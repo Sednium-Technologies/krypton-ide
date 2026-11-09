@@ -893,7 +893,7 @@ impl VscodeApiHost {
                     EventEmitter: EventEmitter,
                     version: '1.106.0',
                     env: {{
-                        appName: 'Krypton IDE',
+                        appName: 'Kryptonide',
                         appRoot: globalThis.__krypton_base_dir || '',
                         appHost: 'desktop',
                         language: 'en',

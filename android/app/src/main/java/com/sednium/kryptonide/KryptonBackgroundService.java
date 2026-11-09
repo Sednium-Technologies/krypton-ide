@@ -14,7 +14,7 @@ import android.os.PowerManager;
 import androidx.core.app.NotificationCompat;
 
 /**
- * Foreground service that keeps Krypton IDE alive while it runs in the background.
+ * Foreground service that keeps Kryptonide alive while it runs in the background.
  * This prevents Android from killing the WebView process during long AI operations,
  * code execution, or Git syncs.
  */
@@ -41,7 +41,7 @@ public class KryptonBackgroundService extends Service {
         );
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Krypton IDE")
+            .setContentTitle("Kryptonide")
             .setContentText("Running in background")
             .setSmallIcon(android.R.drawable.ic_menu_edit)
             .setContentIntent(pendingIntent)
@@ -90,7 +90,7 @@ public class KryptonBackgroundService extends Service {
                 "Krypton Background",
                 NotificationManager.IMPORTANCE_LOW
             );
-            channel.setDescription("Keeps Krypton IDE running during background tasks");
+            channel.setDescription("Keeps Kryptonide running during background tasks");
             channel.setShowBadge(false);
             channel.enableVibration(false);
             channel.setSound(null, null);

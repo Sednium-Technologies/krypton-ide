@@ -1,4 +1,4 @@
-// GitHub REST API service for Krypton IDE
+// GitHub REST API service for Kryptonide
 // Smart-diff push: only uploads changed/new files, deletes removed files
 
 import { useAuthStore } from '../store/useAuthStore';
@@ -226,7 +226,7 @@ export async function pushProject(owner: string, repo: string): Promise<PushResu
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({
-      message: `Krypton IDE: sync ${toCreate.length} new, ${toUpdate.length} updated, ${toDelete.length} deleted`,
+      message: `Kryptonide: sync ${toCreate.length} new, ${toUpdate.length} updated, ${toDelete.length} deleted`,
       tree: treeData.sha,
       parents: [latestCommitSha],
       author: {

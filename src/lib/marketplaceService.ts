@@ -1,5 +1,5 @@
 /**
- * Open VSX Registry Service for Krypton IDE
+ * Open VSX Registry Service for Kryptonide
  * Provides search, details fetching, and streaming downloads for VS Code extensions.
  */
 

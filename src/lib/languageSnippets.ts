@@ -1,4 +1,4 @@
-// Centralized language snippet registry for Krypton IDE
+// Centralized language snippet registry for Kryptonide
 // Organized by language, provides autocomplete suggestions in Monaco
 
 export interface CodeSnippet {

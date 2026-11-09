@@ -1,5 +1,5 @@
 /**
- * Krypton IDE — AI Infrastructure Providers
+ * Kryptonide — AI Infrastructure Providers
  * Strict Dynamic Endpoint Discovery: All models are retrieved live from provider /models endpoints.
  * Zero hardcoded presets or legacy static rosters.
  */

@@ -1,4 +1,4 @@
-// GitHub OAuth Device Flow for Krypton IDE
+// GitHub OAuth Device Flow for Kryptonide
 // RFC 8628 — no client_secret needed, perfect for mobile apps
 // User gets a code, enters it at github.com/login/device, and we poll for the token.
 

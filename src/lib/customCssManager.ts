@@ -1,5 +1,5 @@
 /**
- * VS Code-like Custom CSS Injector for Krypton IDE
+ * VS Code-like Custom CSS Injector for Kryptonide
  * Allows skinning and styling every aspect of the app via:
  * 1. User custom CSS (from localStorage / live settings editor)
  * 2. Extension-contributed styles (<style id="krypton-extension-styles">)

@@ -3,21 +3,19 @@
 
 **Author:** Agent D (Rust Core Architect)  
 **Status:** Architecture Complete & Verified (PoC Passing)  
-**Target Environments:** Android Native (ARM64-v8a, x86_64) via JNI/Capacitor & Web/PWA via WASM/Comlink Worker  
+**Target Environments:** Android Native (ARM64-v8a, x86_64) via JNI/Capacitor
 
 ---
 
 ## 1. Executive Summary & Core Tenets
 
-Kryptonide is an advanced agentic mobile & web IDE. As workspaces grow beyond thousands of files, pure JavaScript/TypeScript engines suffer from severe thread contention, Garbage Collection (GC) pauses, high memory consumption, and sluggish I/O.
+Kryptonide is an advanced agentic mobile IDE. As workspaces grow beyond thousands of files, pure JavaScript/TypeScript engines suffer from severe thread contention, Garbage Collection (GC) pauses, high memory consumption, and sluggish I/O.
 
 ### Guiding Tenets:
 1. **Strict Compute/UI Separation:** The UI remains 100% in React, Tailwind, and Monaco Editor. Rust is strictly an acceleration engine for high-throughput compute, I/O, parsing, diffing, compression, cognitive memory, and search hot paths.
 2. **Coarse-Grained FFI Boundary:** Never call FFI per-file or per-token. A single FFI call initiates a high-level operation (e.g., search directory, compute multi-file diff, compress archive, prune context).
-3. **Panic Safety & No Crashing:** All FFI entry points wrap logic in `std::panic::catch_unwind`. A panic in Rust never takes down the Android JVM/ART process or terminates the browser Web Worker.
-4. **Zero-Copy & Streaming Semantics:**
-   - On Android: Rust reads the filesystem directly in kernel space via POSIX or maps files using `memmap2`. File contents never cross the JS bridge. Search results and diffs stream back in compact batches.
-   - On Web/WASM: TypedArrays (`Uint8Array`) are transferred directly to avoid JSON serialization bottlenecks.
+3. **Panic Safety & No Crashing:** All FFI entry points wrap logic in `std::panic::catch_unwind`. A panic in Rust never takes down the Android JVM/ART process.
+4. **Zero-Copy & Streaming Semantics:** Rust reads the filesystem directly in kernel space via POSIX or maps files using `memmap2`. File contents never cross the JS bridge. Search results and diffs stream back in compact batches.
 5. **Strict Safety Discipline:** The core logic crate enforces `#![forbid(unsafe_code)]`. All unsafe code is strictly quarantined in FFI adapter crates with detailed `// SAFETY:` rationale.
 
 ---
@@ -41,17 +39,11 @@ crates/
 │       ├── fs_walk/               # Parallel directory traversal with .gitignore filtering
 │       └── hardware_topology.rs   # CPU topology detection, big-core affinity, GGUF inspector
 │
-├── krypton-ffi-jni/               # Android cdylib target (libkrypton_core_rs.so)
-│   ├── Cargo.toml                 # Depends on krypton-core, jni crate, libc, memmap2
-│   └── src/
-│       ├── lib.rs                 # JNI export methods, panic boundary (catch_unwind)
-│       └── direct_buf.rs          # DirectByteBuffer zero-copy memory wrappers
-│
-└── krypton-ffi-wasm/              # WebAssembly target (wasm32-unknown-unknown)
-    ├── Cargo.toml                 # Depends on krypton-core, wasm-bindgen, serde-wasm-bindgen
+└── krypton-ffi-jni/               # Android cdylib target (libkrypton_core_rs.so)
+    ├── Cargo.toml                 # Depends on krypton-core, jni crate, libc, memmap2
     └── src/
-        ├── lib.rs                 # wasm-bindgen exports & error handling
-        └── worker_bridge.rs       # Web Worker Comlink-friendly event streaming
+        ├── lib.rs                 # JNI export methods, panic boundary (catch_unwind)
+        └── direct_buf.rs          # DirectByteBuffer zero-copy memory wrappers
 ```
 
 ### Module Breakdown:
@@ -77,31 +69,25 @@ A critical architectural decision is selecting the Git engine for Kryptonide.
 | :--- | :--- | :--- | :--- |
 | **Language & Purity** | 100% Pure Rust | Rust FFI wrapper around C `libgit2` | 100% JavaScript / TypeScript |
 | **Android NDK Compilation** | Native `cargo-ndk` without external C libraries | Complex: requires C compiler, CMake, zlib, OpenSSL/mbedtls | N/A (runs in WebView JavaScript) |
-| **WebAssembly (WASM)** | Core packages (`gix-object`, `gix-index`, `gix-diff`, `gix-status`) compile to `wasm32-unknown-unknown` | **Incompatible** (fails without heavy Emscripten POSIX runtime) | Native browser compatibility |
 | **Memory Consumption** | ~2–4 MB during 10k file tree scan | ~8–16 MB | 80–180 MB (V8 JS Object allocations) |
 | **Status Matrix Performance (10k files)** | **< 15 ms** (parallel tree walk & stat cache) | ~35 ms | **1,800 ms – 4,500 ms** (severe UI stutter) |
 | **Network Transport (Fetch/Push)** | Native HTTP/SSH transport | Mature libssh2/OpenSSL | Uses browser `fetch` & credential helpers |
-| **Recommendation** | **Primary Engine for Android & Offline WASM** | **Reject** (C linking friction & WASM incompatibility) | **Retain strictly for Web Remote Network Transport** |
+| **Recommendation** | **Primary engine for Android** | **Reject** (C linking friction) | **Retain for GitHub REST/GraphQL transport** |
 
 ### Kryptonide Hybrid Git Architecture:
 1. **Local Operations (95% of usage):** Status matrix, staging, unstaging, commit creation, tree diff, log viewing, and branch inspection execute exclusively in **`krypton-core` via `gix`**.
-2. **Remote Network Operations (5% of usage):** Push/pull over authenticated HTTPS on Web uses `isomorphic-git` or GitHub REST/GraphQL APIs; on Android native, Rust or Termux Git can handle remote operations.
+2. **Remote Network Operations (5% of usage):** Push/pull over authenticated HTTPS uses `isomorphic-git` or GitHub REST/GraphQL APIs; on Android native, Rust or Termux Git can handle remote operations.
 
 ---
 
-## 4. Dual Target FFI Design
+## 4. FFI Design
 
-### Target 1: Android Native (`cargo-ndk` + `jni`)
+### Android Native (`cargo-ndk` + `jni`)
 - **Plugin Layer:** Single custom Capacitor plugin: `KryptonCorePlugin.kt`.
 - **Zero-Copy Disk Scanning:** The JavaScript frontend simply sends the project root directory path (`dirPath`). Rust opens file descriptors and memory-maps files directly on the Linux/Android filesystem. File contents never pass through WebView JavaScript memory!
 - **Zero-Copy AIF Memory:** Java allocates `ByteBuffer.allocateDirect()`. Rust accesses the raw pointer via `env.get_direct_buffer_address(&byte_buf)` without JNI byte array copying.
 - **Streaming Result Delivery:** Search matches are emitted in batches of 50 via `callback.onBatchFound(jsonChunk)` to prevent large JSON string spikes in Android ART.
 - **Hardware Topology & Thread Pinning:** Compute-heavy operations (diffing large files, token pruning, search) query `krypton_detect_hardware()` and bind worker threads to Snapdragon/Dimensity Big/Prime cores via `libc::sched_setaffinity`.
-
-### Target 2: Web / PWA (`wasm-bindgen` + Web Worker + Comlink)
-- **Dedicated Web Worker:** `kryptonWorker.ts` runs off the main browser thread.
-- **Comlink RPC:** Typed async methods exposed to React components.
-- **Cooperative Cancellation:** The worker exposes an `AbortController`-style pattern. `krypton_new_cancel_token()` generates an atomic token ID. When the user types a new character in the search bar, the UI immediately invokes `krypton_cancel_operation(tokenId)`.
 
 ---
 
