@@ -1,4 +1,4 @@
-import { registerPlugin } from '@capacitor/core';
+import { registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 
 export interface SAFFileSystemPlugin {
   readFile(options: { uri: string }): Promise<{ content: string }>;
@@ -33,8 +33,22 @@ export interface KryptonCorePlugin {
     aifBinaryBase64: string;
     maxTokens?: number;
   }): Promise<{ prunedBinaryBase64: string }>;
+
+  triggerHaptic(options: { type: 'click' | 'tick' | 'heavy' | 'double_click' }): Promise<void>;
+}
+
+export interface SpeechRecognitionPlugin {
+  isAvailable(): Promise<{ available: boolean }>;
+  requestPermission(): Promise<{ granted: boolean }>;
+  start(options?: { language?: string }): Promise<void>;
+  stop(): Promise<void>;
+  addListener(
+    eventName: 'ready' | 'end' | 'partialResults' | 'finalResults' | 'error',
+    listener: (data: { matches?: string[]; code?: number; message?: string }) => void
+  ): Promise<PluginListenerHandle>;
 }
 
 export const SAFFileSystem = registerPlugin<SAFFileSystemPlugin>('SAFFileSystem');
 export const FastSearch = registerPlugin<FastSearchPlugin>('FastSearch');
 export const KryptonCore = registerPlugin<KryptonCorePlugin>('KryptonCore');
+export const KryptonSpeech = registerPlugin<SpeechRecognitionPlugin>('KryptonSpeech');

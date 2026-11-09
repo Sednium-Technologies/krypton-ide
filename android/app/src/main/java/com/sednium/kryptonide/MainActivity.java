@@ -21,6 +21,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(KryptonCorePlugin.class);
         registerPlugin(ExtensionHostPlugin.class);
         registerPlugin(OortyLitePlugin.class);
+        registerPlugin(SpeechRecognitionPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Ivory Mode Default Window Chrome & Status Bar (prevents cold/warm boot FOUC)

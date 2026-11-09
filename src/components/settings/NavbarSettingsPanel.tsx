@@ -103,8 +103,10 @@ export function NavbarSettingsPanel({ onClose }: NavbarSettingsPanelProps) {
       >
         <div className="flex items-center space-x-2.5">
           <div
-            className={`w-8 h-8 rounded-xl border flex items-center justify-center text-amber-500 ${
-              isLight ? 'bg-[#ebe7dc] border-[#2a2529]/10' : 'bg-[#342f33] border-[#f3f0e7]/15'
+            className={`w-8 h-8 rounded-xl border flex items-center justify-center ${
+              isLight
+                ? 'bg-[#ebe7dc] border-[#2a2529]/10 text-[#2a2529]/80'
+                : 'bg-[#342f33] border-[#f3f0e7]/15 text-[#f3f0e7]/80'
             }`}
           >
             <Sliders size={18} />
@@ -188,7 +190,11 @@ export function NavbarSettingsPanel({ onClose }: NavbarSettingsPanelProps) {
           })}
 
           {/* Mirrored 'L' Overflow Button */}
-          <div className="flex flex-col items-center justify-center py-1 px-1.5 min-w-[42px] rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-300">
+          <div className={`flex flex-col items-center justify-center py-1 px-1.5 min-w-[42px] rounded-xl border ${
+            isLight
+              ? 'bg-[#2a2529]/5 border-[#2a2529]/10 text-[#2a2529]/80'
+              : 'bg-[#f3f0e7]/5 border-[#f3f0e7]/10 text-[#f3f0e7]/80'
+          }`}>
             <MoreHorizontal size={16} />
             <span className="text-[9px] mt-1 font-bold">More</span>
           </div>
@@ -419,7 +425,9 @@ export function NavbarSettingsPanel({ onClose }: NavbarSettingsPanelProps) {
                     onClick={() => handleSelectReplacement(tool.id)}
                     className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all active:scale-95 ${
                       isCurrentInThisSlot
-                        ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40'
+                        ? (isLight
+                            ? 'bg-[#2a2529]/10 text-[#2a2529] border border-[#2a2529]/20'
+                            : 'bg-[#f3f0e7]/10 text-[#f3f0e7] border border-[#f3f0e7]/20')
                         : isLight
                         ? 'hover:bg-[#ebe7dc] text-[#2a2529]'
                         : 'hover:bg-[#342f33] text-[#f3f0e7]'
@@ -444,7 +452,9 @@ export function NavbarSettingsPanel({ onClose }: NavbarSettingsPanelProps) {
                           Slot #{pinnedIds.indexOf(tool.id) + 1}
                         </span>
                       )}
-                      {isCurrentInThisSlot && <Check size={14} className="text-amber-600 dark:text-amber-400" />}
+                      {isCurrentInThisSlot && (
+                        <Check size={14} className={isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'} />
+                      )}
                     </div>
                   </button>
                 );

@@ -50,6 +50,12 @@ import { haptics } from '../../lib/haptics';
 import { AgentSettingsPanel } from '../settings/AgentSettingsPanel';
 import { ExtensionSettingsPanel } from '../settings/ExtensionSettingsPanel';
 import { useNavbarStore } from '../../store/useNavbarStore';
+import {
+  APP_VERSION,
+  checkForUpdates,
+  formatReleaseDate,
+  type ReleaseCheckResult,
+} from '../../lib/releaseTracker';
 
 type SettingsTab = 'account' | 'appearance' | 'agent' | 'terminal' | 'packages' | 'extensions' | 'sync' | 'preferences' | 'about';
 
@@ -112,6 +118,10 @@ export function SettingsPanel() {
   const [terminalScrollback, setTerminalScrollback] = useState<number>(() => {
     try { return parseInt(localStorage.getItem('krypton_term_scrollback') || '2500', 10); } catch { return 2500; }
   });
+
+  const [releaseResult, setReleaseResult] = useState<ReleaseCheckResult | null>(null);
+  const [isCheckingRelease, setIsCheckingRelease] = useState(false);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
 
   useEffect(() => {
     loadPackages();
@@ -249,6 +259,37 @@ export function SettingsPanel() {
       haptics.buttonClick();
     }
   };
+
+  const runReleaseCheck = async () => {
+    if (isCheckingRelease) return;
+    setIsCheckingRelease(true);
+    setReleaseError(null);
+    try {
+      const result = await checkForUpdates();
+      setReleaseResult(result);
+      try {
+        localStorage.setItem('krypton_release_check_at', String(result.checkedAt));
+      } catch {}
+    } catch (error: any) {
+      const message =
+        error?.name === 'AbortError'
+          ? 'Release check timed out. Check your connection and retry.'
+          : error?.message || 'Unable to check GitHub releases.';
+      setReleaseError(message);
+    } finally {
+      setIsCheckingRelease(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'about') return;
+    let lastCheck = 0;
+    try {
+      lastCheck = Number(localStorage.getItem('krypton_release_check_at') || 0);
+    } catch {}
+    if (Date.now() - lastCheck < 6 * 60 * 60 * 1000) return;
+    void runReleaseCheck();
+  }, [activeTab]);
 
   const loadLastSyncInfo = async () => {
     try {
@@ -1718,7 +1759,7 @@ export function SettingsPanel() {
                   <KryptonBrandIcon size={36} className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold">Kryptonide v4.0</h4>
+                  <h4 className="text-sm font-bold">Kryptonide v{APP_VERSION}</h4>
                   <p className={`text-[11px] ${textMuted}`}>Hybrid Native-Core Mobile Code Editor</p>
                 </div>
               </div>
@@ -1784,6 +1825,129 @@ export function SettingsPanel() {
                   <span>Engineered with TypeScript 7, OPFS, React 19, and Monaco Editor.</span>
                 </p>
               </div>
+            </div>
+
+            <div className={`p-4 rounded-2xl border ${cardBg} ${cardBorder} shadow-sm space-y-3`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 shrink-0">
+                    <Download size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-bold uppercase tracking-wider">Release Tracker</h4>
+                    <p className={`text-[11px] ${textMuted} truncate`}>
+                      Installed v{APP_VERSION} • GitHub releases
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { triggerHaptic(); void runReleaseCheck(); }}
+                  disabled={isCheckingRelease}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${buttonSecondary} active:scale-95 disabled:opacity-60 inline-flex items-center space-x-1.5 shrink-0`}
+                >
+                  <RefreshCw size={12} className={isCheckingRelease ? 'animate-spin' : ''} />
+                  <span>{isCheckingRelease ? 'Checking' : 'Check'}</span>
+                </button>
+              </div>
+
+              {isCheckingRelease && !releaseResult && (
+                <div className={`p-3 rounded-xl border ${cardBorder} ${textMuted} text-xs flex items-center space-x-2`}>
+                  <RefreshCw size={13} className="animate-spin" />
+                  <span>Checking GitHub for the latest Kryptonide release…</span>
+                </div>
+              )}
+
+              {releaseError && (
+                <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs flex items-start justify-between gap-2">
+                  <span className="flex items-start space-x-1.5">
+                    <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                    <span>{releaseError}</span>
+                  </span>
+                  <button onClick={() => void runReleaseCheck()} className="font-bold underline shrink-0">
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {releaseResult && !releaseError && (
+                <div className="space-y-3">
+                  <div className={`p-3 rounded-xl border ${
+                    releaseResult.updateAvailable
+                      ? 'border-emerald-500/30 bg-emerald-500/10'
+                      : `${cardBorder} ${isLight ? 'bg-[#f3f0e7]' : 'bg-[#2a2529]'}`
+                  }`}>
+                    <div className="flex items-center space-x-2">
+                      {releaseResult.updateAvailable ? (
+                        <CheckCircle size={15} className="text-emerald-500 shrink-0" />
+                      ) : (
+                        <CheckCircle size={15} className="text-[#7C9B79] shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold">
+                          {releaseResult.updateAvailable
+                            ? `Update available: v${releaseResult.latest?.version}`
+                            : 'You are on the latest release'}
+                        </p>
+                        <p className={`text-[11px] ${textMuted} truncate`}>
+                          {releaseResult.latest
+                            ? `${releaseResult.latest.name} • ${formatReleaseDate(releaseResult.latest.publishedAt)}`
+                            : 'No published releases found'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {releaseResult.updateAvailable && releaseResult.latest?.notes && (
+                      <p className={`mt-2 text-[11px] whitespace-pre-wrap line-clamp-3 ${textMuted}`}>
+                        {releaseResult.latest.notes.replace(/[#*_`>]/g, '').trim()}
+                      </p>
+                    )}
+
+                    {releaseResult.updateAvailable && releaseResult.latest && (
+                      <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                        <button
+                          onClick={() => {
+                            triggerHaptic();
+                            void openOfficialLink(releaseResult.latest!.htmlUrl);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-500 text-[11px] font-bold inline-flex items-center space-x-1"
+                        >
+                          <Github size={12} />
+                          <span>View release</span>
+                        </button>
+                        {releaseResult.latest.assets.some((asset) => /\.apk$/i.test(asset.name)) && (
+                          <button
+                            onClick={() => {
+                              triggerHaptic();
+                              const apk = releaseResult.latest!.assets.find((asset) => /\.apk$/i.test(asset.name));
+                              if (apk) void openOfficialLink(apk.downloadUrl);
+                            }}
+                            className={buttonSecondary + ' px-3 py-1.5 rounded-lg text-[11px] font-bold inline-flex items-center space-x-1 border'}
+                          >
+                            <Download size={12} />
+                            <span>Download APK</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={`flex items-center justify-between text-[10px] ${textMuted}`}>
+                    <span>
+                      Checked {new Date(releaseResult.checkedAt).toLocaleString()}
+                    </span>
+                    <button
+                      onClick={() => {
+                        triggerHaptic();
+                        void openOfficialLink(`https://github.com/Sednium-Technologies/krypton-ide/releases`);
+                      }}
+                      className="font-bold hover:underline inline-flex items-center space-x-0.5"
+                    >
+                      <span>All releases</span>
+                      <ExternalLink size={9} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

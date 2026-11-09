@@ -18,6 +18,7 @@ import {
   Sparkles,
   Code2,
   CheckCircle2,
+  Play,
 } from 'lucide-react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -284,6 +285,27 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
   const categories = (Array.isArray(rawCategories) ? rawCategories : [rawCategories])
     .filter(c => typeof c === 'string' && !/^(gpu|adreno|mali|vulkan|hardware|acceleration|gpu acceleration|adreno\/mali)$/i.test(c.trim()));
 
+  const openContribution =
+    installedExt?.activityBarContributions?.[0] ||
+    (installedExt?.webviewHtml
+      ? { id: 'main', title: displayName }
+      : null);
+
+  const handleOpenExtension = () => {
+    if (!openContribution) {
+      useToastStore.getState().info('This extension does not provide a sidebar webview.');
+      return;
+    }
+    useIdeStore.getState().openExtensionView({
+      extensionId: extId,
+      viewContainerId: openContribution.id,
+      title: openContribution.title || displayName,
+      icon: (openContribution as any).icon,
+      toolId: `ext-${extId}-${openContribution.id}`,
+    });
+    onClose();
+  };
+
   return (
     <AnimatePresence>
       <div
@@ -421,6 +443,16 @@ export function ExtensionDetailModal({ extension, isOpen, onClose }: ExtensionDe
               <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 shrink-0 pt-2 sm:pt-0">
                 {isInstalled ? (
                   <>
+                    {openContribution && (
+                      <button
+                        onClick={handleOpenExtension}
+                        className="px-4 py-2 bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs rounded-xl font-bold transition-all active:scale-95 flex items-center space-x-1.5"
+                      >
+                        <Play size={13} />
+                        <span>Open</span>
+                      </button>
+                    )}
+
                     {(extension as any).category === 'theme' && !isActiveTheme && (
                       <button
                         onClick={handleApplyTheme}

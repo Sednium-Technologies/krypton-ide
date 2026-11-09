@@ -1179,7 +1179,7 @@ export function CodeEditor() {
                         smoothScrolling: false,
                         stopRenderingLineAfter: 5000,
                         lineNumbers: 'on',
-                        renderLineHighlight: 'line',
+                        renderLineHighlight: 'gutter',
                         contextmenu: false,
                         inlineSuggest: {
                           enabled: true,
@@ -1248,7 +1248,7 @@ export function CodeEditor() {
                     cursorBlinking: 'solid',
                     cursorSmoothCaretAnimation: 'off',
                     formatOnPaste: true,
-                    renderLineHighlight: 'all',
+                    renderLineHighlight: 'gutter',
                     bracketPairColorization: { enabled: true },
                     guides: { bracketPairs: true },
                     scrollbar: { verticalScrollbarSize: 4, horizontalScrollbarSize: 4, useShadows: false },

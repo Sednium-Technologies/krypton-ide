@@ -40,16 +40,8 @@ export class LayaSystem1 {
     const trimmed = prompt.trim();
     const lower = trimmed.toLowerCase();
 
-    // Fast path: Simple greetings & identity
-    if (/^(hi|hello|hey|greetings|hola)\b/i.test(lower) && lower.split(/\s+/).length <= 4) {
-      return {
-        path: 'fast_path',
-        confidence: 0.99,
-        reason: 'Casual greeting',
-        fastResponse: "Hello! I'm **Oorty Lite**, the hardware-accelerated agentic harness embedded in Kryptonide. How can I help you build today?"
-      };
-    }
-
+    // Fast path: identity and status only. Casual conversation is handled by
+    // the configured model so responses are never canned.
     if (/^(who are you|what are you|what is your name)\??$/i.test(lower)) {
       return {
         path: 'fast_path',

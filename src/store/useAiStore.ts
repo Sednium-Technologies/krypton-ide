@@ -422,9 +422,13 @@ export const useAiStore = create<AiState>()((set, get) => ({
           timestamp: Date.now()
         });
       } else {
+        const rawMessage = String(error?.message || error || 'Unknown error');
+        const friendlyMessage = /failed to fetch|networkerror|load failed/i.test(rawMessage)
+          ? `Could not reach ${currentProvider?.name || provider} at ${effectiveBaseUrl || 'the configured endpoint'}. Check your internet connection, API key, and base URL.`
+          : rawMessage;
         addMessage(sessionId, {
           role: 'assistant',
-          content: `Error: ${error.message}`,
+          content: `Error: ${friendlyMessage}`,
           timestamp: Date.now()
         });
       }

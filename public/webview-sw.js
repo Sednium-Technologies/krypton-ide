@@ -95,6 +95,7 @@ self.addEventListener('fetch', (event) => {
                   'Content-Type': asset.mime || 'application/octet-stream',
                   'Access-Control-Allow-Origin': '*',
                   'Cache-Control': 'no-cache',
+                  'X-Krypton-Asset': '1',
                 },
               });
             }

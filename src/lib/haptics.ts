@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
+import { KryptonCore } from './nativePlugins';
 import { useIdeStore } from '../store/useIdeStore';
 
 function isHapticsAllowed(): boolean {
@@ -13,11 +14,8 @@ function isHapticsAllowed(): boolean {
 async function invokeNativeHaptic(type: 'click' | 'tick' | 'heavy' | 'double_click'): Promise<boolean> {
   if (Capacitor.isNativePlatform()) {
     try {
-      const core = (Capacitor as any).Plugins?.KryptonCore;
-      if (core && typeof core.triggerHaptic === 'function') {
-        await core.triggerHaptic({ type });
-        return true;
-      }
+      await KryptonCore.triggerHaptic({ type });
+      return true;
     } catch {}
   }
   return false;

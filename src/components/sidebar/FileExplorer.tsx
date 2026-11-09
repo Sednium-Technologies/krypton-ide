@@ -714,15 +714,17 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
             <svg
               className="absolute pointer-events-none select-none overflow-visible"
               style={{ left: `${depth * 14 + 10}px`, top: 0, width: 14, height: '100%' }}
-              viewBox="0 0 14 32"
+              viewBox="0 0 14 100"
               preserveAspectRatio="none"
               fill="none"
             >
               <path
-                d="M 7 16 Q 1 16 1 23 V 36"
-                stroke={isLight ? "rgba(42,37,41,0.25)" : "rgba(243,240,231,0.25)"}
-                strokeWidth="1.2"
+                d="M 7 50 Q 1 50 1 62 V 100"
+                stroke={isLight ? "rgba(42,37,41,0.16)" : "rgba(243,240,231,0.18)"}
+                strokeWidth="1"
                 strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+                shapeRendering="geometricPrecision"
                 fill="none"
               />
             </svg>
@@ -738,18 +740,20 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
                     key={lvl}
                     className="absolute pointer-events-none select-none overflow-visible"
                     style={{ left: `${lvl * 14 + 10}px`, top: 0, width: 14, height: '100%' }}
-                    viewBox="0 0 14 32"
+                    viewBox="0 0 14 100"
                     preserveAspectRatio="none"
                     fill="none"
                   >
                     <line
                       x1="1"
-                      y1="-4"
+                      y1="0"
                       x2="1"
-                      y2="36"
-                      stroke={isLight ? 'rgba(42,37,41,0.22)' : 'rgba(243,240,231,0.22)'}
-                      strokeWidth="1.2"
+                      y2="100"
+                      stroke={isLight ? 'rgba(42,37,41,0.14)' : 'rgba(243,240,231,0.16)'}
+                      strokeWidth="1"
                       strokeLinecap="butt"
+                      vectorEffect="non-scaling-stroke"
+                      shapeRendering="geometricPrecision"
                     />
                   </svg>
                 );
@@ -759,32 +763,38 @@ export function FileExplorer({ autoFocusSearch }: FileExplorerProps = {}) {
               <svg
                 className="absolute pointer-events-none select-none overflow-visible"
                 style={{ left: `${(depth - 1) * 14 + 10}px`, top: 0, width: 14, height: '100%' }}
-                viewBox="0 0 14 32"
+                viewBox="0 0 14 100"
                 preserveAspectRatio="none"
                 fill="none"
               >
                 {isLast ? (
                   <path
-                    d="M 1 -4 V 10 Q 1 16 7 16 H 14"
-                    stroke={isLight ? 'rgba(42,37,41,0.25)' : 'rgba(243,240,231,0.25)'}
-                    strokeWidth="1.2"
+                    d="M 1 0 V 40 Q 1 50 7 50 H 14"
+                    stroke={isLight ? 'rgba(42,37,41,0.16)' : 'rgba(243,240,231,0.18)'}
+                    strokeWidth="1"
                     strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                    shapeRendering="geometricPrecision"
                     fill="none"
                   />
                 ) : (
                   <>
                     <path
-                      d="M 1 -4 V 36"
-                      stroke={isLight ? 'rgba(42,37,41,0.25)' : 'rgba(243,240,231,0.25)'}
-                      strokeWidth="1.2"
+                      d="M 1 0 V 100"
+                      stroke={isLight ? 'rgba(42,37,41,0.16)' : 'rgba(243,240,231,0.18)'}
+                      strokeWidth="1"
                       strokeLinecap="butt"
+                      vectorEffect="non-scaling-stroke"
+                      shapeRendering="geometricPrecision"
                       fill="none"
                     />
                     <path
-                      d="M 1 10 Q 1 16 7 16 H 14"
-                      stroke={isLight ? 'rgba(42,37,41,0.25)' : 'rgba(243,240,231,0.25)'}
-                      strokeWidth="1.2"
+                      d="M 1 40 Q 1 50 7 50 H 14"
+                      stroke={isLight ? 'rgba(42,37,41,0.16)' : 'rgba(243,240,231,0.18)'}
+                      strokeWidth="1"
                       strokeLinecap="round"
+                      vectorEffect="non-scaling-stroke"
+                      shapeRendering="geometricPrecision"
                       fill="none"
                     />
                   </>

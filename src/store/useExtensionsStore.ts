@@ -39,7 +39,7 @@ export interface Extension {
   license?: string;
   categories?: string[];
   allVersions?: Record<string, string>;
-  activityBarContributions?: Array<{ id: string; title: string; icon?: string; views?: Array<{ id: string; name: string }> }>;
+  activityBarContributions?: Array<{ id: string; title: string; icon?: string; views?: Array<{ id: string; name: string; type?: string }> }>;
   contributedCommands?: Array<{ command: string; title: string; category?: string }>;
   webviewHtml?: string;
 }
@@ -793,7 +793,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
 
         // Check for activitybar view containers (e.g. Claude Code or third-party tools)
         const viewsByContainer = contributes.views || {};
-        const activityBarContributions: Array<{ id: string; title: string; icon?: string; views?: Array<{ id: string; name: string }> }> = [];
+        const activityBarContributions: Array<{ id: string; title: string; icon?: string; views?: Array<{ id: string; name: string; type?: string }> }> = [];
         const activitybarContainers = contributes.viewsContainers?.activitybar;
         if (Array.isArray(activitybarContainers) && activitybarContainers.length > 0) {
           for (const vc of activitybarContainers) {
@@ -825,6 +825,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
                 ? containerViews.map((v: any) => ({
                     id: v.id || v.name || 'view',
                     name: v.name || v.id || 'View',
+                    type: v.type,
                   }))
                 : [],
             });
@@ -1117,7 +1118,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
 
         // Check for activitybar view containers (e.g. Claude Code or third-party tools)
         const viewsByContainer = contributes.views || {};
-        const activityBarContributions: Array<{ id: string; title: string; icon?: string; views?: Array<{ id: string; name: string }> }> = [];
+        const activityBarContributions: Array<{ id: string; title: string; icon?: string; views?: Array<{ id: string; name: string; type?: string }> }> = [];
         const activitybarContainers = contributes.viewsContainers?.activitybar;
         if (Array.isArray(activitybarContainers) && activitybarContainers.length > 0) {
           for (const vc of activitybarContainers) {
@@ -1149,6 +1150,7 @@ export const useExtensionsStore = create<ExtensionsState>()(
                 ? containerViews.map((v: any) => ({
                     id: v.id || v.name || 'view',
                     name: v.name || v.id || 'View',
+                    type: v.type,
                   }))
                 : [],
             });

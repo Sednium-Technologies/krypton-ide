@@ -127,7 +127,7 @@ test('AgentToolRegistry formats schemas for Gemini, Anthropic, and OpenAI', () =
 
 test('LayaSystem1 routes intents <50ms', () => {
   const t0 = performance.now();
-  const fast = LayaSystem1.routeIntent('hello');
+  const fast = LayaSystem1.routeIntent('who are you');
   const duration = performance.now() - t0;
   assert.strictEqual(fast.path, 'fast_path');
   assert.ok(duration < 50, `Fast path took ${duration}ms, expected < 50ms`);

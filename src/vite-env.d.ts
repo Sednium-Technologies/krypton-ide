@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 
+declare const __APP_VERSION__: string;
+
 // Allow importing raw text files with ?raw suffix
 declare module '*.txt?raw' {
   const content: string;

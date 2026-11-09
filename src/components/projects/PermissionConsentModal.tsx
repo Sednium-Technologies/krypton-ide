@@ -13,7 +13,7 @@ interface PermissionConsentModalProps {
 }
 
 export function PermissionConsentModal({ isOpen, onConsent }: PermissionConsentModalProps) {
-  const { googleUser, setGoogleAuth, setGoogleUser } = useAuthStore();
+  const { googleUser, setGoogleAuth } = useAuthStore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isRequestingPerm, setIsRequestingPerm] = useState(false);
   const [googleLoginError, setGoogleLoginError] = useState<string | null>(null);
@@ -88,6 +88,7 @@ export function PermissionConsentModal({ isOpen, onConsent }: PermissionConsentM
       if (Capacitor.isNativePlatform()) {
         const result = await FirebaseAuthentication.signInWithGoogle({
           scopes: ['https://www.googleapis.com/auth/drive.appdata'],
+          useCredentialManager: false,
         } as any);
         if (result.user) {
           const user = {
@@ -101,12 +102,7 @@ export function PermissionConsentModal({ isOpen, onConsent }: PermissionConsentM
           setGoogleLoginError('Sign-in cancelled.');
         }
       } else {
-        // Fallback for web demo
-        setGoogleUser({
-          name: 'Developer Account',
-          email: 'dev@kryptonide.internal',
-          picture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
-        });
+        setGoogleLoginError('Google sign-in is available in the Android app.');
       }
     } catch (e: any) {
       console.warn('[PermissionConsentModal] Google Sign-In error:', e);

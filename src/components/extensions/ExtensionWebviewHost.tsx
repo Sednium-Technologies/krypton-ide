@@ -26,21 +26,10 @@ export function ExtensionWebviewHost({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [key, setKey] = useState(0);
   const [blobMap, setBlobMap] = useState<Record<string, string> | null>(null);
-  const [swReady, setSwReady] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      if (navigator.serviceWorker.controller) {
-        setSwReady(true);
-      } else {
-        navigator.serviceWorker.ready
-          .then(() => {
-            if (mounted) setSwReady(true);
-          })
-          .catch(() => {});
-      }
-    }
+    setBlobMap(null);
     createBlobUrlMap(extensionId).then((map) => {
       if (mounted) setBlobMap(map);
     });
@@ -210,7 +199,16 @@ export function ExtensionWebviewHost({
     );
   }
 
-  const iframeSrc = swReady ? `/ext-webview/${encodeURIComponent(extensionId)}/index.html` : undefined;
+  if (blobMap === null) {
+    return (
+      <div className={`flex flex-col items-center justify-center p-6 text-center h-full select-none ${className}`}>
+        <RefreshCw size={18} className="animate-spin opacity-60 mb-2" />
+        <p className={`text-xs ${isLight ? 'text-[#2A2529]/60' : 'text-[#F3F0E7]/60'}`}>
+          Preparing {title}…
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`relative w-full h-full flex flex-col overflow-hidden bg-transparent ${className}`}>
@@ -228,9 +226,8 @@ export function ExtensionWebviewHost({
       <iframe
         key={key}
         ref={iframeRef}
-        src={iframeSrc}
-        srcDoc={!iframeSrc ? synthesizedDoc || '' : undefined}
-        sandbox="allow-scripts allow-forms allow-modals"
+        srcDoc={synthesizedDoc || ''}
+        sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
         className="w-full h-full flex-1 border-none bg-transparent"
         title={title}
         onLoad={handleIframeLoad}

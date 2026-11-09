@@ -270,6 +270,29 @@ export const renderLanguageVectorIcon = (extOrLang: string, size = 16) => {
   }
 };
 
+const TEMPLATE_ICON_EXTENSION: Record<string, string> = {
+  'html-css-js': 'html',
+  'react-ts': 'tsx',
+  'react-js': 'jsx',
+  'python': 'py',
+  'rust-cli': 'rs',
+  'java-cli': 'java',
+  'android-java': 'java',
+  'android-kotlin': 'kt',
+  'node-express': 'js',
+};
+
+const renderThemedProjectIcon = (
+  analysis: ProjectLanguageInfo,
+  template: string | undefined,
+  size: number
+) => {
+  const extension = analysis.languages[0]?.extension
+    || TEMPLATE_ICON_EXTENSION[template || '']
+    || 'ts';
+  return <LanguageIcon fileName={`file.${extension}`} size={size} />;
+};
+
 const templateCategories = [
   {
     id: 'mobile',
@@ -418,19 +441,13 @@ function WelcomeScreen({ onSkip }: { onSkip: () => void }) {
     setIsLoading(true);
     try {
       if (!Capacitor.isNativePlatform()) {
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setGoogleUser({
-          name: "Test User",
-          email: "developer@sednium.com",
-          picture: "",
-        });
-        readConfig().then(c => { if (c) { c.welcomed = true; saveConfigNow(c); } });
-        onSkip();
+        alert('Google sign-in is available in the Android app. You can continue without it.');
         return;
       }
 
       const result = await FirebaseAuthentication.signInWithGoogle({
-        scopes: ['https://www.googleapis.com/auth/drive.appdata']
+        scopes: ['https://www.googleapis.com/auth/drive.appdata'],
+        useCredentialManager: false,
       } as any);
       
       const fbUser = result.user;
@@ -798,7 +815,6 @@ export function ProjectsDashboard() {
                 <span className={`text-[11px] font-bold uppercase tracking-widest flex items-center space-x-1.5 ${
                   isLight ? 'text-[#2a2529]/60' : 'text-[#f3f0e7]/60'
                 }`}>
-                  <Sparkles size={13} className="text-amber-400" />
                   <span>Continue Working</span>
                 </span>
               </div>
@@ -828,7 +844,7 @@ export function ProjectsDashboard() {
                         borderColor: `${continueDominantColor}35` 
                       }}
                     >
-                      {renderLanguageVectorIcon(continueLangAnalysis.dominantLanguage || continueProject.template, 28)}
+                      {renderThemedProjectIcon(continueLangAnalysis, continueProject.template, 28)}
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -838,13 +854,6 @@ export function ProjectsDashboard() {
                         }`}>
                           {continueProject.name}
                         </h3>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${
-                          isLight 
-                            ? 'bg-[#7C9B79]/15 text-[#3a5837] border-[#7C9B79]/30 font-semibold' 
-                            : 'bg-[#f3f0e7]/10 text-[#f3f0e7]/70 border-[#f3f0e7]/10'
-                        }`}>
-                          {templateOptions.find(t => t.id === continueProject.template)?.name || continueProject.template}
-                        </span>
                       </div>
 
                       <div className={`flex items-center space-x-3 mt-1 text-xs ${
@@ -1006,7 +1015,6 @@ export function ProjectsDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredProjects.map((project, i) => {
               const fileCount = getCachedFileCount(project.id, project.files);
-              const templateInfo = templateOptions.find(t => t.id === project.template);
               const langAnalysis = getProjectLanguages(project.files);
               const dominantColor = langAnalysis.dominantColor || '#e87a38';
 
@@ -1043,7 +1051,7 @@ export function ProjectsDashboard() {
                             borderColor: `${dominantColor}30` 
                           }}
                         >
-                          {renderLanguageVectorIcon(langAnalysis.dominantLanguage || project.template, 24)}
+                          {renderThemedProjectIcon(langAnalysis, project.template, 24)}
                         </div>
                         <div className="min-w-0 flex-1">
                           {editingId === project.id ? (
@@ -1070,13 +1078,6 @@ export function ProjectsDashboard() {
                               }`}>
                                 {project.name}
                               </h3>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex-shrink-0 ${
-                                isLight 
-                                  ? 'bg-[#7C9B79]/15 text-[#3a5837] border-[#7C9B79]/30 font-semibold' 
-                                  : 'bg-[#f3f0e7]/10 text-[#f3f0e7]/70 border-[#f3f0e7]/10'
-                              }`}>
-                                {templateInfo?.name || project.template}
-                              </span>
                             </div>
                           )}
                           <div className={`flex items-center space-x-2.5 mt-1 text-xs ${

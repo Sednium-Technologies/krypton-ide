@@ -26,7 +26,7 @@ test('PocketStore switches active local model', () => {
 test('PocketRouter intercepts fast_path query instantly without calling cloud API', async () => {
   const router = new PocketRouter();
   const res = await router.routeAndExecute({
-    prompt: 'Hello Oorty',
+    prompt: 'Who are you?',
     sessionId: 'session-1',
     fallbackApiExecute: async () => 'Should not be called',
   });

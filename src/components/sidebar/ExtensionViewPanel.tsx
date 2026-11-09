@@ -221,6 +221,19 @@ export function ExtensionViewPanel() {
 
       {/* Main Interactive GUI Body */}
       <div className="flex-1 overflow-y-auto divide-y divide-white/5 scrollbar-thin p-3 space-y-4">
+        {contribViews.some((view: any) => view?.type === 'webview') && (
+          <div className={`p-3 rounded-2xl border text-[11px] leading-relaxed ${
+            isLight
+              ? 'bg-amber-500/10 border-amber-500/25 text-amber-800'
+              : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+          }`}>
+            This extension creates its webview at runtime through the VS Code extension host. Krypton can
+            render packaged webviews, but dynamically generated panels (like Claude Code) need a running
+            extension-host UI bridge that is not available yet. Commands below still execute through the
+            native host where supported.
+          </div>
+        )}
+
         {/* Section 1: Contributed Views */}
         {contribViews.length > 0 ? (
           <div className="space-y-2">
