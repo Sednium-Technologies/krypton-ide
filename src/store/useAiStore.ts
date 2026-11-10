@@ -55,6 +55,115 @@ function nativeErrorDetail(data: any): string {
   return String(detail ?? '').slice(0, 1200);
 }
 
+function cleanChatTitle(raw: string): string | null {
+  let title = String(raw || '').trim();
+  if (!title) return null;
+  title = title.split('\n')[0].trim();
+  title = title
+    .replace(/^title\s*:\s*/i, '')
+    .replace(/^["'`*_#\s]+/, '')
+    .replace(/["'`*_\s]+$/, '');
+  if (!title) return null;
+  if (title.length > 60) title = `${title.slice(0, 57).trimEnd()}...`;
+  return title;
+}
+
+function extractCompletionText(provider: string, data: any): string {
+  if (provider === 'google' || provider === 'gemini') {
+    return (data?.candidates?.[0]?.content?.parts || [])
+      .map((part: any) => part?.text || '')
+      .join('');
+  }
+  if (provider === 'anthropic' || data?.type === 'message') {
+    return (data?.content || [])
+      .filter((block: any) => block?.type === 'text')
+      .map((block: any) => block.text || '')
+      .join('');
+  }
+  const content = data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
+  if (Array.isArray(content)) return content.map((block: any) => block?.text || '').join('');
+  return typeof content === 'string' ? content : '';
+}
+
+async function requestChatTitle(opts: {
+  provider: string;
+  providerName: string;
+  key: string;
+  model: string;
+  baseUrl: string;
+  userPrompt: string;
+}): Promise<string | null> {
+  const { provider, providerName, key, model, baseUrl, userPrompt } = opts;
+  const isGoogle = provider === 'google' || provider === 'gemini';
+  const geminiModel = model.startsWith('models/') ? model.replace('models/', '') : model;
+  const system = 'You write ultra-concise chat titles. Reply with ONLY the title, no quotes, no markdown, max 6 words.';
+  const prompt = `Write a short title for a coding chat that starts with this request:\n\n${userPrompt.slice(0, 2000)}`;
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (isGoogle && key) headers['x-goog-api-key'] = key;
+  if (!isGoogle && provider !== 'anthropic' && key) headers['Authorization'] = `Bearer ${key}`;
+  if (provider === 'anthropic') {
+    headers['x-api-key'] = key;
+    headers['anthropic-version'] = '2023-06-01';
+    headers['anthropic-dangerous-direct-browser-access'] = 'true';
+  }
+
+  let url: string;
+  let body: any;
+  if (isGoogle) {
+    url = `${baseUrl}/models/${geminiModel}:generateContent`;
+    body = {
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      systemInstruction: { parts: [{ text: system }] },
+      generationConfig: { maxOutputTokens: 32, temperature: 0.2 },
+    };
+  } else if (provider === 'anthropic') {
+    url = `${baseUrl}/messages`;
+    body = {
+      model,
+      system,
+      max_tokens: 32,
+      temperature: 0.2,
+      messages: [{ role: 'user', content: prompt }],
+    };
+  } else {
+    url = `${baseUrl}/chat/completions`;
+    body = {
+      model,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }],
+      stream: false,
+    };
+    if (provider === 'openai' && usesMaxCompletionTokens(provider, model)) {
+      body.max_completion_tokens = 32;
+    } else {
+      body.max_tokens = 32;
+    }
+  }
+
+  let data: any;
+  if (Capacitor.isNativePlatform()) {
+    const response = await CapacitorHttp.post({
+      url,
+      headers,
+      data: body,
+      connectTimeout: 15000,
+      readTimeout: 20000,
+    });
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`${providerName} title request HTTP ${response.status}: ${nativeErrorDetail(response.data)}`);
+    }
+    data = parseNativePayload(response.data);
+  } else {
+    const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    if (!response.ok) {
+      throw new Error(`${providerName} title request HTTP ${response.status}`);
+    }
+    data = await response.json();
+  }
+
+  return cleanChatTitle(extractCompletionText(provider, data));
+}
+
 /**
  * CapacitorHttp bypasses WebView CORS entirely. It cannot stream, so the
  * completion is converted back into SSE for the existing parser.
@@ -427,6 +536,22 @@ export const useAiStore = create<AiState>()((set, get) => ({
       timestamp: Date.now(),
       attachments
     });
+
+    // Ask the model for a fresh chat title at the start of every turn.
+    if (userPrompt.trim() && model.trim()) {
+      void requestChatTitle({
+        provider,
+        providerName: currentProvider?.name || provider,
+        key: apiKey,
+        model,
+        baseUrl: effectiveBaseUrl,
+        userPrompt,
+      })
+        .then((title) => {
+          if (title) get().updateSession(sessionId, { title });
+        })
+        .catch((err) => console.warn('[AI] Chat title generation failed:', err));
+    }
 
     // Fail with an actionable message instead of sending an invalid request.
     if (!model || !model.trim()) {

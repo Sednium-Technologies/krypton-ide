@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Bot, Send, Key, X, Sparkles, Loader2, Plus, MessageSquare, Trash2, ChevronDown, ChevronRight, BrainCircuit, FileCode, CheckCircle2, AlertCircle, Square, ClipboardList, Zap, Settings2, Paperclip, RotateCw, Check, Search, TerminalSquare, Globe, FolderCode, Mic, Copy, Edit3, RotateCcw, Camera, Maximize2, ExternalLink } from 'lucide-react';
+import { Bot, Send, Key, X, Sparkles, Loader2, Plus, MessageSquare, Trash2, ChevronDown, ChevronRight, BrainCircuit, FileCode, CheckCircle2, AlertCircle, Square, ClipboardList, Zap, Settings2, Paperclip, RotateCw, Check, Search, TerminalSquare, Globe, FolderCode, Mic, Copy, Edit3, RotateCcw, Camera, Maximize2, ExternalLink, Play } from 'lucide-react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { Capacitor } from '@capacitor/core';
@@ -43,54 +43,137 @@ function MarkdownText({ content, className = '' }: { content: string; className?
   );
 }
 
-function ThinkBlock({ content, duration }: { content: string; duration?: number }) {
+function ThinkBlock({ content, duration, isLight }: { content: string; duration?: number; isLight?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <div className="my-2 border border-[#f3f0e7]/10 rounded-xl overflow-hidden w-full max-w-full bg-[#231e22]">
+    <div className={`my-2 border rounded-xl overflow-hidden w-full max-w-full ${isLight ? 'border-[#2a2529]/12 bg-[#eae6db]' : 'border-[#f3f0e7]/10 bg-[#231e22]'}`}>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full bg-[#231e22] hover:bg-[#342f33] px-3 py-2 text-[11px] font-mono text-[#f3f0e7]/75 flex items-center transition-colors border-b border-transparent focus-visible:ring-2 focus-visible:ring-[#f3f0e7]/50 focus-visible:outline-none"
-        style={{ borderBottomColor: expanded ? 'rgba(243,240,231,0.1)' : 'transparent' }}
+        className={`w-full px-3 py-2 text-[11px] font-mono flex items-center transition-colors border-b border-transparent focus-visible:ring-2 focus-visible:outline-none ${
+          isLight
+            ? 'bg-[#eae6db] hover:bg-[#dfdacd] text-[#2a2529]/75 focus-visible:ring-[#2a2529]/50'
+            : 'bg-[#231e22] hover:bg-[#342f33] text-[#f3f0e7]/75 focus-visible:ring-[#f3f0e7]/50'
+        }`}
+        style={{ borderBottomColor: expanded ? (isLight ? 'rgba(42,37,41,0.12)' : 'rgba(243,240,231,0.1)') : 'transparent' }}
       >
-        {expanded ? <ChevronDown size={14} className="mr-2 text-[#f3f0e7]/70" /> : <ChevronRight size={14} className="mr-2 text-[#f3f0e7]/70" />}
-        <BrainCircuit size={14} className="mr-2 text-[#f3f0e7]/80" />
+        {expanded ? <ChevronDown size={14} className={`mr-2 ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`} /> : <ChevronRight size={14} className={`mr-2 ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`} />}
+        <BrainCircuit size={14} className={`mr-2 ${isLight ? 'text-[#2a2529]/80' : 'text-[#f3f0e7]/80'}`} />
         Thought for {duration ? `${(duration / 1000).toFixed(1)} seconds` : 'a few seconds'}
       </button>
-      {expanded && <pre className="p-3 text-[11px] overflow-x-auto bg-[#1a1720] text-[#f3f0e7]/75 whitespace-pre-wrap font-sans leading-relaxed">{content.trim()}</pre>}
+      {expanded && <pre className={`p-3 text-[11px] overflow-x-auto whitespace-pre-wrap font-sans leading-relaxed ${isLight ? 'bg-[#f7f5ee] text-[#2a2529]/75' : 'bg-[#1a1720] text-[#f3f0e7]/75'}`}>{content.trim()}</pre>}
     </div>
   );
 }
 
-function PlanBlock({ content, onComment }: { content: string, onComment?: () => void }) {
+function PlanBlock({
+  content,
+  onComment,
+  onProceed,
+  proceedDisabled,
+  isLight,
+}: {
+  content: string;
+  onComment?: () => void;
+  onProceed?: () => void;
+  proceedDisabled?: boolean;
+  isLight?: boolean;
+}) {
   const [expanded, setExpanded] = useState(true);
   return (
-    <div className="my-2 border border-[#f3f0e7]/15 rounded-xl overflow-hidden w-full max-w-full bg-[#231e22]">
-      <div className="flex bg-[#342f33] transition-colors">
-        <button onClick={() => setExpanded(!expanded)} className="flex-1 hover:bg-[#3d373c] px-3 py-2 text-[11px] font-mono text-[#f3f0e7] flex items-center text-left">
-          {expanded ? <ChevronDown size={14} className="mr-2 shrink-0 text-[#f3f0e7]/70" /> : <ChevronRight size={14} className="mr-2 shrink-0 text-[#f3f0e7]/70" />}
-          <ClipboardList size={14} className="mr-2 shrink-0 text-[#f3f0e7]" />
+    <div className={`my-2 border rounded-xl overflow-hidden w-full max-w-full ${isLight ? 'border-[#2a2529]/15 bg-[#eae6db]' : 'border-[#f3f0e7]/15 bg-[#231e22]'}`}>
+      <div className={`flex transition-colors ${isLight ? 'bg-[#dfdacd]' : 'bg-[#342f33]'}`}>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className={`flex-1 px-3 py-2 text-[11px] font-mono flex items-center text-left ${isLight ? 'hover:bg-[#d3ccbc] text-[#2a2529]' : 'hover:bg-[#3d373c] text-[#f3f0e7]'}`}
+        >
+          {expanded ? <ChevronDown size={14} className={`mr-2 shrink-0 ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`} /> : <ChevronRight size={14} className={`mr-2 shrink-0 ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`} />}
+          <ClipboardList size={14} className="mr-2 shrink-0" />
           <span className="truncate font-semibold">Implementation Plan</span>
         </button>
         {onComment && (
           <button
             onClick={onComment}
-            className="px-3 py-2 hover:bg-[#3d373c] text-[10px] font-bold text-[#f3f0e7]/80 uppercase tracking-wider flex items-center transition-colors border-l border-[#f3f0e7]/10"
+            className={`px-3 py-2 text-[10px] font-bold uppercase tracking-wider flex items-center transition-colors border-l ${
+              isLight
+                ? 'hover:bg-[#d3ccbc] text-[#2a2529]/80 border-[#2a2529]/15'
+                : 'hover:bg-[#3d373c] text-[#f3f0e7]/80 border-[#f3f0e7]/10'
+            }`}
             title="Add a comment to this plan"
           >
             <MessageSquare size={12} className="mr-1.5" /> Comment
           </button>
         )}
+        {onProceed && (
+          <button
+            onClick={onProceed}
+            disabled={proceedDisabled}
+            className={`px-3 py-2 text-[10px] font-bold uppercase tracking-wider flex items-center transition-colors border-l disabled:opacity-50 disabled:cursor-not-allowed ${
+              isLight
+                ? 'bg-[#2a2529] text-[#f3f0e7] hover:bg-black border-[#2a2529]/15'
+                : 'bg-[#f3f0e7] text-[#2a2529] hover:bg-white border-[#f3f0e7]/10'
+            }`}
+            title="Proceed with this implementation plan"
+          >
+            <Play size={12} className="mr-1.5" /> Proceed
+          </button>
+        )}
       </div>
-      {expanded && <pre className="p-3 text-[11px] overflow-x-auto bg-[#1a1720] text-[#f3f0e7]/90 whitespace-pre-wrap font-sans leading-relaxed">{content.trim()}</pre>}
+      {expanded && (
+        <pre className={`p-3 text-[11px] overflow-x-auto whitespace-pre-wrap font-sans leading-relaxed ${isLight ? 'bg-[#f7f5ee] text-[#2a2529]/90' : 'bg-[#1a1720] text-[#f3f0e7]/90'}`}>
+          {content.trim()}
+        </pre>
+      )}
     </div>
   );
 }
 
-function StatusBlock({ content }: { content: string }) {
+function EditBlock({
+  filename,
+  code,
+  isClosed,
+  onApply,
+  isLight,
+}: {
+  filename: string;
+  code: string;
+  isClosed: boolean;
+  onApply: () => void;
+  isLight?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
   return (
-    <div className="my-1 flex items-center space-x-2 px-3 py-1.5 bg-[#342f33] border border-[#f3f0e7]/10 rounded-xl">
-      <Zap size={12} className="text-[#f3f0e7] shrink-0" />
-      <span className="text-[11px] text-[#f3f0e7]/80 font-mono">{content.trim()}</span>
+    <div className={`my-2 border rounded-xl overflow-hidden w-full max-w-full ${isLight ? 'border-[#2a2529]/12 bg-[#eae6db]' : 'border-[#f3f0e7]/10 bg-[#231e22]'}`}>
+      <div className={`px-3 py-1.5 text-xs font-mono flex justify-between items-center truncate border-b ${isLight ? 'bg-[#dfdacd] text-[#2a2529]/80 border-[#2a2529]/12' : 'bg-[#231e22] text-[#f3f0e7]/80 border-[#f3f0e7]/10'}`}>
+        <button onClick={() => setExpanded(prev => !prev)} className="flex items-center space-x-2 min-w-0 text-left flex-1">
+          {expanded ? <ChevronDown size={13} className="shrink-0" /> : <ChevronRight size={13} className="shrink-0" />}
+          <FileCode size={14} className="shrink-0" />
+          <span className="truncate">{filename}</span>
+        </button>
+        {isClosed && (
+          <button onClick={onApply} className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold uppercase transition-colors shrink-0 ${isLight ? 'bg-[#2a2529] text-[#f3f0e7] hover:bg-black' : 'bg-[#f3f0e7] text-[#2a2529] hover:bg-white'}`}>Apply</button>
+        )}
+      </div>
+      {expanded && <pre className={`p-3 text-[11px] overflow-x-auto whitespace-pre-wrap ${isLight ? 'bg-[#f7f5ee] text-[#2a2529]/80' : 'bg-[#1a1720] text-[#f3f0e7]/80'}`}>{code}</pre>}
+    </div>
+  );
+}
+
+const WORKING_PHRASES = ['Working', 'Thinking', 'Developing'];
+
+function WorkingStatus({ isLight }: { isLight?: boolean }) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setIndex(prev => (prev + 1) % WORKING_PHRASES.length), 1600);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <div className={`border rounded-2xl px-4 py-3 flex items-center space-x-2.5 shadow-sm ${
+      isLight ? 'bg-white border-[#2a2529]/10 text-[#2a2529]' : 'bg-[#342f33] border-[#f3f0e7]/10 text-[#f3f0e7]'
+    }`}>
+      <Loader2 size={14} className="animate-spin shrink-0" />
+      <span className={`text-xs font-semibold uppercase tracking-widest ml-1 ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>
+        {WORKING_PHRASES[index]}...
+      </span>
     </div>
   );
 }
@@ -692,13 +775,14 @@ export function AiAssistant() {
     }
   };
 
-  const sendMessage = async () => {
-    if ((!input.trim() && attachments.length === 0) || (!aiStore.apiKey && aiStore.provider !== 'openrouter')) return;
+  const sendMessage = async (overridePrompt?: string) => {
+    const promptText = (overridePrompt ?? input).trim();
+    if ((!promptText && attachments.length === 0) || (!aiStore.apiKey && aiStore.provider !== 'openrouter')) return;
 
     // Read files at send time instead of subscribing the panel to every keystroke.
     const files = useIdeStore.getState().files;
 
-    const rawMentions = (input.match(/@([a-zA-Z0-9_.-]+)/g) || []).map(m => m.slice(1).replace(/[.,?!:;]+$/, ''));
+    const rawMentions = (promptText.match(/@([a-zA-Z0-9_.-]+)/g) || []).map(m => m.slice(1).replace(/[.,?!:;]+$/, ''));
     const mentions = Array.from(new Set(rawMentions));
     let contextString = '';
 
@@ -788,10 +872,12 @@ export function AiAssistant() {
       contextString
     ].filter(Boolean).join('');
 
-    const currentInput = input;
+    const currentInput = promptText;
     const currentAttachments = [...attachments];
-    setInput('');
-    if (inputRef.current) inputRef.current.style.height = 'auto';
+    if (overridePrompt === undefined) {
+      setInput('');
+      if (inputRef.current) inputRef.current.style.height = 'auto';
+    }
     setAttachments([]);
     setMentionQuery({ active: false, text: '', startIdx: 0 });
 
@@ -859,15 +945,10 @@ export function AiAssistant() {
   };
 
   const renderMessageContent = (content: string, msg: Message) => {
-    if (msg.role === 'tool') return <ToolResultBlock msg={msg} />;
+    if (msg.role === 'tool') return null;
 
     if (msg.tool_calls && msg.tool_calls.length > 0 && (!content || content.trim() === '')) {
-      return (
-        <div className="flex items-center gap-2 text-xs text-[#f3f0e7]/60 italic py-1">
-          <Loader2 size={12} className="animate-spin text-[#f3f0e7]" />
-          <span>Using {msg.tool_calls.map(tc => tc.function?.name || tc.name || 'tool').join(', ')}...</span>
-        </div>
-      );
+      return null;
     }
 
     if (!content || content.trim() === '') return null;
@@ -904,15 +985,21 @@ export function AiAssistant() {
 
       if (part.startsWith('<plan>')) {
         const planContent = part.replace(/^<plan>/, '').replace(/<\/plan>$/, '');
-        return <PlanBlock key={i} content={planContent} onComment={() => {
-          setInput(prev => prev + (prev.trim() ? '\n' : '') + 'Regarding your implementation plan: \n\n');
-          setTimeout(() => inputRef.current?.focus(), 10);
-        }} />;
+        return <PlanBlock
+          key={i}
+          content={planContent}
+          isLight={isLight}
+          proceedDisabled={isAiLoading}
+          onProceed={() => void sendMessage('Proceed with the implementation plan above. Execute it now and report the result.')}
+          onComment={() => {
+            setInput(prev => prev + (prev.trim() ? '\n' : '') + 'Regarding your implementation plan: \n\n');
+            setTimeout(() => inputRef.current?.focus(), 10);
+          }}
+        />;
       }
 
       if (part.startsWith('<status>')) {
-        const statusContent = part.replace(/^<status>/, '').replace(/<\/status>$/, '');
-        return <StatusBlock key={i} content={statusContent} />;
+        return null;
       }
 
       if (part.startsWith('<edit')) {
@@ -920,22 +1007,19 @@ export function AiAssistant() {
         if (match) {
           const filename = match[1] || 'untitled', code = match[2].trim();
           const isClosed = part.includes('</edit>');
-          return (
-            <div key={i} className="my-2 border border-[#f3f0e7]/10 rounded-xl overflow-hidden w-full max-w-full">
-              <div className="bg-[#231e22] px-3 py-1.5 text-xs font-mono text-[#f3f0e7]/80 flex justify-between items-center truncate border-b border-[#f3f0e7]/10">
-                <div className="flex items-center space-x-2 min-w-0"><FileCode size={14} className="text-[#f3f0e7]/70" /><span className="truncate">{filename}</span></div>
-                {isClosed && (
-                  <button onClick={() => applyCode(filename, code)} className="bg-[#f3f0e7] hover:bg-white text-[#2a2529] px-2.5 py-0.5 rounded-lg text-[10px] font-bold uppercase transition-colors shrink-0">Apply</button>
-                )}
-              </div>
-              <pre className="p-3 text-[11px] overflow-x-auto bg-[#1a1720] text-[#f3f0e7]/80 whitespace-pre-wrap">{code}</pre>
-            </div>
-          );
+          return <EditBlock
+            key={i}
+            filename={filename}
+            code={code}
+            isClosed={isClosed}
+            isLight={isLight}
+            onApply={() => applyCode(filename, code)}
+          />;
         }
       }
 
       const duration = msg.completedAt ? msg.completedAt - msg.timestamp : undefined;
-      return <ThinkBlock key={i} content={part} duration={duration} />;
+      return <ThinkBlock key={i} content={part} duration={duration} isLight={isLight} />;
     });
   };
 
@@ -1629,7 +1713,9 @@ export function AiAssistant() {
                   }`}
                 >
                   <div className="truncate">
-                    {session.messages[session.messages.length - 1]?.content.slice(0, 30) || 'New Conversation'}
+                    {session.title && session.title !== 'New Chat'
+                      ? session.title
+                      : (session.messages[session.messages.length - 1]?.content.slice(0, 30) || 'New Conversation')}
                   </div>
                   <div className="text-[9px] opacity-60 mt-1">{new Date(session.id).toLocaleString()}</div>
                 </button>
@@ -1695,7 +1781,8 @@ export function AiAssistant() {
         )}
         {aiMessages.filter(m => {
           if (m.role === 'system') return false;
-          if (m.role === 'assistant' && (!m.content || m.content.trim() === '') && (!m.tool_calls || m.tool_calls.length === 0)) return false;
+          if (m.role === 'tool') return false;
+          if (m.role === 'assistant' && (!m.content || m.content.trim() === '')) return false;
           return true;
         }).map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full animate-fade-in`}>
@@ -1807,37 +1894,7 @@ export function AiAssistant() {
         ))}
         {isAiLoading && (
           <div className="flex justify-start w-full animate-fade-in pb-4 px-1">
-            {aiStore.streamingText ? (
-              <div className={`w-full bg-transparent border-none text-[13.5px] leading-relaxed ${
-                isLight ? 'text-[#2a2529]' : 'text-[#f3f0e7]'
-              }`}>
-                {renderMessageContent(aiStore.streamingText, {
-                  role: 'assistant',
-                  content: aiStore.streamingText,
-                  timestamp: Date.now()
-                } as any)}
-                <span className={`inline-block w-1.5 h-4 ml-0.5 animate-pulse align-middle ${
-                  isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]'
-                }`} />
-              </div>
-            ) : (
-              <div className={`border rounded-2xl px-4 py-3 flex items-center space-x-2.5 shadow-md ${
-                isLight ? 'bg-white border-[#2a2529]/10 text-[#2a2529]' : 'bg-[#342f33] border-[#f3f0e7]/10 text-[#f3f0e7]'
-              }`}>
-                <style>{`
-                  @keyframes aiSoundWave {
-                    0%, 100% { height: 6px; }
-                    50% { height: 18px; }
-                  }
-                `}</style>
-                <div className="flex items-center space-x-1 h-5">
-                  <div className={`w-1 rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite] ${isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]'}`} style={{ animationDelay: '0ms' }} />
-                  <div className={`w-1 rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite] ${isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]'}`} style={{ animationDelay: '200ms' }} />
-                  <div className={`w-1 rounded-full animate-[aiSoundWave_1s_ease-in-out_infinite] ${isLight ? 'bg-[#2a2529]' : 'bg-[#f3f0e7]'}`} style={{ animationDelay: '400ms' }} />
-                </div>
-                <span className={`text-xs font-semibold uppercase tracking-widest ml-1 ${isLight ? 'text-[#2a2529]/70' : 'text-[#f3f0e7]/70'}`}>Thinking...</span>
-              </div>
-            )}
+            <WorkingStatus isLight={isLight} />
           </div>
         )}
         <div ref={messagesEndRef} />
