@@ -13,6 +13,13 @@ on:
         options:
           - debug
           - release
+      release_tag:
+        description: Existing release tag to attach the release APK to (optional)
+        required: false
+        type: string
+
+permissions:
+  contents: write
 
 env:
   NODE_VERSION: '22'
@@ -103,3 +110,15 @@ jobs:
           name: krypton-ide-${{ inputs.build_type || 'release' }}
           path: android/app/build/outputs/apk/${{ inputs.build_type || 'release' }}/*.apk
           retention-days: 30
+
+      - name: Attach APK to release
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' && (inputs.build_type || 'release') == 'release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist-apk
+          cp android/app/build/outputs/apk/release/app-release.apk "dist-apk/krypton-ide-${TAG}-release.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "dist-apk/kryptonide-${TAG}-release.apk"
+          gh release upload "$TAG" "dist-apk/krypton-ide-${TAG}-release.apk" "dist-apk/kryptonide-${TAG}-release.apk" --clobber
