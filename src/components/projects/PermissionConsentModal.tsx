@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, FolderOpen, Bot, Lock, ArrowRight, Sparkles, LogIn, Check } from 'lucide-react';
-import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { useAuthStore } from '../../store/useAuthStore';
 import { checkStoragePermission, requestStoragePermission } from '../../lib/storagePermission';
 import { describeGoogleAuthError } from '../../lib/googleAuthError';
+import { nativeSignInWithGoogle } from '../../lib/googleAuth';
 
 interface PermissionConsentModalProps {
   isOpen: boolean;
@@ -87,17 +87,12 @@ export function PermissionConsentModal({ isOpen, onConsent }: PermissionConsentM
     setGoogleLoginError(null);
     try {
       if (Capacitor.isNativePlatform()) {
-        const result = await FirebaseAuthentication.signInWithGoogle({
+        const result = await nativeSignInWithGoogle({
           scopes: ['https://www.googleapis.com/auth/drive.appdata'],
-        } as any);
+          useCredentialManager: false,
+        });
         if (result.user) {
-          const user = {
-            name: result.user.displayName || 'Google User',
-            email: result.user.email || '',
-            picture: result.user.photoUrl || '',
-          };
-          const accessToken = (result as any).credential?.accessToken || '';
-          setGoogleAuth(user, accessToken);
+          setGoogleAuth(result.user, result.accessToken || '');
         } else {
           setGoogleLoginError('Sign-in cancelled.');
         }

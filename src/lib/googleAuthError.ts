@@ -14,6 +14,41 @@ function safeString(value: unknown): string {
   }
 }
 
+export function isCredentialManagerUnavailableError(error: unknown): boolean {
+  if (!error) return false;
+  const err = error as any;
+  const message = String(err?.message || err?.error || err || '').trim();
+  const code = String(err?.code || err?.errorCode || err?.status || '').trim();
+  const haystack = `${code} ${message} ${safeString(error)}`.toLowerCase();
+
+  const isCancelled =
+    /12501|sign_in_cancelled|user_cancel|cancelled|canceled|closed_by_user|popup_closed|popup-closed-by-user|popup_closed_by_user|cancelled-popup-request/.test(haystack);
+  if (isCancelled) return false;
+
+  const hasCode = (value: number | string) => {
+    const normalized = String(value).toLowerCase();
+    return code.toLowerCase() === normalized || new RegExp(`(^|\\D)${normalized}(\\D|$)`).test(haystack);
+  };
+
+  if (
+    hasCode(10) ||
+    haystack.includes('developer_error') ||
+    haystack.includes('api exception: 10') ||
+    haystack.includes('apiexception: 10')
+  ) {
+    return false;
+  }
+
+  if (hasCode(7) || /network|timeout|unreachable|offline/.test(haystack)) {
+    return false;
+  }
+
+  return (
+    /no credentials|nocredential|credential manager|getcredential|type_no_credential/.test(haystack) ||
+    hasCode(16)
+  );
+}
+
 export function describeGoogleAuthError(error: unknown): GoogleAuthErrorInfo {
   const err = error as any;
   const message = String(err?.message || err?.error || err || '').trim();
@@ -81,7 +116,7 @@ export function describeGoogleAuthError(error: unknown): GoogleAuthErrorInfo {
     };
   }
 
-  if (/no credentials|nocredential|credential manager|getcredential/.test(haystack)) {
+  if (isCredentialManagerUnavailableError(error)) {
     return {
       message:
         'No Google account is available to Credential Manager. Add a Google account in Android Settings, then try again.',

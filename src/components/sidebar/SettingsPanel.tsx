@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth as firebaseAuth, googleProvider } from '../../lib/firebase';
+import { signInWithGoogle, nativeSignInWithGoogle } from '../../lib/googleAuth';
 import { getCustomCss, applyCustomCss } from '../../lib/customCssManager';
 import { configureOortyNative, openOortyPocketServer } from '../../lib/oortyNative';
 import { useToastStore } from '../../store/useToastStore';
@@ -307,13 +308,10 @@ export function SettingsPanel() {
         await handleGoogleLogin();
         return;
       }
-      const result = await FirebaseAuthentication.signInWithGoogle({
-        scopes: [
-          'https://www.googleapis.com/auth/drive.appdata',
-          'https://www.googleapis.com/auth/drive.file'
-        ],
-      } as any);
-      const token = result?.credential?.accessToken || (result as any)?.accessToken;
+      const result = await nativeSignInWithGoogle({
+        useCredentialManager: false,
+      });
+      const token = result.accessToken;
       if (token && googleUser) {
         setDriveAccessToken(token);
         useAuthStore.getState().setGoogleAuth(googleUser, token);
@@ -327,98 +325,14 @@ export function SettingsPanel() {
     triggerHaptic();
     setIsGoogleLoading(true);
     try {
-      if (!Capacitor.isNativePlatform()) {
-        try {
-          const result = await signInWithPopup(firebaseAuth, googleProvider);
-          const credential = GoogleAuthProvider.credentialFromResult(result);
-          const accessToken = credential?.accessToken || '';
-          const user = {
-            name: result.user.displayName || result.user.email || 'Google User',
-            email: result.user.email || '',
-            picture: result.user.photoURL || '',
-          };
-          setGoogleAuth(user, accessToken);
-          if (accessToken) setDriveAccessToken(accessToken);
-          useToastStore.getState().success(`Signed in as ${user.name}`);
-          setIsGoogleLoading(false);
-          return;
-        } catch (popupErr: any) {
-          console.warn('Firebase signInWithPopup failed, attempting GIS fallback:', popupErr);
-          if (typeof window !== 'undefined') {
-            if (!(window as any).google?.accounts?.oauth2) {
-              await new Promise<void>((resolve, reject) => {
-                const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-                if (existing) {
-                  existing.addEventListener('load', () => resolve());
-                  existing.addEventListener('error', () => reject(new Error('Failed to load Google Identity Services')));
-                  return;
-                }
-                const script = document.createElement('script');
-                script.src = 'https://accounts.google.com/gsi/client';
-                script.async = true;
-                script.defer = true;
-                script.onload = () => resolve();
-                script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
-                document.head.appendChild(script);
-              });
-            }
-
-            const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '868874217528-ufcphc6a9eu8sfbm9urqlnm6ikv5h25v.apps.googleusercontent.com';
-            const client = (window as any).google.accounts.oauth2.initTokenClient({
-              client_id: clientId,
-              scope: 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
-              callback: async (tokenResponse: any) => {
-                if (tokenResponse?.error) {
-                  console.error('GIS Error:', tokenResponse);
-                  setIsGoogleLoading(false);
-                  return;
-                }
-                const accessToken = tokenResponse.access_token;
-                try {
-                  const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                    headers: { Authorization: `Bearer ${accessToken}` },
-                  });
-                  const profile = profileRes.ok ? await profileRes.json() : null;
-                  const user = {
-                    name: profile?.name || profile?.email || 'Google User',
-                    email: profile?.email || '',
-                    picture: profile?.picture || '',
-                  };
-                  setGoogleAuth(user, accessToken);
-                  setDriveAccessToken(accessToken);
-                } catch {
-                  setGoogleAuth({ name: 'Google User', email: '', picture: '' }, accessToken);
-                  setDriveAccessToken(accessToken);
-                } finally {
-                  setIsGoogleLoading(false);
-                }
-              },
-              error_callback: (err: any) => {
-                console.error('GIS Error Callback:', err);
-                setIsGoogleLoading(false);
-              },
-            });
-            client.requestAccessToken({ prompt: 'consent' });
-            return;
-          }
-        }
+      const result = await signInWithGoogle({
+        useCredentialManager: false,
+      });
+      setGoogleAuth(result.user, result.accessToken);
+      if (result.accessToken) {
+        setDriveAccessToken(result.accessToken);
       }
-
-      const response = await FirebaseAuthentication.signInWithGoogle({
-        scopes: [
-          'https://www.googleapis.com/auth/drive.appdata',
-          'https://www.googleapis.com/auth/drive.file'
-        ],
-      } as any);
-
-      const user = {
-        name: response.user?.displayName || response.user?.email || 'Google User',
-        email: response.user?.email || '',
-        picture: response.user?.photoUrl || '',
-      };
-      const accessToken = response.credential?.accessToken || (response as any).accessToken || '';
-      setGoogleAuth(user, accessToken);
-      if (accessToken) setDriveAccessToken(accessToken);
+      useToastStore.getState().success(`Signed in as ${result.user.name}`);
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
       const authError = describeGoogleAuthError(err);

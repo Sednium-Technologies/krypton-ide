@@ -28,9 +28,9 @@ import { type ProjectTemplate } from '../../lib/projectTemplates';
 import { useAuthStore } from '../../store/useAuthStore';
 import { createRepo, listRepos, pullRepo, type GitHubRepo } from '../../lib/githubService';
 import { Capacitor } from '@capacitor/core';
-import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { readConfig, saveConfigNow } from '../../lib/fileSystemStorage';
 import { describeGoogleAuthError } from '../../lib/googleAuthError';
+import { nativeSignInWithGoogle } from '../../lib/googleAuth';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Modal } from '../ui/Modal';
 
@@ -446,23 +446,15 @@ function WelcomeScreen({ onSkip }: { onSkip: () => void }) {
         return;
       }
 
-      const result = await FirebaseAuthentication.signInWithGoogle({
-        scopes: ['https://www.googleapis.com/auth/drive.appdata'],
-      } as any);
+      const result = await nativeSignInWithGoogle({
+        useCredentialManager: false,
+      });
       
-      const fbUser = result.user;
-      if (fbUser) {
-        const user = {
-          name: fbUser.displayName || fbUser.email || 'User',
-          email: fbUser.email || '',
-          picture: fbUser.photoUrl || '',
-        };
-        const accessToken = result.credential?.accessToken;
-        if (accessToken) {
-          setGoogleAuth(user, accessToken);
-        } else {
-          setGoogleUser(user);
-        }
+      const user = result.user;
+      if (result.accessToken) {
+        setGoogleAuth(user, result.accessToken);
+      } else {
+        setGoogleUser(user);
       }
       readConfig().then(c => { if (c) { c.welcomed = true; saveConfigNow(c); } });
       onSkip();
